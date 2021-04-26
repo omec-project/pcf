@@ -42,5 +42,3 @@ RUN mkdir -p pcf/
 # Copy executable and default certs
 COPY --from=builder /go/src/pcf/bin/* ./pcf
 WORKDIR /free5gc/pcf
-# Exposed ports
-EXPOSE 29507
