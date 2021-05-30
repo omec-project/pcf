@@ -13,6 +13,8 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
+	"github.com/spf13/viper"
+	"github.com/fsnotify/fsnotify"
 
 	"github.com/free5gc/http2_util"
 	"github.com/free5gc/logger_util"
@@ -88,8 +90,28 @@ func (pcf *PCF) Initialize(c *cli.Context) error {
 	if err := factory.CheckConfigVersion(); err != nil {
 		return err
 	}
-
+	viper.SetConfigName("pcfcfg.conf") 
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath("/free5gc/config")
+	err := viper.ReadInConfig() // Find and read the config file
+	if err != nil { // Handle errors reading the config file
+		return err
+	}
 	return nil
+}
+
+func (amf *PCF) WatchConfig() {
+	viper.WatchConfig()
+	viper.OnConfigChange(func(e fsnotify.Event) {
+		fmt.Println("Config file changed:", e.Name)
+		if err := factory.UpdatePcfConfig("/free5gc/config/pcfcfg.conf"); err != nil {
+			fmt.Println("error in loading updated configuration")
+		} else {
+			self := context.PCF_Self()
+			util.InitpcfContext(self)
+			fmt.Println("successfully updated configuration")
+		}
+	})
 }
 
 func (pcf *PCF) setLogLevel() {
