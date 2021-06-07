@@ -104,7 +104,7 @@ func (amf *PCF) WatchConfig() {
 	viper.WatchConfig()
 	viper.OnConfigChange(func(e fsnotify.Event) {
 		fmt.Println("Config file changed:", e.Name)
-		if err := factory.UpdatePcfConfig("/free5gc/config/pcfcfg.conf"); err != nil {
+		if err := factory.UpdatePcfConfig(e.Name + "/pcfcfg.conf"); err != nil {
 			fmt.Println("error in loading updated configuration")
 		} else {
 			self := context.PCF_Self()
