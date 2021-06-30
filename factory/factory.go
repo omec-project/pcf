@@ -11,6 +11,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/free5gc/pcf/logger"
+    "github.com/omec-project/config5g/proto/client"
 )
 
 var PcfConfig Config
@@ -25,6 +26,8 @@ func InitConfigFactory(f string) error {
 		if yamlErr := yaml.Unmarshal(content, &PcfConfig); yamlErr != nil {
 			return yamlErr
 		}
+        commChannel := client.ConfigWatcher()
+		go PcfConfig.updateConfig(commChannel)
 	}
 
 	return nil
