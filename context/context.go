@@ -59,6 +59,7 @@ type PCFContext struct {
 
 	// lock
 	DefaultUdrURILock sync.RWMutex
+	PlmnList          []models.PlmnId
 }
 
 type AMFStatusSubscriptionData struct {

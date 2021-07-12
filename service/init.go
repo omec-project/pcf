@@ -39,6 +39,8 @@ import (
 	"github.com/free5gc/pcf/smpolicy"
 	"github.com/free5gc/pcf/uepolicy"
 	"github.com/free5gc/pcf/util"
+	"github.com/omec-project/config5g/proto/client"
+	protos "github.com/omec-project/config5g/proto/sdcoreConfig"
 )
 
 type PCF struct{}
@@ -49,6 +51,12 @@ type (
 		pcfcfg string
 	}
 )
+
+var ConfigPodTrigger chan bool
+
+func init() {
+	ConfigPodTrigger = make(chan bool)
+}
 
 var config Config
 
@@ -94,6 +102,17 @@ func (pcf *PCF) Initialize(c *cli.Context) error {
 		return err
 	}
 
+	roc := os.Getenv("MANAGED_BY_CONFIG_POD")
+	if roc == "true" {
+		initLog.Infoln("MANAGED_BY_CONFIG_POD is true")
+		commChannel := client.ConfigWatcher()
+		go pcf.updateConfig(commChannel)
+	} else {
+		go func() {
+			initLog.Infoln("Use helm chart config ")
+			ConfigPodTrigger <- true
+		}()
+	}
 	return nil
 }
 
@@ -199,14 +218,7 @@ func (pcf *PCF) Start() {
 
 	addr := fmt.Sprintf("%s:%d", self.BindingIPv4, self.SBIPort)
 
-	profile, err := consumer.BuildNFInstance(self)
-	if err != nil {
-		initLog.Error("Build PCF Profile Error")
-	}
-	_, self.NfId, err = consumer.SendRegisterNFInstance(self.NrfUri, self.NfId, profile)
-	if err != nil {
-		initLog.Errorf("PCF register to NRF Error[%s]", err.Error())
-	}
+	go pcf.registerNF()
 
 	param := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
 		ServiceNames: optional.NewInterface([]models.ServiceName{models.ServiceName_NUDR_DR}),
@@ -312,4 +324,73 @@ func (pcf *PCF) Terminate() {
 		logger.InitLog.Infof("Deregister from NRF successfully")
 	}
 	logger.InitLog.Infof("PCF terminated")
+}
+
+func (pcf *PCF) registerNF() {
+	for msg := range ConfigPodTrigger {
+		initLog.Infof("Config update trigger %v received in PCF App", msg)
+		self := context.PCF_Self()
+		profile, err := consumer.BuildNFInstance(self)
+		if err != nil {
+			initLog.Error("Build PCF Profile Error")
+		}
+		_, self.NfId, err = consumer.SendRegisterNFInstance(self.NrfUri, self.NfId, profile)
+		if err != nil {
+			initLog.Errorf("PCF register to NRF Error[%s]", err.Error())
+		}
+	}
+}
+
+func (pcf *PCF) updateConfig(commChannel chan *protos.NetworkSliceResponse) bool {
+	var minConfig bool
+	pcf_context := context.PCF_Self()
+	for rsp := range commChannel {
+		logger.GrpcLog.Infoln("Received updateConfig in the pcf app : ", rsp)
+		for _, ns := range rsp.NetworkSlice {
+			logger.GrpcLog.Infoln("Network Slice Name ", ns.Name)
+			if ns.Site != nil {
+				temp := models.PlmnId{}
+				var found bool = false
+				logger.GrpcLog.Infoln("Network Slice has site name present ")
+				site := ns.Site
+				logger.GrpcLog.Infoln("Site name ", site.SiteName)
+				if site.Plmn != nil {
+					temp.Mcc = site.Plmn.Mcc
+					temp.Mnc = site.Plmn.Mnc
+					logger.GrpcLog.Infoln("Plmn mcc ", site.Plmn.Mcc)
+					for _, item := range pcf_context.PlmnList {
+						if item.Mcc == temp.Mcc && item.Mnc == temp.Mnc {
+							found = true
+							break
+						}
+					}
+					if found == false {
+						pcf_context.PlmnList = append(pcf_context.PlmnList, temp)
+						logger.GrpcLog.Infoln("Plmn added in the context", pcf_context.PlmnList)
+					}
+				} else {
+					logger.GrpcLog.Infoln("Plmn not present in the message ")
+				}
+			}
+		}
+		if minConfig == false {
+			// first slice Created
+			if len(pcf_context.PlmnList) > 0 {
+				minConfig = true
+				ConfigPodTrigger <- true
+				logger.GrpcLog.Infoln("Send config trigger to main routine first time config")
+			}
+		} else {
+			// all slices deleted
+			if len(pcf_context.PlmnList) == 0 {
+				minConfig = false
+				ConfigPodTrigger <- false
+				logger.GrpcLog.Infoln("Send config trigger to main routine config deleted")
+			} else {
+				ConfigPodTrigger <- true
+				logger.GrpcLog.Infoln("Send config trigger to main routine config updated")
+			}
+		}
+	}
+	return true
 }
