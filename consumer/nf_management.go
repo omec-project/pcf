@@ -7,7 +7,6 @@ package consumer
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -29,6 +28,15 @@ func BuildNFInstance(context *pcf_context.PCFContext) (profile models.NfProfile,
 		service = append(service, nfService)
 	}
 	profile.NfServices = &service
+
+	var plmns []models.PlmnId
+	for _, plmn := range context.PlmnList {
+		plmns = append(plmns, plmn)
+	}
+	if len(plmns) > 0 {
+		profile.PlmnList = &plmns
+	}
+
 	profile.PcfInfo = &models.PcfInfo{
 		DnnList: []string{
 			"free5gc",
@@ -59,7 +67,7 @@ func SendRegisterNFInstance(nrfUri, nfInstanceId string, profile models.NfProfil
 		_, res, err = client.NFInstanceIDDocumentApi.RegisterNFInstance(context.TODO(), nfInstanceId, profile)
 		if err != nil || res == nil {
 			// TODO : add log
-			fmt.Println(fmt.Errorf("PCF register to NRF Error[%v]", err.Error()))
+			logger.Consumerlog.Infof("PCF register to NRF Error[%v]", err.Error())
 			time.Sleep(2 * time.Second)
 			continue
 		}
@@ -71,15 +79,17 @@ func SendRegisterNFInstance(nrfUri, nfInstanceId string, profile models.NfProfil
 		status := res.StatusCode
 		if status == http.StatusOK {
 			// NFUpdate
+			logger.Consumerlog.Infoln("PCF register to NRF - updated Success")
 			break
 		} else if status == http.StatusCreated {
 			// NFRegister
+			logger.Consumerlog.Infoln("PCF register to NRF - created Success")
 			resourceUri := res.Header.Get("Location")
 			resouceNrfUri = resourceUri[:strings.Index(resourceUri, "/nnrf-nfm/")]
 			retrieveNfInstanceID = resourceUri[strings.LastIndex(resourceUri, "/")+1:]
 			break
 		} else {
-			fmt.Println("NRF return wrong status code", status)
+			logger.Consumerlog.Errorf("NRF return wrong status code", status)
 		}
 	}
 	return resouceNrfUri, retrieveNfInstanceID, err

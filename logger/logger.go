@@ -33,6 +33,7 @@ var (
 	CtxLog                 *logrus.Entry
 	ConsumerLog            *logrus.Entry
 	GinLog                 *logrus.Entry
+	GrpcLog                *logrus.Entry
 	NotifyEventLog         *logrus.Entry
 )
 
@@ -73,6 +74,7 @@ func init() {
 	CtxLog = log.WithFields(logrus.Fields{"component": "PCF", "category": "Context"})
 	ConsumerLog = log.WithFields(logrus.Fields{"component": "PCF", "category": "Consumer"})
 	GinLog = log.WithFields(logrus.Fields{"component": "PCF", "category": "GIN"})
+	GrpcLog = log.WithFields(logrus.Fields{"component": "PCF", "category": "GRPC"})
 	NotifyEventLog = log.WithFields(logrus.Fields{"component": "PCF", "category": "NotifyEvent"})
 }
 
