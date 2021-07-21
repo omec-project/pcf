@@ -31,6 +31,8 @@ func init() {
 	pcfCtx.PcfServiceUris = make(map[models.ServiceName]string)
 	pcfCtx.PcfSuppFeats = make(map[models.ServiceName]openapi.SupportedFeature)
 	pcfCtx.BdtPolicyIDGenerator = idgenerator.NewGenerator(1, math.MaxInt64)
+	pcfCtx.AmbrMap = make(map[string]models.Ambr)
+	pcfCtx.DefQosMap = make(map[string]models.SubscribedDefaultQos)
 }
 
 type PCFContext struct {
@@ -60,6 +62,8 @@ type PCFContext struct {
 	// lock
 	DefaultUdrURILock sync.RWMutex
 	PlmnList          []models.PlmnId
+	DefQosMap         map[string]models.SubscribedDefaultQos
+	AmbrMap           map[string]models.Ambr
 }
 
 type AMFStatusSubscriptionData struct {
