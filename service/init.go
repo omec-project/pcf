@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"strconv"
 	"sync"
 	"syscall"
 
@@ -343,11 +344,27 @@ func (pcf *PCF) registerNF() {
 
 func (pcf *PCF) updateConfig(commChannel chan *protos.NetworkSliceResponse) bool {
 	var minConfig bool
-	pcf_context := context.PCF_Self()
+	pcfContext := context.PCF_Self()
 	for rsp := range commChannel {
 		logger.GrpcLog.Infoln("Received updateConfig in the pcf app : ", rsp)
 		for _, ns := range rsp.NetworkSlice {
 			logger.GrpcLog.Infoln("Network Slice Name ", ns.Name)
+
+			//Update Qos Info
+			if ns.Qos != nil {
+				if qi, err := strconv.Atoi(ns.Qos.TrafficClass); err != nil {
+					logger.GrpcLog.Infoln("invalid traffic class: ", ns.Qos.TrafficClass)
+				} else {
+					pcfContext.DefQosMap[ns.Nssai.Sst+ns.Nssai.Sd] = models.SubscribedDefaultQos{Var5qi: int32(qi)}
+				}
+
+				if ns.Qos.Uplink > 0 && ns.Qos.Downlink > 0 {
+					ulAmbr := strconv.Itoa(int(ns.Qos.Uplink)) + " Mbps"
+					dlAmbr := strconv.Itoa(int(ns.Qos.Downlink)) + " Mbps"
+					pcfContext.AmbrMap[ns.Nssai.Sst+ns.Nssai.Sd] = models.Ambr{Uplink: ulAmbr, Downlink: dlAmbr}
+				}
+			}
+
 			if ns.Site != nil {
 				temp := models.PlmnId{}
 				var found bool = false
@@ -358,15 +375,15 @@ func (pcf *PCF) updateConfig(commChannel chan *protos.NetworkSliceResponse) bool
 					temp.Mcc = site.Plmn.Mcc
 					temp.Mnc = site.Plmn.Mnc
 					logger.GrpcLog.Infoln("Plmn mcc ", site.Plmn.Mcc)
-					for _, item := range pcf_context.PlmnList {
+					for _, item := range pcfContext.PlmnList {
 						if item.Mcc == temp.Mcc && item.Mnc == temp.Mnc {
 							found = true
 							break
 						}
 					}
 					if found == false {
-						pcf_context.PlmnList = append(pcf_context.PlmnList, temp)
-						logger.GrpcLog.Infoln("Plmn added in the context", pcf_context.PlmnList)
+						pcfContext.PlmnList = append(pcfContext.PlmnList, temp)
+						logger.GrpcLog.Infoln("Plmn added in the context", pcfContext.PlmnList)
 					}
 				} else {
 					logger.GrpcLog.Infoln("Plmn not present in the message ")
@@ -375,14 +392,14 @@ func (pcf *PCF) updateConfig(commChannel chan *protos.NetworkSliceResponse) bool
 		}
 		if minConfig == false {
 			// first slice Created
-			if len(pcf_context.PlmnList) > 0 {
+			if len(pcfContext.PlmnList) > 0 {
 				minConfig = true
 				ConfigPodTrigger <- true
 				logger.GrpcLog.Infoln("Send config trigger to main routine first time config")
 			}
 		} else {
 			// all slices deleted
-			if len(pcf_context.PlmnList) == 0 {
+			if len(pcfContext.PlmnList) == 0 {
 				minConfig = false
 				ConfigPodTrigger <- false
 				logger.GrpcLog.Infoln("Send config trigger to main routine config deleted")
