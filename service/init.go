@@ -219,22 +219,8 @@ func (pcf *PCF) Start() {
 
 	addr := fmt.Sprintf("%s:%d", self.BindingIPv4, self.SBIPort)
 
+	//Attempt NRF Registration until success
 	go pcf.registerNF()
-
-	param := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
-		ServiceNames: optional.NewInterface([]models.ServiceName{models.ServiceName_NUDR_DR}),
-	}
-	resp, err := consumer.SendSearchNFInstances(self.NrfUri, models.NfType_UDR, models.NfType_PCF, param)
-	for _, nfProfile := range resp.NfInstances {
-		udruri := util.SearchNFServiceUri(nfProfile, models.ServiceName_NUDR_DR, models.NfServiceStatus_REGISTERED)
-		if udruri != "" {
-			self.SetDefaultUdrURI(udruri)
-			break
-		}
-	}
-	if err != nil {
-		initLog.Errorln(err)
-	}
 
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
@@ -328,16 +314,44 @@ func (pcf *PCF) Terminate() {
 }
 
 func (pcf *PCF) registerNF() {
-	for msg := range ConfigPodTrigger {
-		initLog.Infof("Config update trigger %v received in PCF App", msg)
-		self := context.PCF_Self()
-		profile, err := consumer.BuildNFInstance(self)
-		if err != nil {
-			initLog.Error("Build PCF Profile Error")
+
+	for {
+		//wait till Config pod updates config
+		if msg := <-ConfigPodTrigger; msg {
+			initLog.Infof("Config update trigger %v received in PCF App", msg)
+			self := context.PCF_Self()
+			profile, err := consumer.BuildNFInstance(self)
+			if err != nil {
+				initLog.Error("Build PCF Profile Error")
+			}
+
+			//Indefinite attempt to register until success
+			_, self.NfId, err = consumer.SendRegisterNFInstance(self.NrfUri, self.NfId, profile)
+			if err != nil {
+				initLog.Errorf("PCF register to NRF Error[%s]", err.Error())
+			} else {
+				//NRF Registration Successful, Trigger for UDR Discovery
+				pcf.discoverUdr()
+			}
 		}
-		_, self.NfId, err = consumer.SendRegisterNFInstance(self.NrfUri, self.NfId, profile)
-		if err != nil {
-			initLog.Errorf("PCF register to NRF Error[%s]", err.Error())
+	}
+
+}
+
+func (pcf *PCF) discoverUdr() {
+	self := context.PCF_Self()
+	param := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
+		ServiceNames: optional.NewInterface([]models.ServiceName{models.ServiceName_NUDR_DR}),
+	}
+	if resp, err := consumer.SendSearchNFInstances(self.NrfUri, models.NfType_UDR, models.NfType_PCF, param); err != nil {
+		initLog.Errorln(err)
+	} else {
+		for _, nfProfile := range resp.NfInstances {
+			udruri := util.SearchNFServiceUri(nfProfile, models.ServiceName_NUDR_DR, models.NfServiceStatus_REGISTERED)
+			if udruri != "" {
+				self.SetDefaultUdrURI(udruri)
+				break
+			}
 		}
 	}
 }
@@ -381,7 +395,7 @@ func (pcf *PCF) updateConfig(commChannel chan *protos.NetworkSliceResponse) bool
 							break
 						}
 					}
-					if found == false {
+					if !found {
 						pcfContext.PlmnList = append(pcfContext.PlmnList, temp)
 						logger.GrpcLog.Infoln("Plmn added in the context", pcfContext.PlmnList)
 					}
@@ -390,7 +404,7 @@ func (pcf *PCF) updateConfig(commChannel chan *protos.NetworkSliceResponse) bool
 				}
 			}
 		}
-		if minConfig == false {
+		if !minConfig {
 			// first slice Created
 			if len(pcfContext.PlmnList) > 0 {
 				minConfig = true
