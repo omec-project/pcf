@@ -31,8 +31,10 @@ func SendSearchNFInstances(
 		logger.ConsumerLog.Errorf("SearchNFInstances failed: %+v", err)
 	}
 	defer func() {
-		if resCloseErr := res.Body.Close(); resCloseErr != nil {
-			logger.ConsumerLog.Errorf("NFInstancesStoreApi response body cannot close: %+v", resCloseErr)
+		if res != nil {
+			if resCloseErr := res.Body.Close(); resCloseErr != nil {
+				logger.ConsumerLog.Errorf("NFInstancesStoreApi response body cannot close: %+v", resCloseErr)
+			}
 		}
 	}()
 	if res != nil && res.StatusCode == http.StatusTemporaryRedirect {
