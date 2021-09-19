@@ -30,8 +30,8 @@ func BuildNFInstance(context *pcf_context.PCFContext) (profile models.NfProfile,
 	profile.NfServices = &service
 
 	var plmns []models.PlmnId
-	for _, plmn := range context.PlmnList {
-		plmns = append(plmns, plmn)
+	for _, plmnItem := range context.PlmnList {
+		plmns = append(plmns, plmnItem.PlmnId)
 	}
 	if len(plmns) > 0 {
 		profile.PlmnList = &plmns

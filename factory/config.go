@@ -11,6 +11,8 @@ package factory
 
 import (
 	"github.com/free5gc/logger_util"
+	"github.com/free5gc/openapi/models"
+
 )
 
 const (
@@ -41,6 +43,7 @@ type Configuration struct {
 	DefaultBdtRefId string    `yaml:"defaultBdtRefId,omitempty"`
 	NrfUri          string    `yaml:"nrfUri,omitempty"`
 	ServiceList     []Service `yaml:"serviceList,omitempty"`
+	PlmnList        []PlmnSupportItem    `yaml:"plmnList,omitempty"`
 	Mongodb         *Mongodb  `yaml:"mongodb"`
 }
 
@@ -60,6 +63,10 @@ type Sbi struct {
 type Mongodb struct {
 	Name string `yaml:"name"`
 	Url  string `yaml:"url"`
+}
+
+type PlmnSupportItem struct {
+	PlmnId     models.PlmnId   `yaml:"plmnId"`
 }
 
 func (c *Config) GetVersion() string {

@@ -380,17 +380,17 @@ func (pcf *PCF) updateConfig(commChannel chan *protos.NetworkSliceResponse) bool
 			}
 
 			if ns.Site != nil {
-				temp := models.PlmnId{}
+				temp := factory.PlmnSupportItem{}
 				var found bool = false
 				logger.GrpcLog.Infoln("Network Slice has site name present ")
 				site := ns.Site
 				logger.GrpcLog.Infoln("Site name ", site.SiteName)
 				if site.Plmn != nil {
-					temp.Mcc = site.Plmn.Mcc
-					temp.Mnc = site.Plmn.Mnc
+					temp.PlmnId.Mcc = site.Plmn.Mcc
+					temp.PlmnId.Mnc = site.Plmn.Mnc
 					logger.GrpcLog.Infoln("Plmn mcc ", site.Plmn.Mcc)
 					for _, item := range pcfContext.PlmnList {
-						if item.Mcc == temp.Mcc && item.Mnc == temp.Mnc {
+						if item.PlmnId.Mcc == temp.PlmnId.Mcc && item.PlmnId.Mnc == temp.PlmnId.Mnc {
 							found = true
 							break
 						}
