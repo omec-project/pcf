@@ -61,7 +61,7 @@ type PCFContext struct {
 
 	// lock
 	DefaultUdrURILock sync.RWMutex
-	PlmnList          []models.PlmnId
+	PlmnList          []factory.PlmnSupportItem
 	DefQosMap         map[string]models.SubscribedDefaultQos
 	AmbrMap           map[string]models.Ambr
 }
