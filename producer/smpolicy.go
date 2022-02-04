@@ -132,14 +132,16 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	self := pcf_context.PCF_Self()
 	imsi := strings.Trim(ue.Supi, "imsi-")
 	if subsPolicyData, ok := self.PcfSubscriberPolicyData[imsi]; ok {
-		logger.SMpolicylog.Infof("Supi: %v exist in PcfSubscriberPolicyData", imsi)
+		logger.SMpolicylog.Infof("Supi[%s] exist in PcfSubscriberPolicyData", imsi)
 		if PccPolicy, ok1 := subsPolicyData.PccPolicy[sliceid]; ok1 {
 			if sessPolicy, exist := PccPolicy.SessionPolicy[request.Dnn]; exist {
 				for _, sessRule := range sessPolicy.SessionRules {
 					decision.SessRules[sessRule.SessRuleId] = deepcopy.Copy(sessRule).(*models.SessionRule)
 				}
 			} else {
-				logger.SMpolicylog.Infof("requested Dnn: %v is not exist in local policy", request.Dnn)
+				logger.SMpolicylog.Infof("Requested Dnn[%s] is not exist in local policy", request.Dnn)
+				problemDetail := util.GetProblemDetail("Can't find local policy", util.USER_UNKNOWN)
+				return nil, nil, &problemDetail
 			}
 
 			for key, pccRule := range PccPolicy.PccRules {
@@ -150,8 +152,14 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 				decision.QosDecs[key] = deepcopy.Copy(qosData).(*models.QosData)
 			}
 		} else {
-			logger.SMpolicylog.Infof("slice: %v not configured for subscriber", sliceid)
+			logger.SMpolicylog.Warnf("Slice[%v] not configured for subscriber", sliceid)
+			problemDetail := util.GetProblemDetail("Can't find local policy", util.USER_UNKNOWN)
+			return nil, nil, &problemDetail
 		}
+	} else {
+		problemDetail := util.GetProblemDetail("Can't find in local policy", util.USER_UNKNOWN)
+		logger.SMpolicylog.Warnf("Can't find UE[%s] in local policy", ue.Supi)
+		return nil, nil, &problemDetail
 	}
 	/*var ambr *models.Ambr
 	//sstStr := strconv.Itoa(int(request.SliceInfo.Sst))
