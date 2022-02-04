@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
+// Copyright 2019 free5GC.org
 //
 // SPDX-License-Identifier: Apache-2.0
-// SPDX-License-Identifier: LicenseRef-ONF-Member-Only-1.0
+//
 
 /*
  * PCF Configuration Factory
@@ -12,7 +13,6 @@ package factory
 import (
 	"github.com/free5gc/logger_util"
 	"github.com/free5gc/openapi/models"
-
 )
 
 const (
@@ -37,14 +37,14 @@ const (
 )
 
 type Configuration struct {
-	PcfName         string    `yaml:"pcfName,omitempty"`
-	Sbi             *Sbi      `yaml:"sbi,omitempty"`
-	TimeFormat      string    `yaml:"timeFormat,omitempty"`
-	DefaultBdtRefId string    `yaml:"defaultBdtRefId,omitempty"`
-	NrfUri          string    `yaml:"nrfUri,omitempty"`
-	ServiceList     []Service `yaml:"serviceList,omitempty"`
-	PlmnList        []PlmnSupportItem    `yaml:"plmnList,omitempty"`
-	Mongodb         *Mongodb  `yaml:"mongodb"`
+	PcfName         string            `yaml:"pcfName,omitempty"`
+	Sbi             *Sbi              `yaml:"sbi,omitempty"`
+	TimeFormat      string            `yaml:"timeFormat,omitempty"`
+	DefaultBdtRefId string            `yaml:"defaultBdtRefId,omitempty"`
+	NrfUri          string            `yaml:"nrfUri,omitempty"`
+	ServiceList     []Service         `yaml:"serviceList,omitempty"`
+	PlmnList        []PlmnSupportItem `yaml:"plmnList,omitempty"`
+	Mongodb         *Mongodb          `yaml:"mongodb"`
 }
 
 type Service struct {
@@ -66,7 +66,7 @@ type Mongodb struct {
 }
 
 type PlmnSupportItem struct {
-	PlmnId     models.PlmnId   `yaml:"plmnId"`
+	PlmnId models.PlmnId `yaml:"plmnId"`
 }
 
 func (c *Config) GetVersion() string {
