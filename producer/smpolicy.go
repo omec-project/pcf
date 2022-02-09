@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
+// Copyright 2019 free5GC.org
 //
 // SPDX-License-Identifier: Apache-2.0
-// SPDX-License-Identifier: LicenseRef-ONF-Member-Only-1.0
+//
 
 package producer
 
@@ -121,9 +122,10 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	smPolicyData = ue.NewUeSmPolicyData(smPolicyID, request, &smData)
 	// Policy Decision
 	decision := models.SmPolicyDecision{
-		SessRules: make(map[string]*models.SessionRule),
-		PccRules:  make(map[string]*models.PccRule),
-		QosDecs:   make(map[string]*models.QosData),
+		SessRules:     make(map[string]*models.SessionRule),
+		PccRules:      make(map[string]*models.PccRule),
+		QosDecs:       make(map[string]*models.QosData),
+		TraffContDecs: make(map[string]*models.TrafficControlData),
 	}
 
 	//Check if local config has pre-configured pccrules, sessionrules for the slice(via ROC)
@@ -150,6 +152,9 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 
 			for key, qosData := range PccPolicy.QosDecs {
 				decision.QosDecs[key] = deepcopy.Copy(qosData).(*models.QosData)
+			}
+			for key, trafficData := range PccPolicy.TraffContDecs {
+				decision.TraffContDecs[key] = deepcopy.Copy(trafficData).(*models.TrafficControlData)
 			}
 		} else {
 			logger.SMpolicylog.Warnf("Slice[%v] not configured for subscriber", sliceid)

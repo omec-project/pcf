@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
+// Copyright 2019 free5GC.org
 //
 // SPDX-License-Identifier: Apache-2.0
-// SPDX-License-Identifier: LicenseRef-ONF-Member-Only-1.0
+//
 
 package service
 
@@ -13,7 +14,6 @@ import (
 	"os/exec"
 	"os/signal"
 	"strconv"
-	"strings"
 	"sync"
 	"syscall"
 
@@ -385,7 +385,7 @@ func getSessionRule(devGroup *protos.DeviceGroup) (sessionRule *models.SessionRu
 	return sessionRule
 }
 
-func getPccRules(slice *protos.NetworkSlice) (pccPolicy context.PccPolicy) {
+func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (pccPolicy context.PccPolicy) {
 	if slice.AppFilters == nil || slice.AppFilters.PccRuleBase == nil {
 		logger.GrpcLog.Warnf("PccRules not exist in slice: %v", slice.Name)
 		return
@@ -395,7 +395,7 @@ func getPccRules(slice *protos.NetworkSlice) (pccPolicy context.PccPolicy) {
 		id, _ := pccPolicy.IdGenerator.Allocate()
 		var rule models.PccRule
 		var qos models.QosData
-		rule.PccRuleId = pccrule.RuleId
+		rule.PccRuleId = strconv.FormatInt(int64(id), 10)
 		rule.Precedence = pccrule.Priority
 		if pccrule.Qos != nil {
 			qos.QosId = strconv.FormatInt(id, 10)
@@ -430,6 +430,9 @@ func getPccRules(slice *protos.NetworkSlice) (pccPolicy context.PccPolicy) {
 				}
 			}
 			if pccrule.Qos.MaxbrUl == 0 && pccrule.Qos.MaxbrDl == 0 && pccrule.Qos.GbrUl == 0 && pccrule.Qos.GbrDl == 0 {
+				//getting from sessionrule
+				qos.MaxbrUl = sessionRule.AuthSessAmbr.Uplink
+				qos.MaxbrDl = sessionRule.AuthSessAmbr.Downlink
 				qos.DefQosFlowIndication = true
 			}
 			rule.RefQosData = append(rule.RefQosData, qos.QosId)
@@ -441,7 +444,10 @@ func getPccRules(slice *protos.NetworkSlice) (pccPolicy context.PccPolicy) {
 		for _, pflow := range pccrule.FlowInfos {
 			var flow models.FlowInformation
 			flow.FlowDescription = pflow.FlowDesc
-			flow.TosTrafficClass = pflow.TosTrafficClass
+			//flow.TosTrafficClass = pflow.TosTrafficClass
+			id, _ := pccPolicy.IdGenerator.Allocate()
+			flow.PackFiltId = strconv.FormatInt(id, 10)
+
 			if pflow.FlowDir == protos.PccFlowDirection_DOWNLINK {
 				flow.FlowDirection = models.FlowDirectionRm_DOWNLINK
 			} else if pflow.FlowDir == protos.PccFlowDirection_UPLINK {
@@ -451,15 +457,13 @@ func getPccRules(slice *protos.NetworkSlice) (pccPolicy context.PccPolicy) {
 			} else if pflow.FlowDir == protos.PccFlowDirection_UNSPECIFIED {
 				flow.FlowDirection = models.FlowDirectionRm_UNSPECIFIED
 			}
-			rule.FlowInfos = append(rule.FlowInfos, flow)
-		}
-		//traffic control info set based on flow at present
-		if len(pccrule.FlowInfos) > 0 {
+			//traffic control info set based on flow at present
 			var tcData models.TrafficControlData
 			tcData.TcId = "TcId-" + pccrule.RuleId
-			if strings.HasPrefix(pccrule.FlowInfos[0].FlowDesc, "permit") {
+
+			if pflow.FlowStatus == protos.PccFlowStatus_ENABLED {
 				tcData.FlowStatus = models.FlowStatus_ENABLED
-			} else if strings.HasPrefix(pccrule.FlowInfos[0].FlowDesc, "deny") {
+			} else if pflow.FlowStatus == protos.PccFlowStatus_DISABLED {
 				tcData.FlowStatus = models.FlowStatus_DISABLED
 			}
 			rule.RefTcData = append(rule.RefTcData, tcData.TcId)
@@ -467,6 +471,8 @@ func getPccRules(slice *protos.NetworkSlice) (pccPolicy context.PccPolicy) {
 				pccPolicy.TraffContDecs = make(map[string]*models.TrafficControlData)
 			}
 			pccPolicy.TraffContDecs[tcData.TcId] = &tcData
+
+			rule.FlowInfos = append(rule.FlowInfos, flow)
 		}
 		if pccPolicy.PccRules == nil {
 			pccPolicy.PccRules = make(map[string]*models.PccRule)
@@ -502,12 +508,15 @@ func UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
 				//tcid, _ := policyData.PccPolicy[sliceid].TcIdGenerator.Allocate()
 				sessionrule.SessRuleId = dnn + "-" + strconv.Itoa(int(id))
 				policyData.PccPolicy[sliceid].SessionPolicy[dnn].SessionRules[sessionrule.SessRuleId] = sessionrule
-				pccPolicy := getPccRules(slice)
+				pccPolicy := getPccRules(slice, sessionrule)
 				for index, element := range pccPolicy.PccRules {
 					policyData.PccPolicy[sliceid].PccRules[index] = element
 				}
 				for index, element := range pccPolicy.QosDecs {
 					policyData.PccPolicy[sliceid].QosDecs[index] = element
+				}
+				for index, element := range pccPolicy.TraffContDecs {
+					policyData.PccPolicy[sliceid].TraffContDecs[index] = element
 				}
 				self.DisplayPcfSubscriberPolicyData(imsi)
 			}
@@ -542,7 +551,7 @@ func UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
 					sessionrule.SessRuleId = dnn + strconv.Itoa(int(id))
 					policyData.PccPolicy[sliceid].SessionPolicy[dnn].SessionRules[sessionrule.SessRuleId] = sessionrule
 					//Added pcc rules
-					pccPolicy := getPccRules(slice)
+					pccPolicy := getPccRules(slice, sessionrule)
 					for index, element := range pccPolicy.PccRules {
 						policyData.PccPolicy[sliceid].PccRules[index] = element
 					}

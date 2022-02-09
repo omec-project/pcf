@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
+// Copyright 2019 free5GC.org
 //
 // SPDX-License-Identifier: Apache-2.0
-// SPDX-License-Identifier: LicenseRef-ONF-Member-Only-1.0
+//
 
 package context
 
@@ -435,6 +436,12 @@ func (c *PCFContext) DisplayPcfSubscriberPolicyData(imsi string) {
 					logger.CtxLog.Infof("    Arp.PreemptCapability: %v", qos.Arp.PreemptCap)
 					logger.CtxLog.Infof("    Arp.PreemptVulnerability: %v", qos.Arp.PreemptVuln)
 				}
+			}
+
+			logger.CtxLog.Infof("   Traffic Control Details")
+			for _, t := range val.TraffContDecs {
+				logger.CtxLog.Infof("     TcId: %v", t.TcId)
+				logger.CtxLog.Infof("     FlowStatus: %v", t.FlowStatus)
 			}
 
 		}
