@@ -14,9 +14,8 @@ import (
 	"strings"
 
 	"github.com/antihax/optional"
-	"go.mongodb.org/mongo-driver/bson"
+	"github.com/mohae/deepcopy"
 
-	"github.com/free5gc/MongoDBLibrary"
 	"github.com/free5gc/http_wrapper"
 	"github.com/free5gc/openapi"
 	"github.com/free5gc/openapi/Nudr_DataRepository"
@@ -123,46 +122,87 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	smPolicyData = ue.NewUeSmPolicyData(smPolicyID, request, &smData)
 	// Policy Decision
 	decision := models.SmPolicyDecision{
-		SessRules: make(map[string]*models.SessionRule),
+		SessRules:     make(map[string]*models.SessionRule),
+		PccRules:      make(map[string]*models.PccRule),
+		QosDecs:       make(map[string]*models.QosData),
+		TraffContDecs: make(map[string]*models.TrafficControlData),
 	}
 
-	//Check if local config has pre-configured AMBR for the slice(via ROC)
-	var ambr *models.Ambr
+	//Check if local config has pre-configured pccrules, sessionrules for the slice(via ROC)
 	sstStr := strconv.Itoa(int(request.SliceInfo.Sst))
+	sliceid := sstStr + request.SliceInfo.Sd
+	self := pcf_context.PCF_Self()
+	imsi := strings.Trim(ue.Supi, "imsi-")
+	if subsPolicyData, ok := self.PcfSubscriberPolicyData[imsi]; ok {
+		logger.SMpolicylog.Infof("Supi[%s] exist in PcfSubscriberPolicyData", imsi)
+		if PccPolicy, ok1 := subsPolicyData.PccPolicy[sliceid]; ok1 {
+			if sessPolicy, exist := PccPolicy.SessionPolicy[request.Dnn]; exist {
+				for _, sessRule := range sessPolicy.SessionRules {
+					decision.SessRules[sessRule.SessRuleId] = deepcopy.Copy(sessRule).(*models.SessionRule)
+				}
+			} else {
+				logger.SMpolicylog.Infof("Requested Dnn[%s] is not exist in local policy", request.Dnn)
+				problemDetail := util.GetProblemDetail("Can't find local policy", util.USER_UNKNOWN)
+				return nil, nil, &problemDetail
+			}
+
+			for key, pccRule := range PccPolicy.PccRules {
+				decision.PccRules[key] = deepcopy.Copy(pccRule).(*models.PccRule)
+			}
+
+			for key, qosData := range PccPolicy.QosDecs {
+				decision.QosDecs[key] = deepcopy.Copy(qosData).(*models.QosData)
+			}
+			for key, trafficData := range PccPolicy.TraffContDecs {
+				decision.TraffContDecs[key] = deepcopy.Copy(trafficData).(*models.TrafficControlData)
+			}
+		} else {
+			logger.SMpolicylog.Warnf("Slice[%v] not configured for subscriber", sliceid)
+			problemDetail := util.GetProblemDetail("Can't find local policy", util.USER_UNKNOWN)
+			return nil, nil, &problemDetail
+		}
+	} else {
+		problemDetail := util.GetProblemDetail("Can't find in local policy", util.USER_UNKNOWN)
+		logger.SMpolicylog.Warnf("Can't find UE[%s] in local policy", ue.Supi)
+		return nil, nil, &problemDetail
+	}
+	/*var ambr *models.Ambr
+	//sstStr := strconv.Itoa(int(request.SliceInfo.Sst))
 	if cAmbr, ok := pcfSelf.AmbrMap[sstStr+request.SliceInfo.Sd]; !ok {
 		ambr = request.SubsSessAmbr
 	} else {
 		ambr = &cAmbr
-	}
-	SessRuleId := fmt.Sprintf("SessRuleId-%d", request.PduSessionId)
-	sessRule := models.SessionRule{
-		AuthSessAmbr: ambr,
-		SessRuleId:   SessRuleId,
-		// RefUmData
-		// RefCondData
-	}
-
-	//Check if local config has pre-configured def Qos for the slice(via ROC)
-	var defQos *models.SubscribedDefaultQos
-	if dQos, ok := pcfSelf.DefQosMap[sstStr+request.SliceInfo.Sd]; !ok {
-		defQos = request.SubsDefQos
-	} else {
-		//ARP and Priority not coming from ROC yet, copy from request
-		dQos.Arp = request.SubsDefQos.Arp
-		dQos.PriorityLevel = request.SubsDefQos.PriorityLevel
-		defQos = &dQos
-	}
-
-	if defQos != nil {
-		sessRule.AuthDefQos = &models.AuthorizedDefaultQos{
-			Var5qi:        defQos.Var5qi,
-			Arp:           defQos.Arp,
-			PriorityLevel: defQos.PriorityLevel,
-			// AverWindow
-			// MaxDataBurstVol
+	}*/
+	/*	SessRuleId := fmt.Sprintf("SessRuleId-%d", request.PduSessionId)
+		sessRule := models.SessionRule{
+			AuthSessAmbr: ambr,
+			SessRuleId:   SessRuleId,
+			// RefUmData
+			// RefCondData
 		}
-	}
-	decision.SessRules[SessRuleId] = &sessRule
+
+		//Check if local config has pre-configured def Qos for the slice(via ROC)
+		var defQos *models.SubscribedDefaultQos
+		if dQos, ok := pcfSelf.DefQosMap[sstStr+request.SliceInfo.Sd]; !ok {
+			defQos = request.SubsDefQos
+		} else {
+			//ARP and Priority not coming from ROC yet, copy from request
+			dQos.Arp = request.SubsDefQos.Arp
+			dQos.PriorityLevel = request.SubsDefQos.PriorityLevel
+			defQos = &dQos
+		}
+
+		if defQos != nil {
+			sessRule.AuthDefQos = &models.AuthorizedDefaultQos{
+				Var5qi:        defQos.Var5qi,
+				Arp:           defQos.Arp,
+				PriorityLevel: defQos.PriorityLevel,
+				// AverWindow
+				// MaxDataBurstVol
+			}
+		}
+		decision.SessRules[SessRuleId] = &sessRule
+	*/
 	// TODO: See how UDR used
 	dnnData := util.GetSMPolicyDnnData(smData, request.SliceInfo, request.Dnn)
 	if dnnData != nil {
@@ -199,30 +239,31 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	}
 
 	// get flow rules from databases
-	filter := bson.M{"ueId": ue.Supi, "snssai": util.SnssaiModelsToHex(*request.SliceInfo), "dnn": request.Dnn}
-	flowRulesInterface := MongoDBLibrary.RestfulAPIGetMany(flowRuleDataColl, filter)
+	/*	filter := bson.M{"ueId": ue.Supi, "snssai": util.SnssaiModelsToHex(*request.SliceInfo), "dnn": request.Dnn}
+		flowRulesInterface := MongoDBLibrary.RestfulAPIGetMany(flowRuleDataColl, filter)
 
-	for _, flowRule := range flowRulesInterface {
-		pccRule := util.CreatePccRule(smPolicyData.PccRuleIdGenarator, 33, []models.FlowInformation{
-			{
-				FlowDescription: flowRule["filter"].(string),
-				FlowDirection:   models.FlowDirectionRm_BIDIRECTIONAL,
-			},
-		}, "")
+		for _, flowRule := range flowRulesInterface {
+			pccRule := util.CreatePccRule(smPolicyData.PccRuleIdGenarator, 33, []models.FlowInformation{
+				{
+					FlowDescription: flowRule["filter"].(string),
+					FlowDirection:   models.FlowDirectionRm_BIDIRECTIONAL,
+				},
+			}, "")
 
-		qosData := &models.QosData{
-			QosId:   util.GetQosId(smPolicyData.PccRuleIdGenarator),
-			GbrUl:   flowRule["gbrUL"].(string),
-			GbrDl:   flowRule["gbrDL"].(string),
-			MaxbrUl: flowRule["mbrUL"].(string),
-			MaxbrDl: flowRule["mbrDL"].(string),
-			Qnc:     false,
-			Var5qi:  int32(flowRule["5qi"].(float64)),
+			qosData := &models.QosData{
+				QosId:   util.GetQosId(smPolicyData.PccRuleIdGenarator),
+				GbrUl:   flowRule["gbrUL"].(string),
+				GbrDl:   flowRule["gbrDL"].(string),
+				MaxbrUl: flowRule["mbrUL"].(string),
+				MaxbrDl: flowRule["mbrDL"].(string),
+				Qnc:     false,
+				Var5qi:  int32(flowRule["5qi"].(float64)),
+			}
+			util.SetPccRuleRelatedData(&decision, pccRule, nil, qosData, nil, nil)
+
+			smPolicyData.PccRuleIdGenarator++
 		}
-		util.SetPccRuleRelatedData(&decision, pccRule, nil, qosData, nil, nil)
-
-		smPolicyData.PccRuleIdGenarator++
-	}
+	*/
 
 	requestSuppFeat, err := openapi.NewSupportedFeature(request.SuppFeat)
 	if err != nil {
