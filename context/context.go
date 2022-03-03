@@ -18,6 +18,7 @@ import (
 	"github.com/free5gc/openapi/models"
 	"github.com/free5gc/pcf/factory"
 	"github.com/free5gc/pcf/logger"
+	"github.com/sirupsen/logrus"
 )
 
 var pcfCtx *PCFContext
@@ -82,6 +83,7 @@ type PccPolicy struct {
 type PcfSubscriberPolicyData struct {
 	Supi      string
 	PccPolicy map[string]*PccPolicy // sst+sd is key
+	CtxLog    *logrus.Entry
 }
 
 type AMFStatusSubscriptionData struct {
@@ -385,6 +387,58 @@ func (c *PCFContext) NewAmfStatusSubscription(subscriptionID string, subscriptio
 	c.AMFStatusSubsData.Store(subscriptionID, subscriptionData)
 }
 
+func (subs PcfSubscriberPolicyData) String() string {
+	var s string
+	for slice, val := range subs.PccPolicy {
+		s += fmt.Sprintf("PccPolicy[%v]: %v\n", slice, val)
+		for rulename, rule := range val.PccRules {
+			s += fmt.Sprintf("   PccRules[%v]: %v\n", rulename, rule)
+			s += fmt.Sprintf("RuleId: %v, Precedence: %v", rule.PccRuleId, rule.Precedence)
+			for i, flow := range rule.FlowInfos {
+				s += fmt.Sprintf("FlowInfo[%v]: FlowDesc: %v, TrafficClass: %v, FlowDir: %v", i, flow.FlowDescription, flow.TosTrafficClass, flow.FlowDirection)
+			}
+			s += "\n"
+		}
+		for i, qos := range val.QosDecs {
+			s += fmt.Sprintf("   QosDecs[%v] ", i)
+			s += fmt.Sprintf("QosId: %v, 5Qi: %v, MaxbrUl: %v, MaxbrDl: %v, GbrUl: %v, GbrUl: %v,PL: %v Arp: %v", qos.QosId, qos.Var5qi, qos.MaxbrUl, qos.MaxbrDl, qos.GbrDl, qos.GbrUl, qos.PriorityLevel)
+			s += "\n"
+		}
+		for i, tr := range val.TraffContDecs {
+			s += fmt.Sprintf("   TrafficDecs[%v] ", i)
+			s += fmt.Sprintf("TcId: %v, FlowStatus: %v", tr.TcId, tr.FlowStatus)
+			s += "\n"
+		}
+	}
+	return s
+}
+
+func (pcc PccPolicy) String() string {
+	var s string
+	for name, srule := range pcc.SessionPolicy {
+		s += fmt.Sprintf("SessionPolicy[%v]: %v, AuthorizedQos: ", name, srule)
+
+	}
+	return s
+}
+
+func (sess SessionPolicy) String() string {
+	var s string
+	for name, srule := range sess.SessionRules {
+		s += fmt.Sprintf("SessRule[%v]: SessionRuleId: %v", name, srule.SessRuleId)
+		if srule.AuthDefQos != nil {
+			s += fmt.Sprintf("5Qi: %v, Arp: ", srule.AuthDefQos.Var5qi)
+			if srule.AuthDefQos.Arp != nil {
+				s += fmt.Sprintf("PL: %v, PC: %v, PV: %v", srule.AuthDefQos.Arp.PriorityLevel, srule.AuthDefQos.Arp.PreemptCap, srule.AuthDefQos.Arp.PreemptVuln)
+			}
+		}
+		if srule.AuthSessAmbr != nil {
+			s += fmt.Sprintf("AuthSessAmbr: Uplink: %v, Downlink: %v", srule.AuthSessAmbr.Uplink, srule.AuthSessAmbr.Downlink)
+		}
+	}
+	return s
+}
+
 func (c *PCFContext) DisplayPcfSubscriberPolicyData(imsi string) {
 	logger.CtxLog.Infof("Pcf Subscriber [%v] Policy Details :", imsi)
 	subs, exist := pcfCtx.PcfSubscriberPolicyData[imsi]
@@ -392,11 +446,11 @@ func (c *PCFContext) DisplayPcfSubscriberPolicyData(imsi string) {
 		logger.CtxLog.Infof("Pcf Subscriber [%v] not exist", imsi)
 	} else {
 		for slice, val := range subs.PccPolicy {
-			logger.CtxLog.Infof("   SliceId: %v", slice)
+			subs.CtxLog.Infof("   SliceId: %v", slice)
 			for name, srule := range val.SessionPolicy {
-				logger.CtxLog.Infof("   Session-Name/Dnn: %v", name)
+				subs.CtxLog.Infof("   Session-Name/Dnn: %v", name)
 				for _, srules := range srule.SessionRules {
-					logger.CtxLog.Infof("   SessionRuleId; %v", srules.SessRuleId)
+					logger.CtxLog.Infof("   SessionRuleId: %v", srules.SessRuleId)
 					if srules.AuthSessAmbr != nil {
 						logger.CtxLog.Infof("   AmbrUplink  %v", srules.AuthSessAmbr.Uplink)
 						logger.CtxLog.Infof("   AmbrDownlink  %v", srules.AuthSessAmbr.Downlink)

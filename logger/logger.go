@@ -38,6 +38,10 @@ var (
 	NotifyEventLog         *logrus.Entry
 )
 
+const (
+	FieldSupi string = "supi"
+)
+
 func init() {
 	log = logrus.New()
 	log.SetReportCaller(false)
@@ -72,7 +76,7 @@ func init() {
 	CallbackLog = log.WithFields(logrus.Fields{"component": "PCF", "category": "Callback"})
 	Consumerlog = log.WithFields(logrus.Fields{"component": "PCF", "category": "Consumer"})
 	OamLog = log.WithFields(logrus.Fields{"component": "PCF", "category": "OAM"})
-	CtxLog = log.WithFields(logrus.Fields{"component": "PCF", "category": "Context"})
+	CtxLog = log.WithFields(logrus.Fields{"component": "PCF", "category": "Context", "supi": "SUPI"})
 	ConsumerLog = log.WithFields(logrus.Fields{"component": "PCF", "category": "Consumer"})
 	GinLog = log.WithFields(logrus.Fields{"component": "PCF", "category": "GIN"})
 	GrpcLog = log.WithFields(logrus.Fields{"component": "PCF", "category": "GRPC"})

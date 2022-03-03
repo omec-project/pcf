@@ -487,13 +487,16 @@ func UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
 		for _, devgroup := range slice.DeviceGroup {
 			var sessionrule *models.SessionRule
 			var dnn string
-			if devgroup.IpDomainDetails != nil && devgroup.IpDomainDetails.UeDnnQos != nil {
-				dnn = devgroup.IpDomainDetails.DnnName
-				sessionrule = getSessionRule(devgroup)
+			if devgroup.IpDomainDetails == nil || devgroup.IpDomainDetails.UeDnnQos == nil {
+				logger.GrpcLog.Warnf("ip details or qos details in ipdomain not exist for device group: %v", devgroup.Name)
+				continue
 			}
+			dnn = devgroup.IpDomainDetails.DnnName
+			sessionrule = getSessionRule(devgroup)
 			for _, imsi := range devgroup.Imsi {
 				self.PcfSubscriberPolicyData[imsi] = &context.PcfSubscriberPolicyData{}
 				policyData := self.PcfSubscriberPolicyData[imsi]
+				policyData.CtxLog = logger.CtxLog.WithField(logger.FieldSupi, "imsi-"+imsi)
 				policyData.PccPolicy = make(map[string]*context.PccPolicy)
 				policyData.PccPolicy[sliceid] = &context.PccPolicy{make(map[string]*models.PccRule),
 					make(map[string]*models.QosData), make(map[string]*models.TrafficControlData),
@@ -510,7 +513,11 @@ func UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
 				for index, element := range pccPolicy.QosDecs {
 					policyData.PccPolicy[sliceid].QosDecs[index] = element
 				}
-				self.DisplayPcfSubscriberPolicyData(imsi)
+				for index, element := range pccPolicy.TraffContDecs {
+					policyData.PccPolicy[sliceid].TraffContDecs[index] = element
+				}
+				policyData.CtxLog.Infof("Subscriber Detals: %v", policyData)
+				//self.DisplayPcfSubscriberPolicyData(imsi)
 			}
 		}
 	case protos.OpType_SLICE_UPDATE:
@@ -529,9 +536,10 @@ func UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
 			for _, imsi := range slice.AddUpdatedImsis {
 				if ImsiExistInDeviceGroup(devgroup, imsi) {
 					policyData, _ := self.PcfSubscriberPolicyData[imsi]
-					// TODO policy exists for this imsi, then take difference and notify the subscriber
+					// TODO policy exists, so compare and get difference with existing policy then notify the subscriber
 					self.PcfSubscriberPolicyData[imsi] = &context.PcfSubscriberPolicyData{}
 					policyData = self.PcfSubscriberPolicyData[imsi]
+					policyData.CtxLog = logger.CtxLog.WithField(logger.FieldSupi, "imsi-"+imsi)
 					policyData.PccPolicy = make(map[string]*context.PccPolicy)
 					policyData.PccPolicy[sliceid] = &context.PccPolicy{make(map[string]*models.PccRule),
 						make(map[string]*models.QosData), make(map[string]*models.TrafficControlData),
@@ -550,8 +558,9 @@ func UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
 					for index, element := range pccPolicy.QosDecs {
 						policyData.PccPolicy[sliceid].QosDecs[index] = element
 					}
+					policyData.CtxLog.Infof("Subscriber Detals: %v", policyData)
 				}
-				self.DisplayPcfSubscriberPolicyData(imsi)
+				//self.DisplayPcfSubscriberPolicyData(imsi)
 			}
 		}
 
@@ -567,10 +576,10 @@ func UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
 				continue
 			}
 			//sessionrules, pccrules if exist in slice, implicitly deletes all sessionrules, pccrules for this sliceid
-			logger.GrpcLog.Infof("slice: %v deleted from SubscriberPolicyData", sliceid)
+			policyData.CtxLog.Infof("slice: %v deleted from SubscriberPolicyData", sliceid)
 			delete(policyData.PccPolicy, sliceid)
 			if len(policyData.PccPolicy) == 0 {
-				logger.GrpcLog.Infof("Subscriber: %v deleted from PcfSubscriberPolicyData map", imsi)
+				policyData.CtxLog.Infof("Subscriber Deleted from PcfSubscriberPolicyData map")
 				delete(self.PcfSubscriberPolicyData, imsi)
 			}
 		}
@@ -588,10 +597,10 @@ func UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
 				logger.GrpcLog.Errorf("PccPolicy for the slice: %v not exist in SubscriberPolicyData", sliceid)
 				continue
 			}
-			logger.GrpcLog.Infof("slice: %v deleted from SubscriberPolicyData", sliceid)
+			policyData.CtxLog.Infof("slice: %v deleted from SubscriberPolicyData", sliceid)
 			delete(policyData.PccPolicy, sliceid)
 			if len(policyData.PccPolicy) == 0 {
-				logger.GrpcLog.Infof("Subscriber: %v deleted from PcfSubscriberPolicyData map", imsi)
+				policyData.CtxLog.Infof("Subscriber Deleted from PcfSubscriberPolicyData map")
 				delete(self.PcfSubscriberPolicyData, imsi)
 			}
 		}
