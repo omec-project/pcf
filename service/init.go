@@ -558,6 +558,9 @@ func UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
 					for index, element := range pccPolicy.QosDecs {
 						policyData.PccPolicy[sliceid].QosDecs[index] = element
 					}
+					for index, element := range pccPolicy.TraffContDecs {
+						policyData.PccPolicy[sliceid].TraffContDecs[index] = element
+					}
 				}
 				self.DisplayPcfSubscriberPolicyData(imsi)
 			}
