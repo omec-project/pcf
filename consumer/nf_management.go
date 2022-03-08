@@ -38,22 +38,8 @@ func BuildNFInstance(context *pcf_context.PCFContext) (profile models.NfProfile,
 		profile.PlmnList = &plmns
 	}
 
-	var dnnList []string
-	for _, slice := range context.DnnList {
-		for _, dnn := range slice {
-			var found bool
-			for _, d := range dnnList {
-				if d == dnn {
-					found = true
-				}
-			}
-			if !found {
-				dnnList = append(dnnList, dnn)
-			}
-		}
-	}
 	profile.PcfInfo = &models.PcfInfo{
-		DnnList: dnnList,
+		DnnList: context.DnnList,
 		// SupiRanges: &[]models.SupiRange{
 		// 	{
 		// 		//from TS 29.510 6.1.6.2.9 example2

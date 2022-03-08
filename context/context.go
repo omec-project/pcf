@@ -33,8 +33,6 @@ func init() {
 	pcfCtx.PcfServiceUris = make(map[models.ServiceName]string)
 	pcfCtx.PcfSuppFeats = make(map[models.ServiceName]openapi.SupportedFeature)
 	pcfCtx.BdtPolicyIDGenerator = idgenerator.NewGenerator(1, math.MaxInt64)
-	//pcfCtx.AmbrMap = make(map[string]models.Ambr)
-	//pcfCtx.DefQosMap = make(map[string]models.SubscribedDefaultQos)
 	pcfCtx.PcfSubscriberPolicyData = make(map[string]*PcfSubscriberPolicyData)
 }
 
@@ -63,10 +61,11 @@ type PCFContext struct {
 	AMFStatusSubsData sync.Map // map[string]AMFStatusSubscriptionData; subscriptionID as key
 
 	// lock
-	DefaultUdrURILock       sync.RWMutex
+	DefaultUdrURILock sync.RWMutex
+
+	DnnList                 []string
 	PlmnList                []factory.PlmnSupportItem
 	PcfSubscriberPolicyData map[string]*PcfSubscriberPolicyData // subscriberId is key
-	DnnList                 map[string][]string                 // sst+sd os key
 }
 
 type SessionPolicy struct {

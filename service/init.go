@@ -109,7 +109,8 @@ func (pcf *PCF) Initialize(c *cli.Context) error {
 	roc := os.Getenv("MANAGED_BY_CONFIG_POD")
 	if roc == "true" {
 		initLog.Infoln("MANAGED_BY_CONFIG_POD is true")
-		commChannel := client.ConfigWatcher()
+		gClient := client.ConnectToConfigServer("webui:9876")
+		commChannel := gClient.PublishOnConfigChange(true)
 		go pcf.updateConfig(commChannel)
 	} else {
 		go func() {
@@ -566,7 +567,6 @@ func (pcf *PCF) UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
 					for index, element := range pccPolicy.TraffContDecs {
 						policyData.PccPolicy[sliceid].TraffContDecs[index] = element
 					}
-
 					policyData.CtxLog.Infof("Subscriber Detals: %v", policyData)
 				}
 				//self.DisplayPcfSubscriberPolicyData(imsi)
@@ -620,6 +620,7 @@ func (pcf *PCF) UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
 func (pcf *PCF) UpdateDnnList(ns *protos.NetworkSlice) {
 	sliceid := ns.Nssai.Sst + ns.Nssai.Sd
 	pcfContext := context.PCF_Self()
+	pcfConfig := factory.PcfConfig.Configuration
 	switch ns.OperationType {
 	case protos.OpType_SLICE_ADD:
 		fallthrough
@@ -630,15 +631,72 @@ func (pcf *PCF) UpdateDnnList(ns *protos.NetworkSlice) {
 				dnnList = append(dnnList, devgroup.IpDomainDetails.DnnName)
 			}
 		}
-		pcfContext.DnnList[sliceid] = dnnList
+		if pcfConfig.DnnList == nil {
+			pcfConfig.DnnList = make(map[string][]string)
+		}
+		pcfConfig.DnnList[sliceid] = dnnList
 	case protos.OpType_SLICE_DELETE:
-		delete(pcfContext.DnnList, sliceid)
+		delete(pcfConfig.DnnList, sliceid)
 	}
 	s := fmt.Sprintf("Updated Slice level DnnList[%v]: ", sliceid)
-	for _, dnn := range pcfContext.DnnList[sliceid] {
+	for _, dnn := range pcfConfig.DnnList[sliceid] {
 		s += fmt.Sprintf("%v ", dnn)
 	}
 	logger.GrpcLog.Infoln(s)
+
+	pcfContext.DnnList = nil
+	for _, slice := range pcfConfig.DnnList {
+		for _, dnn := range slice {
+			var found bool
+			for _, d := range pcfContext.DnnList {
+				if d == dnn {
+					found = true
+				}
+			}
+			if !found {
+				pcfContext.DnnList = append(pcfContext.DnnList, dnn)
+			}
+		}
+	}
+	logger.GrpcLog.Infof("DnnList Present in PCF: %v", pcfContext.DnnList)
+}
+
+func (pcf *PCF) UpdatePlmnList(ns *protos.NetworkSlice) {
+	sliceid := ns.Nssai.Sst + ns.Nssai.Sd
+	pcfContext := context.PCF_Self()
+	pcfConfig := factory.PcfConfig.Configuration
+	switch ns.OperationType {
+	case protos.OpType_SLICE_ADD:
+		fallthrough
+	case protos.OpType_SLICE_UPDATE:
+		temp := factory.PlmnSupportItem{}
+		if ns.Site.Plmn != nil {
+			temp.PlmnId.Mcc = ns.Site.Plmn.Mcc
+			temp.PlmnId.Mnc = ns.Site.Plmn.Mnc
+		}
+		if pcfConfig.SlicePlmn == nil {
+			pcfConfig.SlicePlmn = make(map[string]factory.PlmnSupportItem)
+		}
+		pcfConfig.SlicePlmn[sliceid] = temp
+	case protos.OpType_SLICE_DELETE:
+		delete(pcfConfig.SlicePlmn, sliceid)
+	}
+	s := fmt.Sprintf("Updated Slice level Plmn[%v]: %v", sliceid, pcfConfig.SlicePlmn[sliceid])
+	logger.GrpcLog.Infoln(s)
+	pcfContext.PlmnList = nil
+	for _, plmn := range pcfConfig.SlicePlmn {
+		var found bool
+		for _, p := range pcfContext.PlmnList {
+			if p == plmn {
+				found = true
+				break
+			}
+		}
+		if !found {
+			pcfContext.PlmnList = append(pcfContext.PlmnList, plmn)
+		}
+	}
+	logger.GrpcLog.Infof("PlmnList Present in PCF: %v", pcfContext.PlmnList)
 }
 
 func (pcf *PCF) updateConfig(commChannel chan *protos.NetworkSliceResponse) bool {
@@ -656,27 +714,12 @@ func (pcf *PCF) updateConfig(commChannel chan *protos.NetworkSliceResponse) bool
 			pcf.UpdateDnnList(ns)
 
 			if ns.Site != nil {
-				temp := factory.PlmnSupportItem{}
-				var found bool = false
-				logger.GrpcLog.Infoln("Network Slice has site name present ")
 				site := ns.Site
-				logger.GrpcLog.Infoln("Site name ", site.SiteName)
+				logger.GrpcLog.Infof("Network Slice [%v] has site name: %v", ns.Nssai.Sst+ns.Nssai.Sd, site.SiteName)
 				if site.Plmn != nil {
-					temp.PlmnId.Mcc = site.Plmn.Mcc
-					temp.PlmnId.Mnc = site.Plmn.Mnc
-					logger.GrpcLog.Infoln("Plmn mcc ", site.Plmn.Mcc)
-					for _, item := range pcfContext.PlmnList {
-						if item.PlmnId.Mcc == temp.PlmnId.Mcc && item.PlmnId.Mnc == temp.PlmnId.Mnc {
-							found = true
-							break
-						}
-					}
-					if !found {
-						pcfContext.PlmnList = append(pcfContext.PlmnList, temp)
-						logger.GrpcLog.Infoln("Plmn added in the context", pcfContext.PlmnList)
-					}
+					pcf.UpdatePlmnList(ns)
 				} else {
-					logger.GrpcLog.Infoln("Plmn not present in the message ")
+					logger.GrpcLog.Infof("Plmn not present in the sitename: %v of Slice: %v", site.SiteName, ns.Nssai.Sst+ns.Nssai.Sd)
 				}
 			}
 		}
