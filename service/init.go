@@ -588,7 +588,7 @@ func UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
 		}
 
 	case protos.OpType_SLICE_DELETE:
-		logger.GrpcLog.Infof("Received Slice with OperationType: Update from ConfigPod")
+		logger.GrpcLog.Infof("Received Slice with OperationType: Delete from ConfigPod")
 		for _, imsi := range slice.DeletedImsis {
 			policyData, ok := self.PcfSubscriberPolicyData[imsi]
 			if !ok {
