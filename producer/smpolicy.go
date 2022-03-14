@@ -293,7 +293,7 @@ func HandleDeleteSmPolicyContextRequest(request *http_wrapper.Request) *http_wra
 	logger.SMpolicylog.Infof("Handle DeleteSmPolicyContext")
 
 	// step 2: retrieve request
-	smPolicyID := request.Params["smPolicyID"]
+	smPolicyID := request.Params["smPolicyId"]
 
 	// step 3: handle the message
 	problemDetails := deleteSmPolicyContextProcedure(smPolicyID)
@@ -311,6 +311,7 @@ func deleteSmPolicyContextProcedure(smPolicyID string) *models.ProblemDetails {
 	logger.AMpolicylog.Traceln("Handle SM Policy Delete")
 
 	ue := pcf_context.PCF_Self().PCFUeFindByPolicyId(smPolicyID)
+	logger.SMpolicylog.Infof("smPolicyID: %v, ue: %v", smPolicyID, ue)
 	if ue == nil || ue.SmPolicyData[smPolicyID] == nil {
 		problemDetail := util.GetProblemDetail("smPolicyID not found in PCF", util.CONTEXT_NOT_FOUND)
 		logger.SMpolicylog.Warnf(problemDetail.Detail)
