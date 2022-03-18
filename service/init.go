@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -434,13 +435,12 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 				//getting from sessionrule
 				qos.MaxbrUl = sessionRule.AuthSessAmbr.Uplink
 				qos.MaxbrDl = sessionRule.AuthSessAmbr.Downlink
-				qos.DefQosFlowIndication = true
 			}
-			rule.RefQosData = append(rule.RefQosData, qos.QosId)
-			if pccPolicy.QosDecs == nil {
-				pccPolicy.QosDecs = make(map[string]*models.QosData)
-			}
-			pccPolicy.QosDecs[qos.QosId] = &qos
+			//rule.RefQosData = append(rule.RefQosData, qos.QosId)
+			//if pccPolicy.QosDecs == nil {
+			//	pccPolicy.QosDecs = make(map[string]*models.QosData)
+			//}
+			//pccPolicy.QosDecs[qos.QosId] = &qos
 		}
 		for _, pflow := range pccrule.FlowInfos {
 			var flow models.FlowInformation
@@ -458,15 +458,20 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 			} else if pflow.FlowDir == protos.PccFlowDirection_UNSPECIFIED {
 				flow.FlowDirection = models.FlowDirectionRm_UNSPECIFIED
 			}
+			if strings.HasSuffix(flow.FlowDescription, "any to assigned") ||
+				strings.HasSuffix(flow.FlowDescription, "any to assigned ") {
+				qos.DefQosFlowIndication = true
+			}
 			//traffic control info set based on flow at present
 			var tcData models.TrafficControlData
-			tcData.TcId = "TcId-" + pccrule.RuleId
+			tcData.TcId = "TcId-" + strconv.FormatInt(id, 10)
 
 			if pflow.FlowStatus == protos.PccFlowStatus_ENABLED {
 				tcData.FlowStatus = models.FlowStatus_ENABLED
 			} else if pflow.FlowStatus == protos.PccFlowStatus_DISABLED {
 				tcData.FlowStatus = models.FlowStatus_DISABLED
 			}
+
 			rule.RefTcData = append(rule.RefTcData, tcData.TcId)
 			if pccPolicy.TraffContDecs == nil {
 				pccPolicy.TraffContDecs = make(map[string]*models.TrafficControlData)
@@ -475,6 +480,15 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 
 			rule.FlowInfos = append(rule.FlowInfos, flow)
 		}
+		if pccPolicy.QosDecs == nil {
+			pccPolicy.QosDecs = make(map[string]*models.QosData)
+		}
+		if ok, q := findQosData(pccPolicy.QosDecs, qos); ok {
+			rule.RefQosData = append(rule.RefQosData, q.QosId)
+		} else {
+			rule.RefQosData = append(rule.RefQosData, qos.QosId)
+			pccPolicy.QosDecs[qos.QosId] = &qos
+		}
 		if pccPolicy.PccRules == nil {
 			pccPolicy.PccRules = make(map[string]*models.PccRule)
 		}
@@ -482,6 +496,23 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 	}
 
 	return
+}
+
+func findQosData(qosdecs map[string]*models.QosData, qos models.QosData) (bool, *models.QosData) {
+	for _, q := range qosdecs {
+		if q.Var5qi == qos.Var5qi && q.MaxbrUl == qos.MaxbrUl && q.MaxbrDl == qos.MaxbrDl &&
+			q.GbrUl == qos.GbrUl && q.GbrDl == qos.GbrDl && q.Qnc == qos.Qnc &&
+			q.PriorityLevel == qos.PriorityLevel && q.AverWindow == qos.AverWindow &&
+			q.MaxDataBurstVol == qos.MaxDataBurstVol && q.ReflectiveQos == qos.ReflectiveQos &&
+			q.SharingKeyDl == qos.SharingKeyDl && q.SharingKeyUl == qos.SharingKeyUl &&
+			q.MaxPacketLossRateDl == qos.MaxPacketLossRateDl && q.MaxPacketLossRateUl == qos.MaxPacketLossRateUl &&
+			q.DefQosFlowIndication == qos.DefQosFlowIndication {
+			if q.Arp != nil && qos.Arp != nil && *q.Arp == *qos.Arp {
+				return true, q
+			}
+		}
+	}
+	return false, nil
 }
 
 func (pcf *PCF) UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
