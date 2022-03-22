@@ -38,6 +38,10 @@ var (
 	NotifyEventLog         *logrus.Entry
 )
 
+const (
+	FieldSupi string = "supi"
+)
+
 func init() {
 	log = logrus.New()
 	log.SetReportCaller(false)

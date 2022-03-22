@@ -156,6 +156,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 			for key, trafficData := range PccPolicy.TraffContDecs {
 				decision.TraffContDecs[key] = deepcopy.Copy(trafficData).(*models.TrafficControlData)
 			}
+			logger.SMpolicylog.Infof("PccPolicy in SM Policy Decision[%v]: %v", sliceid, PccPolicy)
 		} else {
 			logger.SMpolicylog.Warnf("Slice[%v] not configured for subscriber", sliceid)
 			problemDetail := util.GetProblemDetail("Can't find local policy", util.USER_UNKNOWN)
@@ -281,6 +282,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 		"Location": {locationHeader},
 	}
 	logger.SMpolicylog.Tracef("SMPolicy PduSessionId[%d] Create", request.PduSessionId)
+	logger.SMpolicylog.Infof("SM Policy Decision Sent to SMF: %v", decision)
 
 	return header, &decision, nil
 }

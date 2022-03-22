@@ -327,9 +327,9 @@ func (pcf *PCF) registerNF() {
 			self := context.PCF_Self()
 			profile, err := consumer.BuildNFInstance(self)
 			if err != nil {
-				initLog.Error("Build PCF Profile Error")
+				initLog.Error("Build PCF Profile Error: %v", err)
 			}
-
+			initLog.Infof("Pcf Profile Registering to NRF: %v", profile)
 			//Indefinite attempt to register until success
 			_, self.NfId, err = consumer.SendRegisterNFInstance(self.NrfUri, self.NfId, profile)
 			if err != nil {
@@ -515,22 +515,25 @@ func findQosData(qosdecs map[string]*models.QosData, qos models.QosData) (bool, 
 	return false, nil
 }
 
-func UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
+func (pcf *PCF) UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
 	self := context.PCF_Self()
 	sliceid := slice.Nssai.Sst + slice.Nssai.Sd
 	switch slice.OperationType {
 	case protos.OpType_SLICE_ADD:
-		logger.GrpcLog.Infof("Received Slice with OperationType: Add from ConfigPod")
+		logger.GrpcLog.Infoln("Received Slice with OperationType: Add from ConfigPod")
 		for _, devgroup := range slice.DeviceGroup {
 			var sessionrule *models.SessionRule
 			var dnn string
-			if devgroup.IpDomainDetails != nil && devgroup.IpDomainDetails.UeDnnQos != nil {
-				dnn = devgroup.IpDomainDetails.DnnName
-				sessionrule = getSessionRule(devgroup)
+			if devgroup.IpDomainDetails == nil || devgroup.IpDomainDetails.UeDnnQos == nil {
+				logger.GrpcLog.Warnf("ip details or qos details in ipdomain not exist for device group: %v", devgroup.Name)
+				continue
 			}
+			dnn = devgroup.IpDomainDetails.DnnName
+			sessionrule = getSessionRule(devgroup)
 			for _, imsi := range devgroup.Imsi {
 				self.PcfSubscriberPolicyData[imsi] = &context.PcfSubscriberPolicyData{}
 				policyData := self.PcfSubscriberPolicyData[imsi]
+				policyData.CtxLog = logger.CtxLog.WithField(logger.FieldSupi, "imsi-"+imsi)
 				policyData.PccPolicy = make(map[string]*context.PccPolicy)
 				policyData.PccPolicy[sliceid] = &context.PccPolicy{make(map[string]*models.PccRule),
 					make(map[string]*models.QosData), make(map[string]*models.TrafficControlData),
@@ -550,7 +553,8 @@ func UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
 				for index, element := range pccPolicy.TraffContDecs {
 					policyData.PccPolicy[sliceid].TraffContDecs[index] = element
 				}
-				self.DisplayPcfSubscriberPolicyData(imsi)
+				policyData.CtxLog.Infof("Subscriber Detals: %v", policyData)
+				//self.DisplayPcfSubscriberPolicyData(imsi)
 			}
 		}
 	case protos.OpType_SLICE_UPDATE:
@@ -569,9 +573,10 @@ func UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
 			for _, imsi := range slice.AddUpdatedImsis {
 				if ImsiExistInDeviceGroup(devgroup, imsi) {
 					policyData, _ := self.PcfSubscriberPolicyData[imsi]
-					// TODO policy exists for this imsi, then take difference and notify the subscriber
+					// TODO policy exists, so compare and get difference with existing policy then notify the subscriber
 					self.PcfSubscriberPolicyData[imsi] = &context.PcfSubscriberPolicyData{}
 					policyData = self.PcfSubscriberPolicyData[imsi]
+					policyData.CtxLog = logger.CtxLog.WithField(logger.FieldSupi, "imsi-"+imsi)
 					policyData.PccPolicy = make(map[string]*context.PccPolicy)
 					policyData.PccPolicy[sliceid] = &context.PccPolicy{make(map[string]*models.PccRule),
 						make(map[string]*models.QosData), make(map[string]*models.TrafficControlData),
@@ -593,8 +598,9 @@ func UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
 					for index, element := range pccPolicy.TraffContDecs {
 						policyData.PccPolicy[sliceid].TraffContDecs[index] = element
 					}
+					policyData.CtxLog.Infof("Subscriber Detals: %v", policyData)
 				}
-				self.DisplayPcfSubscriberPolicyData(imsi)
+				//self.DisplayPcfSubscriberPolicyData(imsi)
 			}
 		}
 
@@ -610,10 +616,10 @@ func UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
 				continue
 			}
 			//sessionrules, pccrules if exist in slice, implicitly deletes all sessionrules, pccrules for this sliceid
-			logger.GrpcLog.Infof("slice: %v deleted from SubscriberPolicyData", sliceid)
+			policyData.CtxLog.Infof("slice: %v deleted from SubscriberPolicyData", sliceid)
 			delete(policyData.PccPolicy, sliceid)
 			if len(policyData.PccPolicy) == 0 {
-				logger.GrpcLog.Infof("Subscriber: %v deleted from PcfSubscriberPolicyData map", imsi)
+				policyData.CtxLog.Infof("Subscriber Deleted from PcfSubscriberPolicyData map")
 				delete(self.PcfSubscriberPolicyData, imsi)
 			}
 		}
@@ -631,16 +637,99 @@ func UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
 				logger.GrpcLog.Errorf("PccPolicy for the slice: %v not exist in SubscriberPolicyData", sliceid)
 				continue
 			}
-			logger.GrpcLog.Infof("slice: %v deleted from SubscriberPolicyData", sliceid)
+			policyData.CtxLog.Infof("slice: %v deleted from SubscriberPolicyData", sliceid)
 			delete(policyData.PccPolicy, sliceid)
 			if len(policyData.PccPolicy) == 0 {
-				logger.GrpcLog.Infof("Subscriber: %v deleted from PcfSubscriberPolicyData map", imsi)
+				policyData.CtxLog.Infof("Subscriber Deleted from PcfSubscriberPolicyData map")
 				delete(self.PcfSubscriberPolicyData, imsi)
 			}
 		}
 
 	}
 }
+
+func (pcf *PCF) UpdateDnnList(ns *protos.NetworkSlice) {
+	sliceid := ns.Nssai.Sst + ns.Nssai.Sd
+	pcfContext := context.PCF_Self()
+	pcfConfig := factory.PcfConfig.Configuration
+	switch ns.OperationType {
+	case protos.OpType_SLICE_ADD:
+		fallthrough
+	case protos.OpType_SLICE_UPDATE:
+		var dnnList []string
+		for _, devgroup := range ns.DeviceGroup {
+			if devgroup.IpDomainDetails != nil {
+				dnnList = append(dnnList, devgroup.IpDomainDetails.DnnName)
+			}
+		}
+		if pcfConfig.DnnList == nil {
+			pcfConfig.DnnList = make(map[string][]string)
+		}
+		pcfConfig.DnnList[sliceid] = dnnList
+	case protos.OpType_SLICE_DELETE:
+		delete(pcfConfig.DnnList, sliceid)
+	}
+	s := fmt.Sprintf("Updated Slice level DnnList[%v]: ", sliceid)
+	for _, dnn := range pcfConfig.DnnList[sliceid] {
+		s += fmt.Sprintf("%v ", dnn)
+	}
+	logger.GrpcLog.Infoln(s)
+
+	pcfContext.DnnList = nil
+	for _, slice := range pcfConfig.DnnList {
+		for _, dnn := range slice {
+			var found bool
+			for _, d := range pcfContext.DnnList {
+				if d == dnn {
+					found = true
+				}
+			}
+			if !found {
+				pcfContext.DnnList = append(pcfContext.DnnList, dnn)
+			}
+		}
+	}
+	logger.GrpcLog.Infof("DnnList Present in PCF: %v", pcfContext.DnnList)
+}
+
+func (pcf *PCF) UpdatePlmnList(ns *protos.NetworkSlice) {
+	sliceid := ns.Nssai.Sst + ns.Nssai.Sd
+	pcfContext := context.PCF_Self()
+	pcfConfig := factory.PcfConfig.Configuration
+	switch ns.OperationType {
+	case protos.OpType_SLICE_ADD:
+		fallthrough
+	case protos.OpType_SLICE_UPDATE:
+		temp := factory.PlmnSupportItem{}
+		if ns.Site.Plmn != nil {
+			temp.PlmnId.Mcc = ns.Site.Plmn.Mcc
+			temp.PlmnId.Mnc = ns.Site.Plmn.Mnc
+		}
+		if pcfConfig.SlicePlmn == nil {
+			pcfConfig.SlicePlmn = make(map[string]factory.PlmnSupportItem)
+		}
+		pcfConfig.SlicePlmn[sliceid] = temp
+	case protos.OpType_SLICE_DELETE:
+		delete(pcfConfig.SlicePlmn, sliceid)
+	}
+	s := fmt.Sprintf("Updated Slice level Plmn[%v]: %v", sliceid, pcfConfig.SlicePlmn[sliceid])
+	logger.GrpcLog.Infoln(s)
+	pcfContext.PlmnList = nil
+	for _, plmn := range pcfConfig.SlicePlmn {
+		var found bool
+		for _, p := range pcfContext.PlmnList {
+			if p == plmn {
+				found = true
+				break
+			}
+		}
+		if !found {
+			pcfContext.PlmnList = append(pcfContext.PlmnList, plmn)
+		}
+	}
+	logger.GrpcLog.Infof("PlmnList Present in PCF: %v", pcfContext.PlmnList)
+}
+
 func (pcf *PCF) updateConfig(commChannel chan *protos.NetworkSliceResponse) bool {
 	var minConfig bool
 	pcfContext := context.PCF_Self()
@@ -651,43 +740,17 @@ func (pcf *PCF) updateConfig(commChannel chan *protos.NetworkSliceResponse) bool
 
 			//Update Qos Info
 			//Update/Create/Delete PcfSubscriberPolicyData
-			UpdatePcfSubsriberPolicyData(ns)
-			/*if ns.Qos != nil {
-				if qi, err := strconv.Atoi(ns.Qos.TrafficClass); err != nil {
-					logger.GrpcLog.Infoln("invalid traffic class: ", ns.Qos.TrafficClass)
-				} else {
-					pcfContext.DefQosMap[ns.Nssai.Sst+ns.Nssai.Sd] = models.SubscribedDefaultQos{Var5qi: int32(qi)}
-				}
+			pcf.UpdatePcfSubsriberPolicyData(ns)
 
-				if ns.Qos.Uplink > 0 && ns.Qos.Downlink > 0 {
-					ulAmbr := strconv.Itoa(int(ns.Qos.Uplink)) + " Mbps"
-					dlAmbr := strconv.Itoa(int(ns.Qos.Downlink)) + " Mbps"
-					pcfContext.AmbrMap[ns.Nssai.Sst+ns.Nssai.Sd] = models.Ambr{Uplink: ulAmbr, Downlink: dlAmbr}
-				}
-			}*/
+			pcf.UpdateDnnList(ns)
 
 			if ns.Site != nil {
-				temp := factory.PlmnSupportItem{}
-				var found bool = false
-				logger.GrpcLog.Infoln("Network Slice has site name present ")
 				site := ns.Site
-				logger.GrpcLog.Infoln("Site name ", site.SiteName)
+				logger.GrpcLog.Infof("Network Slice [%v] has site name: %v", ns.Nssai.Sst+ns.Nssai.Sd, site.SiteName)
 				if site.Plmn != nil {
-					temp.PlmnId.Mcc = site.Plmn.Mcc
-					temp.PlmnId.Mnc = site.Plmn.Mnc
-					logger.GrpcLog.Infoln("Plmn mcc ", site.Plmn.Mcc)
-					for _, item := range pcfContext.PlmnList {
-						if item.PlmnId.Mcc == temp.PlmnId.Mcc && item.PlmnId.Mnc == temp.PlmnId.Mnc {
-							found = true
-							break
-						}
-					}
-					if !found {
-						pcfContext.PlmnList = append(pcfContext.PlmnList, temp)
-						logger.GrpcLog.Infoln("Plmn added in the context", pcfContext.PlmnList)
-					}
+					pcf.UpdatePlmnList(ns)
 				} else {
-					logger.GrpcLog.Infoln("Plmn not present in the message ")
+					logger.GrpcLog.Infof("Plmn not present in the sitename: %v of Slice: %v", site.SiteName, ns.Nssai.Sst+ns.Nssai.Sd)
 				}
 			}
 		}

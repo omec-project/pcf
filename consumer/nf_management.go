@@ -39,10 +39,7 @@ func BuildNFInstance(context *pcf_context.PCFContext) (profile models.NfProfile,
 	}
 
 	profile.PcfInfo = &models.PcfInfo{
-		DnnList: []string{
-			"free5gc",
-			"internet",
-		},
+		DnnList: context.DnnList,
 		// SupiRanges: &[]models.SupiRange{
 		// 	{
 		// 		//from TS 29.510 6.1.6.2.9 example2

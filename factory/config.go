@@ -45,6 +45,10 @@ type Configuration struct {
 	ServiceList     []Service         `yaml:"serviceList,omitempty"`
 	PlmnList        []PlmnSupportItem `yaml:"plmnList,omitempty"`
 	Mongodb         *Mongodb          `yaml:"mongodb"`
+
+	/* below config received from RoC */
+	DnnList   map[string][]string // sst+sd os key
+	SlicePlmn map[string]PlmnSupportItem
 }
 
 type Service struct {
