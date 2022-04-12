@@ -370,7 +370,7 @@ func ImsiExistInDeviceGroup(devGroup *protos.DeviceGroup, imsi string) bool {
 	return false
 }
 
-func getBitRateUnit(val int64) (int64, string) {
+func GetBitRateUnit(val int64) (int64, string) {
 	unit := " Kbps"
 	if val < 1000 {
 		logger.GrpcLog.Warnf("configured value [%v] is lesser than 1000 bps, so setting 1 Kbps", val)
@@ -405,8 +405,8 @@ func getSessionRule(devGroup *protos.DeviceGroup) (sessionRule *models.SessionRu
 			//PriorityLevel:
 		}
 	}
-	ul, uunit := getBitRateUnit(qos.DnnMbrUplink)
-	dl, dunit := getBitRateUnit(qos.DnnMbrDownlink)
+	ul, uunit := GetBitRateUnit(qos.DnnMbrUplink)
+	dl, dunit := GetBitRateUnit(qos.DnnMbrDownlink)
 	sessionRule.AuthSessAmbr = &models.Ambr{
 		Uplink:   strconv.FormatInt(ul, 10) + uunit,
 		Downlink: strconv.FormatInt(dl, 10) + dunit,
@@ -430,19 +430,19 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 			qos.QosId = strconv.FormatInt(id, 10)
 			qos.Var5qi = pccrule.Qos.Var5Qi
 			if pccrule.Qos.MaxbrUl != 0 {
-				ul, unit := getBitRateUnit(int64(pccrule.Qos.MaxbrUl))
+				ul, unit := GetBitRateUnit(int64(pccrule.Qos.MaxbrUl))
 				qos.MaxbrUl = strconv.FormatInt(ul, 10) + unit
 			}
 			if pccrule.Qos.MaxbrDl != 0 {
-				dl, unit := getBitRateUnit(int64(pccrule.Qos.MaxbrDl))
+				dl, unit := GetBitRateUnit(int64(pccrule.Qos.MaxbrDl))
 				qos.MaxbrDl = strconv.FormatInt(dl, 10) + unit
 			}
 			if pccrule.Qos.GbrUl != 0 {
-				ul, unit := getBitRateUnit(int64(pccrule.Qos.GbrUl))
+				ul, unit := GetBitRateUnit(int64(pccrule.Qos.GbrUl))
 				qos.GbrUl = strconv.FormatInt(ul, 10) + unit
 			}
 			if pccrule.Qos.GbrDl != 0 {
-				dl, unit := getBitRateUnit(int64(pccrule.Qos.GbrDl))
+				dl, unit := GetBitRateUnit(int64(pccrule.Qos.GbrDl))
 				qos.GbrDl = strconv.FormatInt(dl, 10) + unit
 			}
 			if pccrule.Qos.Arp != nil {
