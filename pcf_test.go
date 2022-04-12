@@ -18,7 +18,7 @@ import (
 	protos "github.com/omec-project/config5g/proto/sdcoreConfig"
 )
 
-//var AMF = &service.AMF{}
+var PCFTest = &service.PCF{}
 
 /*func init() {
 	factory.InitConfigFactory("amfTest/amfcfg.yaml")
@@ -129,7 +129,7 @@ func TestUpdatePcfSubsriberPolicyDataAdd(t *testing.T) {
 		panic(err)
 	}
 	for _, ns := range nrp.NetworkSlice {
-		service.UpdatePcfSubsriberPolicyData(ns)
+		PCFTest.UpdatePcfSubsriberPolicyData(ns)
 	}
 	self := context.PCF_Self()
 	if len(self.PcfSubscriberPolicyData) == 3 {
@@ -176,7 +176,7 @@ func TestUpdatePcfSubsriberPolicyDataUpdate(t *testing.T) {
 		panic(err)
 	}
 	for _, ns := range nrp.NetworkSlice {
-		service.UpdatePcfSubsriberPolicyData(ns)
+		PCFTest.UpdatePcfSubsriberPolicyData(ns)
 	}
 	self := context.PCF_Self()
 	if len(self.PcfSubscriberPolicyData) == 5 {
@@ -225,7 +225,7 @@ func TestUpdatePcfSubsriberPolicyDataUpdate1(t *testing.T) {
 		panic(err)
 	}
 	for _, ns := range nrp.NetworkSlice {
-		service.UpdatePcfSubsriberPolicyData(ns)
+		PCFTest.UpdatePcfSubsriberPolicyData(ns)
 	}
 	self := context.PCF_Self()
 	if len(self.PcfSubscriberPolicyData) == 4 {
@@ -272,12 +272,46 @@ func TestUpdatePcfSubsriberPolicyDataDel(t *testing.T) {
 		panic(err)
 	}
 	for _, ns := range nrp.NetworkSlice {
-		service.UpdatePcfSubsriberPolicyData(ns)
+		PCFTest.UpdatePcfSubsriberPolicyData(ns)
 	}
 	self := context.PCF_Self()
 	if len(self.PcfSubscriberPolicyData) == 0 {
 		fmt.Printf("test case TestUpdatePcfSubsriberPolicyDataDelete Passed\n")
 	} else {
+		t.Errorf("test case failed\n")
+	}
+}
+
+func TestGetBitRateUnit(t *testing.T) {
+	fmt.Printf("test case TestGetBitRateUnit \n")
+	val, unit := service.GetBitRateUnit(1000)
+	if val != 1 || unit != " Kbps" {
+		t.Errorf("test case failed\n")
+	}
+	val, unit = service.GetBitRateUnit(67200)
+	if val != 67 || unit != " Kbps" {
+		t.Errorf("test case failed\n")
+	}
+	val, unit = service.GetBitRateUnit(777111)
+	if val != 777 || unit != " Kbps" {
+		t.Errorf("test case failed\n")
+	}
+
+	val, unit = service.GetBitRateUnit(77711000)
+	if val != 77 || unit != " Mbps" {
+		t.Errorf("test case failed\n")
+	}
+	val, unit = service.GetBitRateUnit(64435000)
+	if val != 64435 || unit != " Kbps" {
+		t.Errorf("test case failed\n")
+	}
+
+	val, unit = service.GetBitRateUnit(77711000000)
+	if val != 77 || unit != " Gbps" {
+		t.Errorf("test case failed\n")
+	}
+	val, unit = service.GetBitRateUnit(64435000111)
+	if val != 64435 || unit != " Mbps" {
 		t.Errorf("test case failed\n")
 	}
 }
