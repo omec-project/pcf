@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/antihax/optional"
 	"github.com/gin-contrib/cors"
@@ -53,14 +54,21 @@ type PCF struct{}
 type (
 	// Config information.
 	Config struct {
-		pcfcfg string
+		pcfcfg         string
+		heartBeatTimer string
 	}
 )
 
-var ConfigPodTrigger chan bool
+var (
+	ConfigPodTrigger    chan bool
+	stopKeepAliveTimer  chan bool
+	startKeepAliveTimer chan int32
+)
 
 func init() {
 	ConfigPodTrigger = make(chan bool)
+	stopKeepAliveTimer = make(chan bool)
+	startKeepAliveTimer = make(chan int32)
 }
 
 var config Config
@@ -227,6 +235,9 @@ func (pcf *PCF) Start() {
 	//Attempt NRF Registration until success
 	go pcf.registerNF()
 
+	//Start Keep Alive Timer
+	go pcf.StartKeepAliveTimer()
+
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
 	go func() {
@@ -304,6 +315,41 @@ func (pcf *PCF) Exec(c *cli.Context) error {
 	return err
 }
 
+func (pcf *PCF) StartKeepAliveTimer() {
+	var timer *time.Timer
+	//waiting for keepalivetimer value, received after first successful registeration with NRF
+	if val := <-startKeepAliveTimer; val != 0 {
+		logger.InitLog.Infof("Started KeepAlive Timer: %v sec", val)
+		timer = time.NewTimer(time.Duration(val) * time.Second)
+	}
+	for {
+		select {
+		case val := <-startKeepAliveTimer:
+			if timer != nil {
+				timer.Stop()
+			}
+			logger.InitLog.Debugf("Started KeepAlive Timer: %v sec", val)
+			timer = time.NewTimer(time.Duration(val) * time.Second)
+		case <-stopKeepAliveTimer:
+			logger.InitLog.Infof("Stopped KeepAlive Timer")
+			if timer != nil {
+				timer.Stop()
+			}
+		case t := <-timer.C:
+			logger.InitLog.Debugf("KeepAlive timer expired at [%v]", t)
+			nfProfile, err := pcf.updateNF()
+			if err == nil && nfProfile.HeartBeatTimer != 0 {
+				logger.InitLog.Debugf("Started KeepAlive Timer: %v sec", nfProfile.HeartBeatTimer)
+				timer.Reset(time.Duration(nfProfile.HeartBeatTimer) * time.Second)
+			} else {
+				logger.InitLog.Debugf("Started KeepAlive Timer: %v sec", nfProfile.HeartBeatTimer)
+				timer.Reset(30 * time.Second)
+			}
+		}
+	}
+
+}
+
 func (pcf *PCF) Terminate() {
 	logger.InitLog.Infof("Terminating PCF...")
 	// deregister with NRF
@@ -319,10 +365,10 @@ func (pcf *PCF) Terminate() {
 }
 
 func (pcf *PCF) registerNF() {
-
 	for {
+		msg := <-ConfigPodTrigger
 		//wait till Config pod updates config
-		if msg := <-ConfigPodTrigger; msg {
+		if msg {
 			initLog.Infof("Config update trigger %v received in PCF App", msg)
 			self := context.PCF_Self()
 			profile, err := consumer.BuildNFInstance(self)
@@ -331,16 +377,51 @@ func (pcf *PCF) registerNF() {
 			}
 			initLog.Infof("Pcf Profile Registering to NRF: %v", profile)
 			//Indefinite attempt to register until success
-			_, self.NfId, err = consumer.SendRegisterNFInstance(self.NrfUri, self.NfId, profile)
+			profile, _, self.NfId, err = consumer.SendRegisterNFInstance(self.NrfUri, self.NfId, profile)
 			if err != nil {
 				initLog.Errorf("PCF register to NRF Error[%s]", err.Error())
 			} else {
+				if profile.HeartBeatTimer == 0 {
+					profile.HeartBeatTimer = 30
+				}
+				//sending HearBeatTimer value
+				startKeepAliveTimer <- profile.HeartBeatTimer
 				//NRF Registration Successful, Trigger for UDR Discovery
 				pcf.discoverUdr()
 			}
+		} else {
+			//stopping keepAlive timer
+			stopKeepAliveTimer <- false
+			initLog.Infof("PCF is not having Minimum Config to Register/Update to NRF")
+			problemDetails, err := consumer.SendDeregisterNFInstance()
+			if problemDetails != nil {
+				initLog.Errorf("PCF Deregister Instance to NRF failed, Problem: [+%v]", problemDetails)
+			}
+			if err != nil {
+				initLog.Errorf("PCF Deregister Instance to NRF Error[%s]", err.Error())
+			} else {
+				logger.InitLog.Infof("Deregister from NRF successfully")
+			}
 		}
 	}
+}
 
+func (pcf *PCF) updateNF() (nfProfile models.NfProfile, err error) {
+	//self := context.PCF_Self()
+	pitem := models.PatchItem{
+		Op:    "replace",
+		Path:  "/nfStatus",
+		Value: "REGISTERED",
+	}
+	var patchItem []models.PatchItem
+	patchItem = append(patchItem, pitem)
+	nfProfile, problemDetails, err := consumer.SendUpdateNFInstance(patchItem)
+	if err != nil {
+		initLog.Errorf("PCF update to NRF Error[%s]", err.Error())
+	} else if problemDetails != nil {
+		err = fmt.Errorf("PCF update to NRF ProblemDetails[%v]", problemDetails)
+	}
+	return
 }
 
 func (pcf *PCF) discoverUdr() {
@@ -378,21 +459,21 @@ func getBitRateUnit(val int64) (int64, string) {
 		return val, unit
 	}
 	if val >= 0xFFFF {
-		val = (val/1000)
+		val = (val / 1000)
 		unit = " Kbps"
 		if val >= 0xFFFF {
-			val = (val/1000)
+			val = (val / 1000)
 			unit = " Mbps"
 		}
 		if val >= 0xFFFF {
-			val = (val/1000)
+			val = (val / 1000)
 			unit = " Gbps"
 		}
 	} else {
-	  //minimum supported is kbps by SMF/UE
-	  val = val/1000
-	}  
-	
+		//minimum supported is kbps by SMF/UE
+		val = val / 1000
+	}
+
 	return val, unit
 }
 func getSessionRule(devGroup *protos.DeviceGroup) (sessionRule *models.SessionRule) {
@@ -786,6 +867,7 @@ func (pcf *PCF) updateConfig(commChannel chan *protos.NetworkSliceResponse) bool
 			if len(pcfContext.PlmnList) > 0 {
 				minConfig = true
 				ConfigPodTrigger <- true
+				//Start Heart Beat timer for periodic config updates to NRF
 				logger.GrpcLog.Infoln("Send config trigger to main routine first time config")
 			}
 		} else {

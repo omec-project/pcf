@@ -54,7 +54,7 @@ func BuildNFInstance(context *pcf_context.PCFContext) (profile models.NfProfile,
 }
 
 func SendRegisterNFInstance(nrfUri, nfInstanceId string, profile models.NfProfile) (
-	resouceNrfUri string, retrieveNfInstanceID string, err error) {
+	nfProfile models.NfProfile, resouceNrfUri string, retrieveNfInstanceID string, err error) {
 	// Set client and set url
 	configuration := Nnrf_NFManagement.NewConfiguration()
 	configuration.SetBasePath(nrfUri)
@@ -62,7 +62,7 @@ func SendRegisterNFInstance(nrfUri, nfInstanceId string, profile models.NfProfil
 
 	var res *http.Response
 	for {
-		_, res, err = client.NFInstanceIDDocumentApi.RegisterNFInstance(context.TODO(), nfInstanceId, profile)
+		nfProfile, res, err = client.NFInstanceIDDocumentApi.RegisterNFInstance(context.TODO(), nfInstanceId, profile)
 		if err != nil || res == nil {
 			// TODO : add log
 			logger.Consumerlog.Infof("PCF register to NRF Error[%v]", err.Error())
@@ -90,11 +90,11 @@ func SendRegisterNFInstance(nrfUri, nfInstanceId string, profile models.NfProfil
 			logger.Consumerlog.Errorf("NRF return wrong status code", status)
 		}
 	}
-	return resouceNrfUri, retrieveNfInstanceID, err
+	return nfProfile, resouceNrfUri, retrieveNfInstanceID, err
 }
 
 func SendDeregisterNFInstance() (problemDetails *models.ProblemDetails, err error) {
-	logger.Consumerlog.Infof("Send Deregister NFInstance")
+	logger.Consumerlog.Debugf("Send Deregister NFInstance")
 
 	pcfSelf := pcf_context.PCF_Self()
 	// Set client and set url
@@ -114,6 +114,37 @@ func SendDeregisterNFInstance() (problemDetails *models.ProblemDetails, err erro
 			}
 		}()
 		if res.Status != err.Error() {
+			return
+		}
+		problem := err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails)
+		problemDetails = &problem
+	} else {
+		err = openapi.ReportError("server no response")
+	}
+	return
+}
+
+func SendUpdateNFInstance(patchItem []models.PatchItem) (nfProfile models.NfProfile, problemDetails *models.ProblemDetails, err error) {
+	logger.Consumerlog.Debugf("Send Update NFInstance")
+
+	pcfSelf := pcf_context.PCF_Self()
+	// Set client and set url
+	configuration := Nnrf_NFManagement.NewConfiguration()
+	configuration.SetBasePath(pcfSelf.NrfUri)
+	client := Nnrf_NFManagement.NewAPIClient(configuration)
+
+	var res *http.Response
+	nfProfile, res, err = client.NFInstanceIDDocumentApi.UpdateNFInstance(context.Background(), pcfSelf.NfId, patchItem)
+	if err == nil {
+		return
+	} else if res != nil {
+		defer func() {
+			if resCloseErr := res.Body.Close(); resCloseErr != nil {
+				logger.Consumerlog.Errorf("UpdateNFInstance response cannot close: %+v", resCloseErr)
+			}
+		}()
+		if res.Status != err.Error() {
+			logger.Consumerlog.Errorf("UpdateNFInstance received error response: %v", res.Status)
 			return
 		}
 		problem := err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails)
