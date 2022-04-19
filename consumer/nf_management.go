@@ -53,7 +53,7 @@ func BuildNFInstance(context *pcf_context.PCFContext) (profile models.NfProfile,
 	return
 }
 
-func SendRegisterNFInstance(nrfUri, nfInstanceId string, profile models.NfProfile) (
+var SendRegisterNFInstance = func(nrfUri, nfInstanceId string, profile models.NfProfile) (
 	nfProfile models.NfProfile, resouceNrfUri string, retrieveNfInstanceID string, err error) {
 	// Set client and set url
 	configuration := Nnrf_NFManagement.NewConfiguration()
@@ -124,11 +124,10 @@ func SendDeregisterNFInstance() (problemDetails *models.ProblemDetails, err erro
 	return
 }
 
-func SendUpdateNFInstance(patchItem []models.PatchItem) (nfProfile models.NfProfile, problemDetails *models.ProblemDetails, err error) {
+var SendUpdateNFInstance = func(patchItem []models.PatchItem) (nfProfile models.NfProfile, problemDetails *models.ProblemDetails, err error) {
 	logger.Consumerlog.Debugf("Send Update NFInstance")
 
 	pcfSelf := pcf_context.PCF_Self()
-	// Set client and set url
 	configuration := Nnrf_NFManagement.NewConfiguration()
 	configuration.SetBasePath(pcfSelf.NrfUri)
 	client := Nnrf_NFManagement.NewAPIClient(configuration)

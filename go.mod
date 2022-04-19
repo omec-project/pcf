@@ -23,6 +23,7 @@ require (
 	github.com/omec-project/config5g v1.0.7
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sirupsen/logrus v1.8.1
+	github.com/stretchr/testify v1.6.1 // indirect
 	github.com/tim-ywliu/event v0.1.0
 	github.com/urfave/cli v1.22.5
 	gopkg.in/yaml.v2 v2.4.0
