@@ -13,13 +13,13 @@ import (
 
 	"github.com/mohae/deepcopy"
 
-	"github.com/free5gc/http_wrapper"
-	"github.com/free5gc/openapi"
-	"github.com/free5gc/openapi/models"
-	"github.com/free5gc/pcf/consumer"
-	pcf_context "github.com/free5gc/pcf/context"
-	"github.com/free5gc/pcf/logger"
-	"github.com/free5gc/pcf/util"
+	"github.com/omec-project/http_wrapper"
+	"github.com/omec-project/openapi"
+	"github.com/omec-project/openapi/models"
+	"github.com/omec-project/pcf/consumer"
+	pcf_context "github.com/omec-project/pcf/context"
+	"github.com/omec-project/pcf/logger"
+	"github.com/omec-project/pcf/util"
 )
 
 func HandleDeletePoliciesPolAssoId(request *http_wrapper.Request) *http_wrapper.Response {

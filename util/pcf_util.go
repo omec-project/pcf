@@ -13,15 +13,15 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/free5gc/openapi/Namf_Communication"
-	"github.com/free5gc/openapi/Npcf_AMPolicy"
-	"github.com/free5gc/openapi/Npcf_PolicyAuthorization"
-	"github.com/free5gc/openapi/Npcf_SMPolicyControl"
-	"github.com/free5gc/openapi/Nudr_DataRepository"
-	"github.com/free5gc/openapi/models"
-	"github.com/free5gc/path_util"
-	"github.com/free5gc/pcf/context"
-	"github.com/free5gc/pcf/logger"
+	"github.com/omec-project/openapi/Namf_Communication"
+	"github.com/omec-project/openapi/Npcf_AMPolicy"
+	"github.com/omec-project/openapi/Npcf_PolicyAuthorization"
+	"github.com/omec-project/openapi/Npcf_SMPolicyControl"
+	"github.com/omec-project/openapi/Nudr_DataRepository"
+	"github.com/omec-project/openapi/models"
+	"github.com/omec-project/path_util"
+	"github.com/omec-project/pcf/context"
+	"github.com/omec-project/pcf/logger"
 )
 
 const TimeFormat = time.RFC3339

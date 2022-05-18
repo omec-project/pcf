@@ -11,12 +11,12 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/free5gc/MongoDBLibrary"
-	"github.com/free5gc/openapi"
-	"github.com/free5gc/openapi/models"
-	"github.com/free5gc/pcf/context"
-	"github.com/free5gc/pcf/factory"
-	"github.com/free5gc/pcf/logger"
+	"github.com/omec-project/MongoDBLibrary"
+	"github.com/omec-project/openapi"
+	"github.com/omec-project/openapi/models"
+	"github.com/omec-project/pcf/context"
+	"github.com/omec-project/pcf/factory"
+	"github.com/omec-project/pcf/logger"
 )
 
 // Init PCF Context from config flie

@@ -15,7 +15,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/free5gc/pcf/logger"
+	"github.com/omec-project/pcf/logger"
 )
 
 var PcfConfig Config

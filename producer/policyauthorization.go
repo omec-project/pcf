@@ -15,13 +15,13 @@ import (
 
 	"github.com/cydev/zero"
 
-	"github.com/free5gc/http_wrapper"
-	"github.com/free5gc/openapi"
-	"github.com/free5gc/openapi/models"
-	pcf_context "github.com/free5gc/pcf/context"
-	"github.com/free5gc/pcf/internal/notifyevent"
-	"github.com/free5gc/pcf/logger"
-	"github.com/free5gc/pcf/util"
+	"github.com/omec-project/http_wrapper"
+	"github.com/omec-project/openapi"
+	"github.com/omec-project/openapi/models"
+	pcf_context "github.com/omec-project/pcf/context"
+	"github.com/omec-project/pcf/internal/notifyevent"
+	"github.com/omec-project/pcf/logger"
+	"github.com/omec-project/pcf/util"
 )
 
 func transferAfRoutReqRmToAfRoutReq(AfRoutReqRm *models.AfRoutingRequirementRm) *models.AfRoutingRequirement {

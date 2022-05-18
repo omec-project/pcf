@@ -13,11 +13,11 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/free5gc/idgenerator"
-	"github.com/free5gc/openapi"
-	"github.com/free5gc/openapi/models"
-	"github.com/free5gc/pcf/factory"
-	"github.com/free5gc/pcf/logger"
+	"github.com/omec-project/idgenerator"
+	"github.com/omec-project/openapi"
+	"github.com/omec-project/openapi/models"
+	"github.com/omec-project/pcf/factory"
+	"github.com/omec-project/pcf/logger"
 	"github.com/sirupsen/logrus"
 )
 
