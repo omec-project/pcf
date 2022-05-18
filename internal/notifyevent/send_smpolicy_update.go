@@ -11,9 +11,9 @@ import (
 
 	"github.com/tim-ywliu/event"
 
-	"github.com/free5gc/openapi/models"
-	"github.com/free5gc/pcf/logger"
-	"github.com/free5gc/pcf/util"
+	"github.com/omec-project/openapi/models"
+	"github.com/omec-project/pcf/logger"
+	"github.com/omec-project/pcf/util"
 )
 
 const SendSMpolicyUpdateNotifyEventName event.Name = "SendSMpolicyUpdateNotify"
