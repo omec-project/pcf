@@ -23,29 +23,28 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 
-	"github.com/free5gc/http2_util"
-	"github.com/free5gc/idgenerator"
-	"github.com/free5gc/logger_util"
-	"github.com/free5gc/openapi/Nnrf_NFDiscovery"
-	openApiLogger "github.com/free5gc/openapi/logger"
-	"github.com/free5gc/openapi/models"
-	"github.com/free5gc/path_util"
-	pathUtilLogger "github.com/free5gc/path_util/logger"
-	"github.com/free5gc/pcf/ampolicy"
-	"github.com/free5gc/pcf/bdtpolicy"
-	"github.com/free5gc/pcf/consumer"
-	"github.com/free5gc/pcf/context"
-	"github.com/free5gc/pcf/factory"
-	"github.com/free5gc/pcf/httpcallback"
-	"github.com/free5gc/pcf/internal/notifyevent"
-	"github.com/free5gc/pcf/logger"
-	"github.com/free5gc/pcf/oam"
-	"github.com/free5gc/pcf/policyauthorization"
-	"github.com/free5gc/pcf/smpolicy"
-	"github.com/free5gc/pcf/uepolicy"
-	"github.com/free5gc/pcf/util"
 	"github.com/omec-project/config5g/proto/client"
 	protos "github.com/omec-project/config5g/proto/sdcoreConfig"
+	"github.com/omec-project/http2_util"
+	"github.com/omec-project/idgenerator"
+	"github.com/omec-project/logger_util"
+	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
+	"github.com/omec-project/openapi/models"
+	"github.com/omec-project/path_util"
+	pathUtilLogger "github.com/omec-project/path_util/logger"
+	"github.com/omec-project/pcf/ampolicy"
+	"github.com/omec-project/pcf/bdtpolicy"
+	"github.com/omec-project/pcf/consumer"
+	"github.com/omec-project/pcf/context"
+	"github.com/omec-project/pcf/factory"
+	"github.com/omec-project/pcf/httpcallback"
+	"github.com/omec-project/pcf/internal/notifyevent"
+	"github.com/omec-project/pcf/logger"
+	"github.com/omec-project/pcf/oam"
+	"github.com/omec-project/pcf/policyauthorization"
+	"github.com/omec-project/pcf/smpolicy"
+	"github.com/omec-project/pcf/uepolicy"
+	"github.com/omec-project/pcf/util"
 )
 
 type PCF struct{}
@@ -161,7 +160,7 @@ func (pcf *PCF) setLogLevel() {
 		pathUtilLogger.SetReportCaller(factory.PcfConfig.Logger.PathUtil.ReportCaller)
 	}
 
-	if factory.PcfConfig.Logger.OpenApi != nil {
+	/*if factory.PcfConfig.Logger.OpenApi != nil {
 		if factory.PcfConfig.Logger.OpenApi.DebugLevel != "" {
 			if level, err := logrus.ParseLevel(factory.PcfConfig.Logger.OpenApi.DebugLevel); err != nil {
 				openApiLogger.OpenApiLog.Warnf("OpenAPI Log level [%s] is invalid, set to [info] level",
@@ -175,7 +174,7 @@ func (pcf *PCF) setLogLevel() {
 			openApiLogger.SetLogLevel(logrus.InfoLevel)
 		}
 		openApiLogger.SetReportCaller(factory.PcfConfig.Logger.OpenApi.ReportCaller)
-	}
+	}*/
 }
 
 func (pcf *PCF) FilterCli(c *cli.Context) (args []string) {
@@ -378,21 +377,21 @@ func GetBitRateUnit(val int64) (int64, string) {
 		return val, unit
 	}
 	if val >= 0xFFFF {
-		val = (val/1000)
+		val = (val / 1000)
 		unit = " Kbps"
 		if val >= 0xFFFF {
-			val = (val/1000)
+			val = (val / 1000)
 			unit = " Mbps"
 		}
 		if val >= 0xFFFF {
-			val = (val/1000)
+			val = (val / 1000)
 			unit = " Gbps"
 		}
 	} else {
-	  //minimum supported is kbps by SMF/UE
-	  val = val/1000
-	}  
-	
+		//minimum supported is kbps by SMF/UE
+		val = val / 1000
+	}
+
 	return val, unit
 }
 func getSessionRule(devGroup *protos.DeviceGroup) (sessionRule *models.SessionRule) {

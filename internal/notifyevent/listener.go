@@ -6,7 +6,7 @@
 package notifyevent
 
 import (
-	"github.com/free5gc/pcf/logger"
+	"github.com/omec-project/pcf/logger"
 )
 
 type NotifyListener struct{}

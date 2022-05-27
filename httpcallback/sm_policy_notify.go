@@ -10,11 +10,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/free5gc/http_wrapper"
-	"github.com/free5gc/openapi"
-	"github.com/free5gc/openapi/models"
-	"github.com/free5gc/pcf/logger"
-	"github.com/free5gc/pcf/producer"
+	"github.com/omec-project/http_wrapper"
+	"github.com/omec-project/openapi"
+	"github.com/omec-project/openapi/models"
+	"github.com/omec-project/pcf/logger"
+	"github.com/omec-project/pcf/producer"
 )
 
 // Nudr-Notify-smpolicy

@@ -10,9 +10,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/free5gc/pcf/context"
-	"github.com/free5gc/pcf/service"
 	protos "github.com/omec-project/config5g/proto/sdcoreConfig"
+	"github.com/omec-project/pcf/context"
+	"github.com/omec-project/pcf/service"
 	"github.com/stretchr/testify/require"
 	"strconv"
 	"testing"
