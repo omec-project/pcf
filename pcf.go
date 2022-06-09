@@ -19,18 +19,51 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime"
 
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 
-	"github.com/free5gc/pcf/logger"
-	"github.com/free5gc/pcf/service"
-	"github.com/free5gc/version"
+	"github.com/omec-project/pcf/logger"
+	"github.com/omec-project/pcf/service"
 )
 
 var PCF = &service.PCF{}
 
 var appLog *logrus.Entry
+
+var (
+	VERSION     string
+	BUILD_TIME  string
+	COMMIT_HASH string
+	COMMIT_TIME string
+)
+
+func GetVersion() string {
+	if VERSION != "" {
+		return fmt.Sprintf(
+			"\n\tfree5GC version: %s"+
+				"\n\tbuild time:      %s"+
+				"\n\tcommit hash:     %s"+
+				"\n\tcommit time:     %s"+
+				"\n\tgo version:      %s %s/%s",
+			VERSION,
+			BUILD_TIME,
+			COMMIT_HASH,
+			COMMIT_TIME,
+			runtime.Version(),
+			runtime.GOOS,
+			runtime.GOARCH,
+		)
+	} else {
+		return fmt.Sprintf(
+			"\n\tNot specify ldflags (which link version) during go build\n\tgo version: %s %s/%s",
+			runtime.Version(),
+			runtime.GOOS,
+			runtime.GOARCH,
+		)
+	}
+}
 
 func init() {
 	appLog = logger.AppLog
@@ -40,7 +73,7 @@ func main() {
 	app := cli.NewApp()
 	app.Name = "pcf"
 	fmt.Print(app.Name, "\n")
-	appLog.Infoln("PCF version: ", version.GetVersion())
+	appLog.Infoln("PCF version: ", GetVersion())
 	app.Usage = "-free5gccfg common configuration file -pcfcfg pcf configuration file"
 	app.Action = action
 	app.Flags = PCF.GetCliCmd()

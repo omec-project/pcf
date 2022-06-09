@@ -8,7 +8,7 @@ package util
 import (
 	"fmt"
 
-	"github.com/free5gc/openapi/models"
+	"github.com/omec-project/openapi/models"
 )
 
 // SearchNFServiceUri returns NF Uri derived from NfProfile with corresponding service

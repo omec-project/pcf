@@ -14,12 +14,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/free5gc/openapi/Nnrf_NFDiscovery"
-	"github.com/free5gc/openapi/models"
-	"github.com/free5gc/pcf/consumer"
-	"github.com/free5gc/pcf/context"
-	"github.com/free5gc/pcf/service"
 	protos "github.com/omec-project/config5g/proto/sdcoreConfig"
+	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
+	"github.com/omec-project/openapi/models"
+	"github.com/omec-project/pcf/consumer"
+	"github.com/omec-project/pcf/context"
+	"github.com/omec-project/pcf/service"
 	"github.com/stretchr/testify/require"
 )
 

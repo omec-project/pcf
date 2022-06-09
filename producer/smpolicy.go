@@ -16,13 +16,13 @@ import (
 	"github.com/antihax/optional"
 	"github.com/mohae/deepcopy"
 
-	"github.com/free5gc/http_wrapper"
-	"github.com/free5gc/openapi"
-	"github.com/free5gc/openapi/Nudr_DataRepository"
-	"github.com/free5gc/openapi/models"
-	pcf_context "github.com/free5gc/pcf/context"
-	"github.com/free5gc/pcf/logger"
-	"github.com/free5gc/pcf/util"
+	"github.com/omec-project/http_wrapper"
+	"github.com/omec-project/openapi"
+	"github.com/omec-project/openapi/Nudr_DataRepository"
+	"github.com/omec-project/openapi/models"
+	pcf_context "github.com/omec-project/pcf/context"
+	"github.com/omec-project/pcf/logger"
+	"github.com/omec-project/pcf/util"
 )
 
 const flowRuleDataColl = "policyData.ues.flowRule"

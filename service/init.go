@@ -24,29 +24,28 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 
-	"github.com/free5gc/http2_util"
-	"github.com/free5gc/idgenerator"
-	"github.com/free5gc/logger_util"
-	"github.com/free5gc/openapi/Nnrf_NFDiscovery"
-	openApiLogger "github.com/free5gc/openapi/logger"
-	"github.com/free5gc/openapi/models"
-	"github.com/free5gc/path_util"
-	pathUtilLogger "github.com/free5gc/path_util/logger"
-	"github.com/free5gc/pcf/ampolicy"
-	"github.com/free5gc/pcf/bdtpolicy"
-	"github.com/free5gc/pcf/consumer"
-	"github.com/free5gc/pcf/context"
-	"github.com/free5gc/pcf/factory"
-	"github.com/free5gc/pcf/httpcallback"
-	"github.com/free5gc/pcf/internal/notifyevent"
-	"github.com/free5gc/pcf/logger"
-	"github.com/free5gc/pcf/oam"
-	"github.com/free5gc/pcf/policyauthorization"
-	"github.com/free5gc/pcf/smpolicy"
-	"github.com/free5gc/pcf/uepolicy"
-	"github.com/free5gc/pcf/util"
 	"github.com/omec-project/config5g/proto/client"
 	protos "github.com/omec-project/config5g/proto/sdcoreConfig"
+	"github.com/omec-project/http2_util"
+	"github.com/omec-project/idgenerator"
+	"github.com/omec-project/logger_util"
+	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
+	"github.com/omec-project/openapi/models"
+	"github.com/omec-project/path_util"
+	pathUtilLogger "github.com/omec-project/path_util/logger"
+	"github.com/omec-project/pcf/ampolicy"
+	"github.com/omec-project/pcf/bdtpolicy"
+	"github.com/omec-project/pcf/consumer"
+	"github.com/omec-project/pcf/context"
+	"github.com/omec-project/pcf/factory"
+	"github.com/omec-project/pcf/httpcallback"
+	"github.com/omec-project/pcf/internal/notifyevent"
+	"github.com/omec-project/pcf/logger"
+	"github.com/omec-project/pcf/oam"
+	"github.com/omec-project/pcf/policyauthorization"
+	"github.com/omec-project/pcf/smpolicy"
+	"github.com/omec-project/pcf/uepolicy"
+	"github.com/omec-project/pcf/util"
 )
 
 type PCF struct{}
@@ -167,7 +166,7 @@ func (pcf *PCF) setLogLevel() {
 		pathUtilLogger.SetReportCaller(factory.PcfConfig.Logger.PathUtil.ReportCaller)
 	}
 
-	if factory.PcfConfig.Logger.OpenApi != nil {
+	/*if factory.PcfConfig.Logger.OpenApi != nil {
 		if factory.PcfConfig.Logger.OpenApi.DebugLevel != "" {
 			if level, err := logrus.ParseLevel(factory.PcfConfig.Logger.OpenApi.DebugLevel); err != nil {
 				openApiLogger.OpenApiLog.Warnf("OpenAPI Log level [%s] is invalid, set to [info] level",
@@ -181,7 +180,7 @@ func (pcf *PCF) setLogLevel() {
 			openApiLogger.SetLogLevel(logrus.InfoLevel)
 		}
 		openApiLogger.SetReportCaller(factory.PcfConfig.Logger.OpenApi.ReportCaller)
-	}
+	}*/
 }
 
 func (pcf *PCF) FilterCli(c *cli.Context) (args []string) {
@@ -313,8 +312,10 @@ func (pcf *PCF) Exec(c *cli.Context) error {
 func (pcf *PCF) StartKeepAliveTimer(nfProfile models.NfProfile) {
 	KeepAliveTimerMutex.Lock()
 	defer KeepAliveTimerMutex.Unlock()
+	pcf.StopKeepAliveTimer()
 	if nfProfile.HeartBeatTimer == 0 {
-		nfProfile.HeartBeatTimer = 30
+		// heartbeat timer value set to 60 sec
+		nfProfile.HeartBeatTimer = 60
 	}
 	logger.InitLog.Infof("Started KeepAlive Timer: %v sec", nfProfile.HeartBeatTimer)
 	//AfterFunc starts timer and waits for KeepAliveTimer to elapse and then calls pcf.UpdateNF function
@@ -322,8 +323,6 @@ func (pcf *PCF) StartKeepAliveTimer(nfProfile models.NfProfile) {
 }
 
 func (pcf *PCF) StopKeepAliveTimer() {
-	KeepAliveTimerMutex.Lock()
-	defer KeepAliveTimerMutex.Unlock()
 	if KeepAliveTimer != nil {
 		logger.InitLog.Infof("Stopped KeepAlive Timer.")
 		KeepAliveTimer.Stop()
@@ -350,6 +349,7 @@ func (pcf *PCF) BuildAndSendRegisterNFInstance() (models.NfProfile, error) {
 	profile, err := consumer.BuildNFInstance(self)
 	if err != nil {
 		initLog.Error("Build PCF Profile Error: %v", err)
+		return profile, err
 	}
 	initLog.Infof("Pcf Profile Registering to NRF: %v", profile)
 	//Indefinite attempt to register until success
@@ -367,15 +367,15 @@ func (pcf *PCF) RegisterNF() {
 			if err != nil {
 				initLog.Errorf("PCF register to NRF Error[%s]", err.Error())
 			} else {
-				//stop keepAliveTimer if its running
-				pcf.StopKeepAliveTimer()
 				pcf.StartKeepAliveTimer(profile)
 				//NRF Registration Successful, Trigger for UDR Discovery
 				pcf.DiscoverUdr()
 			}
 		} else {
 			//stopping keepAlive timer
+			KeepAliveTimerMutex.Lock()
 			pcf.StopKeepAliveTimer()
+			KeepAliveTimerMutex.Unlock()
 			initLog.Infof("PCF is not having Minimum Config to Register/Update to NRF")
 			problemDetails, err := consumer.SendDeregisterNFInstance()
 			if problemDetails != nil {
@@ -398,8 +398,8 @@ func (pcf *PCF) UpdateNF() {
 		initLog.Warnf("KeepAlive timer has been stopped.")
 		return
 	}
-	//setting default value 30 sec
-	var heartBeatTimer int32 = 30
+	//setting default value 60 sec
+	var heartBeatTimer int32 = 60
 	pitem := models.PatchItem{
 		Op:    "replace",
 		Path:  "/nfStatus",
