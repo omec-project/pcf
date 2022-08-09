@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/antihax/optional"
 	"github.com/gin-contrib/cors"
@@ -52,11 +53,16 @@ type PCF struct{}
 type (
 	// Config information.
 	Config struct {
-		pcfcfg string
+		pcfcfg         string
+		heartBeatTimer string
 	}
 )
 
-var ConfigPodTrigger chan bool
+var (
+	ConfigPodTrigger    chan bool
+	KeepAliveTimer      *time.Timer
+	KeepAliveTimerMutex sync.Mutex
+)
 
 func init() {
 	ConfigPodTrigger = make(chan bool)
@@ -224,7 +230,7 @@ func (pcf *PCF) Start() {
 	addr := fmt.Sprintf("%s:%d", self.BindingIPv4, self.SBIPort)
 
 	//Attempt NRF Registration until success
-	go pcf.registerNF()
+	go pcf.RegisterNF()
 
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
@@ -303,6 +309,27 @@ func (pcf *PCF) Exec(c *cli.Context) error {
 	return err
 }
 
+func (pcf *PCF) StartKeepAliveTimer(nfProfile models.NfProfile) {
+	KeepAliveTimerMutex.Lock()
+	defer KeepAliveTimerMutex.Unlock()
+	pcf.StopKeepAliveTimer()
+	if nfProfile.HeartBeatTimer == 0 {
+		// heartbeat timer value set to 60 sec
+		nfProfile.HeartBeatTimer = 60
+	}
+	logger.InitLog.Infof("Started KeepAlive Timer: %v sec", nfProfile.HeartBeatTimer)
+	//AfterFunc starts timer and waits for KeepAliveTimer to elapse and then calls pcf.UpdateNF function
+	KeepAliveTimer = time.AfterFunc(time.Duration(nfProfile.HeartBeatTimer)*time.Second, pcf.UpdateNF)
+}
+
+func (pcf *PCF) StopKeepAliveTimer() {
+	if KeepAliveTimer != nil {
+		logger.InitLog.Infof("Stopped KeepAlive Timer.")
+		KeepAliveTimer.Stop()
+		KeepAliveTimer = nil
+	}
+}
+
 func (pcf *PCF) Terminate() {
 	logger.InitLog.Infof("Terminating PCF...")
 	// deregister with NRF
@@ -317,32 +344,93 @@ func (pcf *PCF) Terminate() {
 	logger.InitLog.Infof("PCF terminated")
 }
 
-func (pcf *PCF) registerNF() {
+func (pcf *PCF) BuildAndSendRegisterNFInstance() (models.NfProfile, error) {
+	self := context.PCF_Self()
+	profile, err := consumer.BuildNFInstance(self)
+	if err != nil {
+		initLog.Error("Build PCF Profile Error: %v", err)
+		return profile, err
+	}
+	initLog.Infof("Pcf Profile Registering to NRF: %v", profile)
+	//Indefinite attempt to register until success
+	profile, _, self.NfId, err = consumer.SendRegisterNFInstance(self.NrfUri, self.NfId, profile)
+	return profile, err
+}
 
+func (pcf *PCF) RegisterNF() {
 	for {
+		msg := <-ConfigPodTrigger
 		//wait till Config pod updates config
-		if msg := <-ConfigPodTrigger; msg {
+		if msg {
 			initLog.Infof("Config update trigger %v received in PCF App", msg)
-			self := context.PCF_Self()
-			profile, err := consumer.BuildNFInstance(self)
-			if err != nil {
-				initLog.Error("Build PCF Profile Error: %v", err)
-			}
-			initLog.Infof("Pcf Profile Registering to NRF: %v", profile)
-			//Indefinite attempt to register until success
-			_, self.NfId, err = consumer.SendRegisterNFInstance(self.NrfUri, self.NfId, profile)
+			profile, err := pcf.BuildAndSendRegisterNFInstance()
 			if err != nil {
 				initLog.Errorf("PCF register to NRF Error[%s]", err.Error())
 			} else {
+				pcf.StartKeepAliveTimer(profile)
 				//NRF Registration Successful, Trigger for UDR Discovery
-				pcf.discoverUdr()
+				pcf.DiscoverUdr()
+			}
+		} else {
+			//stopping keepAlive timer
+			KeepAliveTimerMutex.Lock()
+			pcf.StopKeepAliveTimer()
+			KeepAliveTimerMutex.Unlock()
+			initLog.Infof("PCF is not having Minimum Config to Register/Update to NRF")
+			problemDetails, err := consumer.SendDeregisterNFInstance()
+			if problemDetails != nil {
+				initLog.Errorf("PCF Deregister Instance to NRF failed, Problem: [+%v]", problemDetails)
+			}
+			if err != nil {
+				initLog.Errorf("PCF Deregister Instance to NRF Error[%s]", err.Error())
+			} else {
+				logger.InitLog.Infof("Deregister from NRF successfully")
 			}
 		}
 	}
-
 }
 
-func (pcf *PCF) discoverUdr() {
+//UpdateNF is the callback function, this is called when keepalivetimer elapsed
+func (pcf *PCF) UpdateNF() {
+	KeepAliveTimerMutex.Lock()
+	defer KeepAliveTimerMutex.Unlock()
+	if KeepAliveTimer == nil {
+		initLog.Warnf("KeepAlive timer has been stopped.")
+		return
+	}
+	//setting default value 60 sec
+	var heartBeatTimer int32 = 60
+	pitem := models.PatchItem{
+		Op:    "replace",
+		Path:  "/nfStatus",
+		Value: "REGISTERED",
+	}
+	var patchItem []models.PatchItem
+	patchItem = append(patchItem, pitem)
+	nfProfile, problemDetails, err := consumer.SendUpdateNFInstance(patchItem)
+	if problemDetails != nil {
+		initLog.Errorf("PCF update to NRF ProblemDetails[%v]", problemDetails)
+		//5xx response from NRF, 404 Not Found, 400 Bad Request
+		if (problemDetails.Status/100) == 5 ||
+			problemDetails.Status == 404 || problemDetails.Status == 400 {
+			//register with NRF full profile
+			nfProfile, err = pcf.BuildAndSendRegisterNFInstance()
+		}
+	} else if err != nil {
+		initLog.Errorf("PCF update to NRF Error[%s]", err.Error())
+		nfProfile, err = pcf.BuildAndSendRegisterNFInstance()
+	}
+
+	if nfProfile.HeartBeatTimer != 0 {
+		// use hearbeattimer value with received timer value from NRF
+		heartBeatTimer = nfProfile.HeartBeatTimer
+	}
+	logger.InitLog.Debugf("Restarted KeepAlive Timer: %v sec", heartBeatTimer)
+	//restart timer with received HeartBeatTimer value
+	KeepAliveTimer = time.AfterFunc(time.Duration(heartBeatTimer)*time.Second, pcf.UpdateNF)
+}
+
+func (pcf *PCF) DiscoverUdr() {
 	self := context.PCF_Self()
 	param := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
 		ServiceNames: optional.NewInterface([]models.ServiceName{models.ServiceName_NUDR_DR}),
@@ -780,20 +868,26 @@ func (pcf *PCF) updateConfig(commChannel chan *protos.NetworkSliceResponse) bool
 				}
 			}
 		}
-		if !minConfig {
-			// first slice Created
+		// minConfig is 'true' when one slice is configured at least.
+		// minConfig is 'false' when no slice configuration.
+		// check PlmnList for each configuration update from Roc/Simapp.
+		if minConfig == false {
+			// For each slice Plmn is the mandatory parameter, checking PlmnList length is greater than zero
+			// setting minConfig to true
 			if len(pcfContext.PlmnList) > 0 {
 				minConfig = true
 				ConfigPodTrigger <- true
+				//Start Heart Beat timer for periodic config updates to NRF
 				logger.GrpcLog.Infoln("Send config trigger to main routine first time config")
 			}
-		} else {
-			// all slices deleted
+		} else if minConfig { // one or more slices are configured hence minConfig is true
+			// minConfig is true but PlmnList is '0' means slices were configured then deleted.
 			if len(pcfContext.PlmnList) == 0 {
 				minConfig = false
 				ConfigPodTrigger <- false
 				logger.GrpcLog.Infoln("Send config trigger to main routine config deleted")
 			} else {
+				//configuration update from simapp/RoC
 				ConfigPodTrigger <- true
 				logger.GrpcLog.Infoln("Send config trigger to main routine config updated")
 			}

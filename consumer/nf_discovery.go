@@ -19,7 +19,7 @@ import (
 	"github.com/omec-project/pcf/util"
 )
 
-func SendSearchNFInstances(
+var SendSearchNFInstances = func(
 	nrfUri string, targetNfType, requestNfType models.NfType, param Nnrf_NFDiscovery.SearchNFInstancesParamOpts) (
 	*models.SearchResult, error) {
 	// Set client and set url

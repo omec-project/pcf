@@ -10,12 +10,17 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"testing"
+	"time"
+
 	protos "github.com/omec-project/config5g/proto/sdcoreConfig"
+	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
+	"github.com/omec-project/openapi/models"
+	"github.com/omec-project/pcf/consumer"
 	"github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/service"
 	"github.com/stretchr/testify/require"
-	"strconv"
-	"testing"
 )
 
 var PCFTest = &service.PCF{}
@@ -292,4 +297,39 @@ func TestGetBitRateUnit(t *testing.T) {
 		val, unit := service.GetBitRateUnit(value)
 		require.Equal(t, strconv.FormatInt(val, 10)+unit, expVal)
 	}
+}
+
+func TestRegisterNF(t *testing.T) {
+	// Save current function and restore at the end:
+	origRegisterNFInstance := consumer.SendRegisterNFInstance
+	origSearchNFInstances := consumer.SendSearchNFInstances
+	origUpdateNFInstance := consumer.SendUpdateNFInstance
+	defer func() {
+		consumer.SendRegisterNFInstance = origRegisterNFInstance
+		consumer.SendSearchNFInstances = origSearchNFInstances
+		consumer.SendUpdateNFInstance = origUpdateNFInstance
+	}()
+	fmt.Printf("test case TestRegisterNF \n")
+	var prof models.NfProfile
+	consumer.SendRegisterNFInstance = func(nrfUri string, nfInstanceId string, profile models.NfProfile) (models.NfProfile, string, string, error) {
+		prof = profile
+		prof.HeartBeatTimer = 1
+		fmt.Printf("Test RegisterNFInstance called\n")
+		return prof, "", "", nil
+	}
+	consumer.SendSearchNFInstances = func(nrfUri string, targetNfType, requestNfType models.NfType, param Nnrf_NFDiscovery.SearchNFInstancesParamOpts) (*models.SearchResult, error) {
+		fmt.Printf("Test SearchNFInstance called\n")
+		return &models.SearchResult{}, nil
+	}
+	consumer.SendUpdateNFInstance = func(patchItem []models.PatchItem) (nfProfile models.NfProfile, problemDetails *models.ProblemDetails, err error) {
+		return prof, nil, nil
+	}
+	go PCFTest.RegisterNF()
+	service.ConfigPodTrigger <- true
+	time.Sleep(5 * time.Second)
+	require.Equal(t, service.KeepAliveTimer != nil, true)
+
+	service.ConfigPodTrigger <- false
+	time.Sleep(1 * time.Second)
+	require.Equal(t, service.KeepAliveTimer == nil, true)
 }
