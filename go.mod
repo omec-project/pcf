@@ -1,6 +1,6 @@
 module github.com/omec-project/pcf
 
-go 1.14
+go 1.16
 
 require (
 	github.com/antihax/optional v1.0.0
@@ -13,7 +13,7 @@ require (
 	github.com/google/uuid v1.1.2
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/omec-project/MongoDBLibrary v1.1.2
-	github.com/omec-project/config5g v1.1.0
+	github.com/omec-project/config5g v1.2.0
 	github.com/omec-project/http2_util v1.1.0
 	github.com/omec-project/http_wrapper v1.1.0
 	github.com/omec-project/idgenerator v1.1.0
@@ -28,5 +28,6 @@ require (
 	github.com/urfave/cli v1.22.5
 	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a // indirect
 	google.golang.org/appengine v1.6.7 // indirect
+	google.golang.org/grpc v1.48.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0
 )
