@@ -464,14 +464,14 @@ func GetBitRateUnit(val int64) (int64, string) {
 		val = 1
 		return val, unit
 	}
-	if val >= 0xFFFF {
+	if val >= 0x7FFF {
 		val = (val / 1000)
 		unit = " Kbps"
-		if val >= 0xFFFF {
+		if val >= 0x7FFF {
 			val = (val / 1000)
 			unit = " Mbps"
 		}
-		if val >= 0xFFFF {
+		if val >= 0x7FFF {
 			val = (val / 1000)
 			unit = " Gbps"
 		}
