@@ -348,7 +348,7 @@ func (pcf *PCF) BuildAndSendRegisterNFInstance() (models.NfProfile, error) {
 	self := context.PCF_Self()
 	profile, err := consumer.BuildNFInstance(self)
 	if err != nil {
-		initLog.Error("Build PCF Profile Error: %v", err)
+		initLog.Errorf("Build PCF Profile Error: %v", err)
 		return profile, err
 	}
 	initLog.Infof("Pcf Profile Registering to NRF: %v", profile)
@@ -390,7 +390,7 @@ func (pcf *PCF) RegisterNF() {
 	}
 }
 
-//UpdateNF is the callback function, this is called when keepalivetimer elapsed
+// UpdateNF is the callback function, this is called when keepalivetimer elapsed
 func (pcf *PCF) UpdateNF() {
 	KeepAliveTimerMutex.Lock()
 	defer KeepAliveTimerMutex.Unlock()
