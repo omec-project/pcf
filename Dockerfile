@@ -17,7 +17,7 @@ COPY . $GOPATH/src/pcf
 RUN cd $GOPATH/src/pcf \
     && make all
 
-FROM alpine:3.18 as pcf
+FROM alpine:3.19 as pcf
 
 LABEL description="ONF open source 5G Core Network" \
     version="Stage 3"
