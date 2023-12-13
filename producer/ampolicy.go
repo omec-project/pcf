@@ -417,8 +417,5 @@ func SendAMPolicyTerminationRequestNotification(ue *pcf_context.UeContext,
 
 // returns UDR Uri of Ue, if ue.UdrUri dose not exist, query NRF to get supported Udr Uri
 func getUdrUri(ue *pcf_context.UeContext) string {
-	if ue.UdrUri != "" {
-		return ue.UdrUri
-	}
 	return consumer.SendNFIntancesUDR(pcf_context.PCF_Self().NrfUri, ue.Supi)
 }
