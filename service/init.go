@@ -686,10 +686,9 @@ func (pcf *PCF) UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
 
 			for _, imsi := range slice.AddUpdatedImsis {
 				if ImsiExistInDeviceGroup(devgroup, imsi) {
-					policyData, _ := self.PcfSubscriberPolicyData[imsi]
 					// TODO policy exists, so compare and get difference with existing policy then notify the subscriber
 					self.PcfSubscriberPolicyData[imsi] = &context.PcfSubscriberPolicyData{}
-					policyData = self.PcfSubscriberPolicyData[imsi]
+					policyData := self.PcfSubscriberPolicyData[imsi]
 					policyData.CtxLog = logger.CtxLog.WithField(logger.FieldSupi, "imsi-"+imsi)
 					policyData.PccPolicy = make(map[string]*context.PccPolicy)
 					policyData.PccPolicy[sliceid] = &context.PccPolicy{make(map[string]*models.PccRule),
