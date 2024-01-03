@@ -38,9 +38,11 @@ func init() {
 	}
 }
 
-/*func init() {
-	factory.InitConfigFactory("amfTest/amfcfg.yaml")
-}*/
+/*
+	func init() {
+		factory.InitConfigFactory("amfTest/amfcfg.yaml")
+	}
+*/
 func GetNetworkSliceConfig() *protos.NetworkSliceResponse {
 	var rsp protos.NetworkSliceResponse
 	rsp.NetworkSlice = make([]*protos.NetworkSlice, 0)
@@ -109,28 +111,30 @@ var Data = []byte(`{
 		}
 		]}`)
 
-/*func TestUpdateConfig(t *testing.T) {
-	var nrp protos.NetworkSliceResponse
-	err := json.Unmarshal(Data, &nrp)
-	if err != nil {
-		panic(err)
+/*
+	func TestUpdateConfig(t *testing.T) {
+		var nrp protos.NetworkSliceResponse
+		err := json.Unmarshal(Data, &nrp)
+		if err != nil {
+			panic(err)
+		}
+		var Rsp chan *protos.NetworkSliceResponse
+		Rsp = make(chan *protos.NetworkSliceResponse)
+		go func() {
+			Rsp <- &nrp
+		}()
+		go func() {
+			AMF.UpdateConfig(Rsp)
+		}()
+		time.Sleep(2 * time.Second)
+		if factory.AmfConfig.Configuration.SupportTAIList != nil &&
+			len(factory.AmfConfig.Configuration.SupportTAIList) == 2 {
+			fmt.Printf("test passed")
+		} else {
+			t.Errorf("test failed")
+		}
 	}
-	var Rsp chan *protos.NetworkSliceResponse
-	Rsp = make(chan *protos.NetworkSliceResponse)
-	go func() {
-		Rsp <- &nrp
-	}()
-	go func() {
-		AMF.UpdateConfig(Rsp)
-	}()
-	time.Sleep(2 * time.Second)
-	if factory.AmfConfig.Configuration.SupportTAIList != nil &&
-		len(factory.AmfConfig.Configuration.SupportTAIList) == 2 {
-		fmt.Printf("test passed")
-	} else {
-		t.Errorf("test failed")
-	}
-}*/
+*/
 func TestUpdatePcfSubsriberPolicyDataAdd(t *testing.T) {
 	var nrp protos.NetworkSliceResponse
 	err := json.Unmarshal(Data, &nrp)
@@ -226,7 +230,7 @@ var UData1 = []byte(`{
 		}
 		]}`)
 
-//Two imsis deleted and 1 imsi added in device group
+// Two imsis deleted and 1 imsi added in device group
 func TestUpdatePcfSubsriberPolicyDataUpdate1(t *testing.T) {
 	var nrp protos.NetworkSliceResponse
 	err := json.Unmarshal(UData1, &nrp)
