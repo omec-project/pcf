@@ -25,8 +25,6 @@ import (
 	"github.com/omec-project/pcf/util"
 )
 
-const flowRuleDataColl = "policyData.ues.flowRule"
-
 // SmPoliciesPost -
 func HandleCreateSmPolicyRequest(request *http_wrapper.Request) *http_wrapper.Response {
 	// step 1: log
