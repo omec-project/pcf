@@ -53,8 +53,7 @@ type PCF struct{}
 type (
 	// Config information.
 	Config struct {
-		pcfcfg         string
-		heartBeatTimer string
+		pcfcfg string
 	}
 )
 
