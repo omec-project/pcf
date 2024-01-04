@@ -11,7 +11,7 @@ package factory
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 
 	"gopkg.in/yaml.v2"
 
@@ -22,7 +22,7 @@ var PcfConfig Config
 
 // TODO: Support configuration update from REST api
 func InitConfigFactory(f string) error {
-	if content, err := ioutil.ReadFile(f); err != nil {
+	if content, err := os.ReadFile(f); err != nil {
 		return err
 	} else {
 		PcfConfig = Config{}

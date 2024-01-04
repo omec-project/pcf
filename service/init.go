@@ -414,10 +414,16 @@ func (pcf *PCF) UpdateNF() {
 			problemDetails.Status == 404 || problemDetails.Status == 400 {
 			//register with NRF full profile
 			nfProfile, err = pcf.BuildAndSendRegisterNFInstance()
+			if err != nil {
+				initLog.Errorf("PCF register to NRF Error[%s]", err.Error())
+			}
 		}
 	} else if err != nil {
 		initLog.Errorf("PCF update to NRF Error[%s]", err.Error())
 		nfProfile, err = pcf.BuildAndSendRegisterNFInstance()
+		if err != nil {
+			initLog.Errorf("PCF register to NRF Error[%s]", err.Error())
+		}
 	}
 
 	if nfProfile.HeartBeatTimer != 0 {
