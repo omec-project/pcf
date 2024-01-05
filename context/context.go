@@ -496,7 +496,6 @@ func (c *PCFContext) DisplayPcfSubscriberPolicyData(imsi string) {
 				logger.CtxLog.Infof("     TcId: %v", t.TcId)
 				logger.CtxLog.Infof("     FlowStatus: %v", t.FlowStatus)
 			}
-
 		}
 	}
 }
