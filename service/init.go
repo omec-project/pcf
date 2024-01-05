@@ -513,7 +513,10 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 	}
 	pccPolicy.IdGenerator = idgenerator.NewGenerator(1, math.MaxInt64)
 	for _, pccrule := range slice.AppFilters.PccRuleBase {
-		id, _ := pccPolicy.IdGenerator.Allocate()
+		id, err := pccPolicy.IdGenerator.Allocate()
+		if err != nil {
+			logger.GrpcLog.Errorf("IdGenerator allocation failed: %v", err)
+		}
 		var rule models.PccRule
 		var qos models.QosData
 		rule.PccRuleId = strconv.FormatInt(int64(id), 10)
@@ -565,7 +568,10 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 			var flow models.FlowInformation
 			flow.FlowDescription = pflow.FlowDesc
 			//flow.TosTrafficClass = pflow.TosTrafficClass
-			id, _ := pccPolicy.IdGenerator.Allocate()
+			id, err := pccPolicy.IdGenerator.Allocate()
+			if err != nil {
+				logger.GrpcLog.Errorf("IdGenerator allocation failed: %v", err)
+			}
 			flow.PackFiltId = strconv.FormatInt(id, 10)
 
 			if pflow.FlowDir == protos.PccFlowDirection_DOWNLINK {
@@ -658,7 +664,10 @@ func (pcf *PCF) UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
 					make(map[string]*models.QosData), make(map[string]*models.TrafficControlData),
 					make(map[string]*context.SessionPolicy), nil}
 				policyData.PccPolicy[sliceid].SessionPolicy[dnn] = &context.SessionPolicy{make(map[string]*models.SessionRule), idgenerator.NewGenerator(1, math.MaxInt16)}
-				id, _ := policyData.PccPolicy[sliceid].SessionPolicy[dnn].SessionRuleIdGenerator.Allocate()
+				id, err := policyData.PccPolicy[sliceid].SessionPolicy[dnn].SessionRuleIdGenerator.Allocate()
+				if err != nil {
+					logger.GrpcLog.Errorf("SessionRuleIdGenerator allocation failed: %v", err)
+				}
 				//tcid, _ := policyData.PccPolicy[sliceid].TcIdGenerator.Allocate()
 				sessionrule.SessRuleId = dnn + "-" + strconv.Itoa(int(id))
 				policyData.PccPolicy[sliceid].SessionPolicy[dnn].SessionRules[sessionrule.SessRuleId] = sessionrule
@@ -702,7 +711,10 @@ func (pcf *PCF) UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
 					policyData.PccPolicy[sliceid].SessionPolicy[dnn] = &context.SessionPolicy{make(map[string]*models.SessionRule), idgenerator.NewGenerator(1, math.MaxInt16)}
 
 					//Added session rules
-					id, _ := policyData.PccPolicy[sliceid].SessionPolicy[dnn].SessionRuleIdGenerator.Allocate()
+					id, err := policyData.PccPolicy[sliceid].SessionPolicy[dnn].SessionRuleIdGenerator.Allocate()
+					if err != nil {
+						logger.GrpcLog.Errorf("SessionRuleIdGenerator allocation failed: %v", err)
+					}
 					sessionrule.SessRuleId = dnn + strconv.Itoa(int(id))
 					policyData.PccPolicy[sliceid].SessionPolicy[dnn].SessionRules[sessionrule.SessRuleId] = sessionrule
 					//Added pcc rules
