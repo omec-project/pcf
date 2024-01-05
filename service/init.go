@@ -774,7 +774,6 @@ func (pcf *PCF) UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
 				delete(self.PcfSubscriberPolicyData, imsi)
 			}
 		}
-
 	}
 }
 
@@ -887,7 +886,7 @@ func (pcf *PCF) updateConfig(commChannel chan *protos.NetworkSliceResponse) bool
 		// minConfig is 'true' when one slice is configured at least.
 		// minConfig is 'false' when no slice configuration.
 		// check PlmnList for each configuration update from Roc/Simapp.
-		if minConfig == false {
+		if !minConfig {
 			// For each slice Plmn is the mandatory parameter, checking PlmnList length is greater than zero
 			// setting minConfig to true
 			if len(pcfContext.PlmnList) > 0 {

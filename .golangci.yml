@@ -225,7 +225,7 @@ linters:
     - errcheck
     - staticcheck
     - unused
-    # - gosimple
+    - gosimple
     # - ineffassign
     - typecheck
     # Additional
@@ -241,7 +241,7 @@ linters:
     # - gci
     - misspell
     # - gofumpt
-    # - whitespace
+    - whitespace
     # - unconvert
     - predeclared
     - noctx
