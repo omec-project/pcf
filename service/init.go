@@ -660,10 +660,10 @@ func (pcf *PCF) UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
 				policyData := self.PcfSubscriberPolicyData[imsi]
 				policyData.CtxLog = logger.CtxLog.WithField(logger.FieldSupi, "imsi-"+imsi)
 				policyData.PccPolicy = make(map[string]*context.PccPolicy)
-				policyData.PccPolicy[sliceid] = &context.PccPolicy{make(map[string]*models.PccRule),
-					make(map[string]*models.QosData), make(map[string]*models.TrafficControlData),
-					make(map[string]*context.SessionPolicy), nil}
-				policyData.PccPolicy[sliceid].SessionPolicy[dnn] = &context.SessionPolicy{make(map[string]*models.SessionRule), idgenerator.NewGenerator(1, math.MaxInt16)}
+				policyData.PccPolicy[sliceid] = &context.PccPolicy{PccRules: make(map[string]*models.PccRule),
+					QosDecs: make(map[string]*models.QosData), TraffContDecs: make(map[string]*models.TrafficControlData),
+					SessionPolicy: make(map[string]*context.SessionPolicy), IdGenerator: nil}
+				policyData.PccPolicy[sliceid].SessionPolicy[dnn] = &context.SessionPolicy{SessionRules: make(map[string]*models.SessionRule), SessionRuleIdGenerator: idgenerator.NewGenerator(1, math.MaxInt16)}
 				id, err := policyData.PccPolicy[sliceid].SessionPolicy[dnn].SessionRuleIdGenerator.Allocate()
 				if err != nil {
 					logger.GrpcLog.Errorf("SessionRuleIdGenerator allocation failed: %v", err)
@@ -705,10 +705,11 @@ func (pcf *PCF) UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
 					policyData := self.PcfSubscriberPolicyData[imsi]
 					policyData.CtxLog = logger.CtxLog.WithField(logger.FieldSupi, "imsi-"+imsi)
 					policyData.PccPolicy = make(map[string]*context.PccPolicy)
-					policyData.PccPolicy[sliceid] = &context.PccPolicy{make(map[string]*models.PccRule),
-						make(map[string]*models.QosData), make(map[string]*models.TrafficControlData),
-						make(map[string]*context.SessionPolicy), nil}
-					policyData.PccPolicy[sliceid].SessionPolicy[dnn] = &context.SessionPolicy{make(map[string]*models.SessionRule), idgenerator.NewGenerator(1, math.MaxInt16)}
+					policyData.PccPolicy[sliceid] = &context.PccPolicy{PccRules: make(map[string]*models.PccRule),
+						QosDecs: make(map[string]*models.QosData), TraffContDecs: make(map[string]*models.TrafficControlData),
+						SessionPolicy: make(map[string]*context.SessionPolicy), IdGenerator: nil}
+					policyData.PccPolicy[sliceid].SessionPolicy[dnn] = &context.SessionPolicy{SessionRules: make(map[string]*models.SessionRule),
+						SessionRuleIdGenerator: idgenerator.NewGenerator(1, math.MaxInt16)}
 
 					//Added session rules
 					id, err := policyData.PccPolicy[sliceid].SessionPolicy[dnn].SessionRuleIdGenerator.Allocate()
