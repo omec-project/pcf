@@ -19,8 +19,8 @@ import (
 const SendSMpolicyTerminationNotifyEventName event.Name = "SendSMpolicyTerminationNotify"
 
 type SendSMpolicyTerminationNotifyEvent struct {
-	uri     string
 	request *models.TerminationNotification
+	uri     string
 }
 
 func (e SendSMpolicyTerminationNotifyEvent) Handle() {

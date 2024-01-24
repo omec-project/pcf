@@ -42,7 +42,6 @@ type PCFContext struct {
 	UriScheme       models.UriScheme
 	BindingIPv4     string
 	RegisterIPv4    string
-	SBIPort         int
 	TimeFormat      string
 	DefaultBdtRefId string
 	NfService       map[models.ServiceName]models.NfService
@@ -58,14 +57,14 @@ type PCFContext struct {
 	// App Session related
 	AppSessionPool sync.Map
 	// AMF Status Change Subscription related
-	AMFStatusSubsData sync.Map // map[string]AMFStatusSubscriptionData; subscriptionID as key
+	AMFStatusSubsData       sync.Map                            // map[string]AMFStatusSubscriptionData; subscriptionID as key
+	PcfSubscriberPolicyData map[string]*PcfSubscriberPolicyData // subscriberId is key
 
+	DnnList  []string
+	PlmnList []factory.PlmnSupportItem
+	SBIPort  int
 	// lock
 	DefaultUdrURILock sync.RWMutex
-
-	DnnList                 []string
-	PlmnList                []factory.PlmnSupportItem
-	PcfSubscriberPolicyData map[string]*PcfSubscriberPolicyData // subscriberId is key
 }
 
 type SessionPolicy struct {
@@ -81,9 +80,9 @@ type PccPolicy struct {
 	IdGenerator   *idgenerator.IDGenerator
 }
 type PcfSubscriberPolicyData struct {
-	Supi      string
 	PccPolicy map[string]*PccPolicy // sst+sd is key
 	CtxLog    *logrus.Entry
+	Supi      string
 }
 
 type AMFStatusSubscriptionData struct {
@@ -93,16 +92,16 @@ type AMFStatusSubscriptionData struct {
 }
 
 type AppSessionData struct {
-	AppSessionId      string
 	AppSessionContext *models.AppSessionContext
 	// (compN/compN-subCompN/appId-%s) map to PccRule
 	RelatedPccRuleIds    map[string]string
 	PccRuleIdMapToCompId map[string]string
 	// EventSubscription
-	Events   map[models.AfEvent]models.AfNotifMethod
-	EventUri string
+	Events map[models.AfEvent]models.AfNotifMethod
 	// related Session
 	SmPolicyData *UeSmPolicyData
+	AppSessionId string
+	EventUri     string
 }
 
 // Create new PCF context
