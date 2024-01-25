@@ -96,12 +96,13 @@ type AppSessionData struct {
 	// (compN/compN-subCompN/appId-%s) map to PccRule
 	RelatedPccRuleIds    map[string]string
 	PccRuleIdMapToCompId map[string]string
-	// EventSubscription
-	Events map[models.AfEvent]models.AfNotifMethod
 	// related Session
 	SmPolicyData *UeSmPolicyData
+	// EventSubscription
+	Events   map[models.AfEvent]models.AfNotifMethod
+	EventUri string
+
 	AppSessionId string
-	EventUri     string
 }
 
 // Create new PCF context

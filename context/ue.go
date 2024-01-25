@@ -19,11 +19,6 @@ import (
 
 // key is supi
 type UeContext struct {
-	// Ue Context
-	Supi         string
-	Gpsi         string
-	Pei          string
-	AMPolicyData map[string]*UeAMPolicyData // use PolAssoId(ue.Supi-numPolId) as key
 	// Udr Ref
 	UdrUri string
 	// SMPolicy
@@ -39,6 +34,11 @@ type UeContext struct {
 	PolicyDataSubscriptionStore *models.PolicyDataSubscription
 	PolicyDataChangeStore       *models.PolicyDataChangeNotification
 
+	// Ue Context
+	Supi                      string
+	Gpsi                      string
+	Pei                       string
+	AMPolicyData              map[string]*UeAMPolicyData // use PolAssoId(ue.Supi-numPolId) as key
 	GroupIds                  []string
 	PolAssociationIDGenerator uint32
 }
@@ -55,10 +55,6 @@ type UeAMPolicyData struct {
 	Guami        *models.Guami
 	ServiveName  string
 	// TraceReq *TraceData
-	ServAreaRes *models.ServiceAreaRestriction
-	UserLoc     *models.UserLocation
-	TimeZone    string
-	SuppFeat    string
 	// about AF request
 	Pras map[string]models.PresenceInfo
 	// related to UDR Subscription Data
@@ -66,8 +62,12 @@ type UeAMPolicyData struct {
 	// Corresponding UE
 	PcfUe *UeContext
 	// Policy Association
-	Triggers []models.RequestTrigger
-	Rfsp     int32
+	ServAreaRes *models.ServiceAreaRestriction
+	UserLoc     *models.UserLocation
+	TimeZone    string
+	SuppFeat    string
+	Triggers    []models.RequestTrigger
+	Rfsp        int32
 }
 
 type UeSmPolicyData struct {
