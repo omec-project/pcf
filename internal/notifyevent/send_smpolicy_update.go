@@ -19,8 +19,8 @@ import (
 const SendSMpolicyUpdateNotifyEventName event.Name = "SendSMpolicyUpdateNotify"
 
 type SendSMpolicyUpdateNotifyEvent struct {
-	uri     string
 	request *models.SmPolicyNotification
+	uri     string
 }
 
 func (e SendSMpolicyUpdateNotifyEvent) Handle() {
