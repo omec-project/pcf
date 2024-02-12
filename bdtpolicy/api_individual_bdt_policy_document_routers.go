@@ -19,7 +19,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/omec-project/http_wrapper"
+	"github.com/omec-project/util/httpwrapper"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/pcf/logger"
@@ -28,7 +28,7 @@ import (
 
 // GetBDTPolicy - Read an Individual BDT policy
 func HTTPGetBDTPolicy(c *gin.Context) {
-	req := http_wrapper.NewRequest(c.Request, nil)
+	req := httpwrapper.NewRequest(c.Request, nil)
 	req.Params["bdtPolicyId"] = c.Params.ByName("bdtPolicyId")
 
 	rsp := producer.HandleGetBDTPolicyContextRequest(req)
@@ -78,7 +78,7 @@ func HTTPUpdateBDTPolicy(c *gin.Context) {
 		return
 	}
 
-	req := http_wrapper.NewRequest(c.Request, bdtPolicyDataPatch)
+	req := httpwrapper.NewRequest(c.Request, bdtPolicyDataPatch)
 	req.Params["bdtPolicyId"] = c.Params.ByName("bdtPolicyId")
 
 	rsp := producer.HandleUpdateBDTPolicyContextProcedure(req)

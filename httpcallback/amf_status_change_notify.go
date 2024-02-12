@@ -11,11 +11,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/omec-project/http_wrapper"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/pcf/producer"
+	"github.com/omec-project/util/httpwrapper"
 )
 
 func HTTPAmfStatusChangeNotify(c *gin.Context) {
@@ -47,7 +47,7 @@ func HTTPAmfStatusChangeNotify(c *gin.Context) {
 		return
 	}
 
-	req := http_wrapper.NewRequest(c.Request, amfStatusChangeNotification)
+	req := httpwrapper.NewRequest(c.Request, amfStatusChangeNotification)
 
 	rsp := producer.HandleAmfStatusChangeNotify(req)
 

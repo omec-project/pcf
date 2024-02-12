@@ -19,7 +19,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/omec-project/http_wrapper"
+	"github.com/omec-project/util/httpwrapper"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/pcf/logger"
@@ -57,7 +57,7 @@ func HTTPSmPoliciesPost(c *gin.Context) {
 		return
 	}
 
-	req := http_wrapper.NewRequest(c.Request, smPolicyContextData)
+	req := httpwrapper.NewRequest(c.Request, smPolicyContextData)
 	rsp := producer.HandleCreateSmPolicyRequest(req)
 
 	// step 5: response
@@ -80,7 +80,7 @@ func HTTPSmPoliciesPost(c *gin.Context) {
 
 // SmPoliciesSmPolicyIdDeletePost -
 func HTTPSmPoliciesSmPolicyIdDeletePost(c *gin.Context) {
-	req := http_wrapper.NewRequest(c.Request, nil)
+	req := httpwrapper.NewRequest(c.Request, nil)
 	req.Params["smPolicyId"] = c.Params.ByName("smPolicyId")
 
 	rsp := producer.HandleDeleteSmPolicyContextRequest(req)
@@ -101,7 +101,7 @@ func HTTPSmPoliciesSmPolicyIdDeletePost(c *gin.Context) {
 
 // SmPoliciesSmPolicyIdGet -
 func HTTPSmPoliciesSmPolicyIDGet(c *gin.Context) {
-	req := http_wrapper.NewRequest(c.Request, nil)
+	req := httpwrapper.NewRequest(c.Request, nil)
 	req.Params["smPolicyId"] = c.Params.ByName("smPolicyId")
 
 	rsp := producer.HandleGetSmPolicyContextRequest(req)
@@ -151,7 +151,7 @@ func HTTPSmPoliciesSmPolicyIdUpdatePost(c *gin.Context) {
 		return
 	}
 
-	req := http_wrapper.NewRequest(c.Request, smPolicyUpdateContextData)
+	req := httpwrapper.NewRequest(c.Request, smPolicyUpdateContextData)
 	req.Params["smPolicyId"] = c.Params.ByName("smPolicyId")
 
 	rsp := producer.HandleUpdateSmPolicyContextRequest(req)

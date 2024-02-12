@@ -19,7 +19,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/omec-project/http_wrapper"
+	"github.com/omec-project/util/httpwrapper"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/pcf/logger"
@@ -66,7 +66,7 @@ func HTTPPostAppSessions(c *gin.Context) {
 		return
 	}
 
-	req := http_wrapper.NewRequest(c.Request, appSessionContext)
+	req := httpwrapper.NewRequest(c.Request, appSessionContext)
 	rsp := producer.HandlePostAppSessionsContext(req)
 
 	for key, val := range rsp.Header {

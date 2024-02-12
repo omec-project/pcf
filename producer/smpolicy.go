@@ -16,17 +16,17 @@ import (
 	"github.com/antihax/optional"
 	"github.com/mohae/deepcopy"
 
-	"github.com/omec-project/http_wrapper"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/Nudr_DataRepository"
 	"github.com/omec-project/openapi/models"
 	pcf_context "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/pcf/util"
+	"github.com/omec-project/util/httpwrapper"
 )
 
 // SmPoliciesPost -
-func HandleCreateSmPolicyRequest(request *http_wrapper.Request) *http_wrapper.Response {
+func HandleCreateSmPolicyRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	// step 1: log
 	logger.SMpolicylog.Infof("Handle CreateSmPolicy")
 	// step 2: retrieve request
@@ -38,11 +38,11 @@ func HandleCreateSmPolicyRequest(request *http_wrapper.Request) *http_wrapper.Re
 	// step 4: process the return value from step 3
 	if response != nil {
 		// status code is based on SPEC, and option headers
-		return http_wrapper.NewResponse(http.StatusCreated, header, response)
+		return httpwrapper.NewResponse(http.StatusCreated, header, response)
 	} else if problemDetails != nil {
-		return http_wrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	} else {
-		return http_wrapper.NewResponse(http.StatusNotFound, nil, nil)
+		return httpwrapper.NewResponse(http.StatusNotFound, nil, nil)
 	}
 }
 
@@ -286,7 +286,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 }
 
 // SmPoliciessmPolicyIDDeletePost -
-func HandleDeleteSmPolicyContextRequest(request *http_wrapper.Request) *http_wrapper.Response {
+func HandleDeleteSmPolicyContextRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	// step 1: log
 	logger.SMpolicylog.Infof("Handle DeleteSmPolicyContext")
 
@@ -299,9 +299,9 @@ func HandleDeleteSmPolicyContextRequest(request *http_wrapper.Request) *http_wra
 	// step 4: process the return value from step 3
 	if problemDetails != nil {
 		// status code is based on SPEC, and option headers
-		return http_wrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	} else {
-		return http_wrapper.NewResponse(http.StatusNoContent, nil, nil)
+		return httpwrapper.NewResponse(http.StatusNoContent, nil, nil)
 	}
 }
 
@@ -339,7 +339,7 @@ func deleteSmPolicyContextProcedure(smPolicyID string) *models.ProblemDetails {
 }
 
 // SmPoliciessmPolicyIDGet -
-func HandleGetSmPolicyContextRequest(request *http_wrapper.Request) *http_wrapper.Response {
+func HandleGetSmPolicyContextRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	// step 1: log
 	logger.SMpolicylog.Infof("Handle GetSmPolicyContext")
 
@@ -351,15 +351,15 @@ func HandleGetSmPolicyContextRequest(request *http_wrapper.Request) *http_wrappe
 	// step 4: process the return value from step 3
 	if response != nil {
 		// status code is based on SPEC, and option headers
-		return http_wrapper.NewResponse(http.StatusOK, nil, response)
+		return httpwrapper.NewResponse(http.StatusOK, nil, response)
 	} else if problemDetails != nil {
-		return http_wrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
 	problemDetails = &models.ProblemDetails{
 		Status: http.StatusForbidden,
 		Cause:  "UNSPECIFIED",
 	}
-	return http_wrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
+	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
 }
 
 func getSmPolicyContextProcedure(smPolicyID string) (
@@ -382,7 +382,7 @@ func getSmPolicyContextProcedure(smPolicyID string) (
 }
 
 // SmPoliciessmPolicyIDUpdatePost -
-func HandleUpdateSmPolicyContextRequest(request *http_wrapper.Request) *http_wrapper.Response {
+func HandleUpdateSmPolicyContextRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	// step 1: log
 	logger.SMpolicylog.Infof("Handle UpdateSmPolicyContext")
 
@@ -396,15 +396,15 @@ func HandleUpdateSmPolicyContextRequest(request *http_wrapper.Request) *http_wra
 	// step 4: process the return value from step 3
 	if response != nil {
 		// status code is based on SPEC, and option headers
-		return http_wrapper.NewResponse(http.StatusOK, nil, response)
+		return httpwrapper.NewResponse(http.StatusOK, nil, response)
 	} else if problemDetails != nil {
-		return http_wrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
 	problemDetails = &models.ProblemDetails{
 		Status: http.StatusForbidden,
 		Cause:  "UNSPECIFIED",
 	}
-	return http_wrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
+	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
 }
 
 func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, smPolicyID string) (

@@ -10,7 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/omec-project/http_wrapper"
+	"github.com/omec-project/util/httpwrapper"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/pcf/logger"
@@ -27,7 +27,7 @@ func setCorsHeader(c *gin.Context) {
 func HTTPOAMGetAmPolicy(c *gin.Context) {
 	setCorsHeader(c)
 
-	req := http_wrapper.NewRequest(c.Request, nil)
+	req := httpwrapper.NewRequest(c.Request, nil)
 	req.Params["supi"] = c.Params.ByName("supi")
 
 	rsp := producer.HandleOAMGetAmPolicyRequest(req)

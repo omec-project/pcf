@@ -13,25 +13,25 @@ import (
 
 	"github.com/mohae/deepcopy"
 
-	"github.com/omec-project/http_wrapper"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/pcf/consumer"
 	pcf_context "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/pcf/util"
+	"github.com/omec-project/util/httpwrapper"
 )
 
-func HandleDeletePoliciesPolAssoId(request *http_wrapper.Request) *http_wrapper.Response {
+func HandleDeletePoliciesPolAssoId(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.AMpolicylog.Infof("Handle AM Policy Association Delete")
 
 	polAssoId := request.Params["polAssoId"]
 
 	problemDetails := DeletePoliciesPolAssoIdProcedure(polAssoId)
 	if problemDetails == nil {
-		return http_wrapper.NewResponse(http.StatusNoContent, nil, nil)
+		return httpwrapper.NewResponse(http.StatusNoContent, nil, nil)
 	} else {
-		return http_wrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
 }
 
@@ -46,22 +46,22 @@ func DeletePoliciesPolAssoIdProcedure(polAssoId string) *models.ProblemDetails {
 }
 
 // PoliciesPolAssoIdGet -
-func HandleGetPoliciesPolAssoId(request *http_wrapper.Request) *http_wrapper.Response {
+func HandleGetPoliciesPolAssoId(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.AMpolicylog.Infof("Handle AM Policy Association Get")
 
 	polAssoId := request.Params["polAssoId"]
 
 	response, problemDetails := GetPoliciesPolAssoIdProcedure(polAssoId)
 	if response != nil {
-		return http_wrapper.NewResponse(http.StatusOK, nil, response)
+		return httpwrapper.NewResponse(http.StatusOK, nil, response)
 	} else if problemDetails != nil {
-		return http_wrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
 	problemDetails = &models.ProblemDetails{
 		Status: http.StatusForbidden,
 		Cause:  "UNSPECIFIED",
 	}
-	return http_wrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+	return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 }
 
 func GetPoliciesPolAssoIdProcedure(polAssoId string) (*models.PolicyAssociation, *models.ProblemDetails) {
@@ -92,7 +92,7 @@ func GetPoliciesPolAssoIdProcedure(polAssoId string) (*models.PolicyAssociation,
 	return &rsp, nil
 }
 
-func HandleUpdatePostPoliciesPolAssoId(request *http_wrapper.Request) *http_wrapper.Response {
+func HandleUpdatePostPoliciesPolAssoId(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.AMpolicylog.Infof("Handle AM Policy Association Update")
 
 	polAssoId := request.Params["polAssoId"]
@@ -100,15 +100,15 @@ func HandleUpdatePostPoliciesPolAssoId(request *http_wrapper.Request) *http_wrap
 
 	response, problemDetails := UpdatePostPoliciesPolAssoIdProcedure(polAssoId, policyAssociationUpdateRequest)
 	if response != nil {
-		return http_wrapper.NewResponse(http.StatusOK, nil, response)
+		return httpwrapper.NewResponse(http.StatusOK, nil, response)
 	} else if problemDetails != nil {
-		return http_wrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
 	problemDetails = &models.ProblemDetails{
 		Status: http.StatusForbidden,
 		Cause:  "UNSPECIFIED",
 	}
-	return http_wrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+	return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 }
 
 func UpdatePostPoliciesPolAssoIdProcedure(polAssoId string,
@@ -184,7 +184,7 @@ func UpdatePostPoliciesPolAssoIdProcedure(polAssoId string,
 }
 
 // Create AM Policy
-func HandlePostPolicies(request *http_wrapper.Request) *http_wrapper.Response {
+func HandlePostPolicies(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.AMpolicylog.Infof("Handle AM Policy Create Request")
 
 	polAssoId := request.Params["polAssoId"]
@@ -195,15 +195,15 @@ func HandlePostPolicies(request *http_wrapper.Request) *http_wrapper.Response {
 		"Location": {locationHeader},
 	}
 	if response != nil {
-		return http_wrapper.NewResponse(http.StatusCreated, headers, response)
+		return httpwrapper.NewResponse(http.StatusCreated, headers, response)
 	} else if problemDetails != nil {
-		return http_wrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
 	problemDetails = &models.ProblemDetails{
 		Status: http.StatusForbidden,
 		Cause:  "UNSPECIFIED",
 	}
-	return http_wrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+	return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 }
 
 func PostPoliciesProcedure(polAssoId string,

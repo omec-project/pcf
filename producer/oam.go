@@ -9,10 +9,10 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/omec-project/http_wrapper"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/logger"
+	"github.com/omec-project/util/httpwrapper"
 )
 
 type UEAmPolicy struct {
@@ -28,7 +28,7 @@ type UEAmPolicy struct {
 
 type UEAmPolicys []UEAmPolicy
 
-func HandleOAMGetAmPolicyRequest(request *http_wrapper.Request) *http_wrapper.Response {
+func HandleOAMGetAmPolicyRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	// step 1: log
 	logger.OamLog.Infof("Handle OAMGetAmPolicy")
 
@@ -41,15 +41,15 @@ func HandleOAMGetAmPolicyRequest(request *http_wrapper.Request) *http_wrapper.Re
 	// step 4: process the return value from step 3
 	if response != nil {
 		// status code is based on SPEC, and option headers
-		return http_wrapper.NewResponse(http.StatusOK, nil, response)
+		return httpwrapper.NewResponse(http.StatusOK, nil, response)
 	} else if problemDetails != nil {
-		return http_wrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
 	problemDetails = &models.ProblemDetails{
 		Status: http.StatusForbidden,
 		Cause:  "UNSPECIFIED",
 	}
-	return http_wrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
+	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
 }
 
 func OAMGetAmPolicyProcedure(supi string) (response *UEAmPolicys, problemDetails *models.ProblemDetails) {

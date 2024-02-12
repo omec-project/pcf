@@ -15,13 +15,13 @@ import (
 
 	"github.com/cydev/zero"
 
-	"github.com/omec-project/http_wrapper"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	pcf_context "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/internal/notifyevent"
 	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/pcf/util"
+	"github.com/omec-project/util/httpwrapper"
 )
 
 func transferAfRoutReqRmToAfRoutReq(AfRoutReqRm *models.AfRoutingRequirementRm) *models.AfRoutingRequirement {
@@ -129,7 +129,7 @@ func handleMediaSubComponent(smPolicy *pcf_context.UeSmPolicyData, medComp *mode
 // Subscription to resources allocation outcome (DONE)
 // Invocation of Multimedia Priority Services (TODO)
 // Support of content versioning (TODO)
-func HandlePostAppSessionsContext(request *http_wrapper.Request) *http_wrapper.Response {
+func HandlePostAppSessionsContext(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.PolicyAuthorizationlog.Traceln("Handle Create AppSessions")
 
 	appSessCtx := request.Body.(models.AppSessionContext)
@@ -140,15 +140,15 @@ func HandlePostAppSessionsContext(request *http_wrapper.Request) *http_wrapper.R
 		headers := http.Header{
 			"Location": {locationHeader},
 		}
-		return http_wrapper.NewResponse(http.StatusCreated, headers, response)
+		return httpwrapper.NewResponse(http.StatusCreated, headers, response)
 	} else if problemDetails != nil {
-		return http_wrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
 	problemDetails = &models.ProblemDetails{
 		Status: http.StatusForbidden,
 		Cause:  "UNSPECIFIED",
 	}
-	return http_wrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+	return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 }
 
 func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppSessionContext,
@@ -432,16 +432,16 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 }
 
 // HandleDeleteAppSession - Deletes an existing Individual Application Session Context
-func HandleDeleteAppSessionContext(request *http_wrapper.Request) *http_wrapper.Response {
+func HandleDeleteAppSessionContext(request *httpwrapper.Request) *httpwrapper.Response {
 	eventsSubscReqData := request.Body.(*models.EventsSubscReqData)
 	appSessID := request.Params["appSessionId"]
 	logger.PolicyAuthorizationlog.Infof("Handle Del AppSessions, AppSessionId[%s]", appSessID)
 
 	problemDetails := DeleteAppSessionContextProcedure(appSessID, eventsSubscReqData)
 	if problemDetails == nil {
-		return http_wrapper.NewResponse(http.StatusNoContent, nil, nil)
+		return httpwrapper.NewResponse(http.StatusNoContent, nil, nil)
 	} else {
-		return http_wrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
 }
 
@@ -500,15 +500,15 @@ func DeleteAppSessionContextProcedure(appSessID string,
 }
 
 // HandleGetAppSession - Reads an existing Individual Application Session Context
-func HandleGetAppSessionContext(request *http_wrapper.Request) *http_wrapper.Response {
+func HandleGetAppSessionContext(request *httpwrapper.Request) *httpwrapper.Response {
 	appSessID := request.Params["appSessionId"]
 	logger.PolicyAuthorizationlog.Infof("Handle Get AppSessions, AppSessionId[%s]", appSessID)
 
 	problemDetails, response := GetAppSessionContextProcedure(appSessID)
 	if problemDetails == nil {
-		return http_wrapper.NewResponse(http.StatusOK, nil, response)
+		return httpwrapper.NewResponse(http.StatusOK, nil, response)
 	} else {
-		return http_wrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
 }
 
@@ -528,16 +528,16 @@ func GetAppSessionContextProcedure(appSessID string) (*models.ProblemDetails, *m
 }
 
 // HandleModAppSession - Modifies an existing Individual Application Session Context
-func HandleModAppSessionContext(request *http_wrapper.Request) *http_wrapper.Response {
+func HandleModAppSessionContext(request *httpwrapper.Request) *httpwrapper.Response {
 	appSessID := request.Params["appSessionId"]
 	ascUpdateData := request.Body.(models.AppSessionContextUpdateData)
 	logger.PolicyAuthorizationlog.Infof("Handle Modify AppSessions, AppSessionId[%s]", appSessID)
 
 	problemDetails, response := ModAppSessionContextProcedure(appSessID, ascUpdateData)
 	if problemDetails == nil {
-		return http_wrapper.NewResponse(http.StatusOK, nil, response)
+		return httpwrapper.NewResponse(http.StatusOK, nil, response)
 	} else {
-		return http_wrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
 }
 
@@ -811,15 +811,15 @@ func ModAppSessionContextProcedure(appSessID string,
 }
 
 // HandleDeleteEventsSubsc - deletes the Events Subscription subresource
-func HandleDeleteEventsSubscContext(request *http_wrapper.Request) *http_wrapper.Response {
+func HandleDeleteEventsSubscContext(request *httpwrapper.Request) *httpwrapper.Response {
 	appSessID := request.Params["appSessID"]
 	logger.PolicyAuthorizationlog.Tracef("Handle Del AppSessions Events Subsc, AppSessionId[%s]", appSessID)
 
 	problemDetails := DeleteEventsSubscContextProcedure(appSessID)
 	if problemDetails == nil {
-		return http_wrapper.NewResponse(http.StatusNoContent, nil, nil)
+		return httpwrapper.NewResponse(http.StatusNoContent, nil, nil)
 	} else {
-		return http_wrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
 }
 
@@ -857,29 +857,29 @@ func DeleteEventsSubscContextProcedure(appSessID string) *models.ProblemDetails 
 }
 
 // HandleUpdateEventsSubsc - creates or modifies an Events Subscription subresource
-func HandleUpdateEventsSubscContext(request *http_wrapper.Request) *http_wrapper.Response {
+func HandleUpdateEventsSubscContext(request *httpwrapper.Request) *httpwrapper.Response {
 	EventsSubscReqData := request.Body.(models.EventsSubscReqData)
 	appSessID := request.Params["appSessID"]
 	logger.PolicyAuthorizationlog.Tracef("Handle Put AppSessions Events Subsc, AppSessionId[%s]", appSessID)
 
 	response, locationHeader, status, problemDetails := UpdateEventsSubscContextProcedure(appSessID, EventsSubscReqData)
 	if problemDetails != nil {
-		return http_wrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	} else if status == http.StatusCreated {
 		headers := http.Header{
 			"Location": {locationHeader},
 		}
-		return http_wrapper.NewResponse(http.StatusCreated, headers, response)
+		return httpwrapper.NewResponse(http.StatusCreated, headers, response)
 	} else if status == http.StatusOK {
-		return http_wrapper.NewResponse(http.StatusOK, nil, response)
+		return httpwrapper.NewResponse(http.StatusOK, nil, response)
 	} else if status == http.StatusNoContent {
-		return http_wrapper.NewResponse(http.StatusNoContent, nil, response)
+		return httpwrapper.NewResponse(http.StatusNoContent, nil, response)
 	}
 	problemDetails = &models.ProblemDetails{
 		Status: http.StatusForbidden,
 		Cause:  "UNSPECIFIED",
 	}
-	return http_wrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+	return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 }
 
 func SendAppSessionEventNotification(appSession *pcf_context.AppSessionData, request models.EventsNotification) {
