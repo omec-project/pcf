@@ -19,7 +19,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/omec-project/http_wrapper"
+	"github.com/omec-project/util/httpwrapper"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/pcf/logger"
@@ -28,7 +28,7 @@ import (
 )
 
 func HTTPPoliciesPolAssoIdDelete(c *gin.Context) {
-	req := http_wrapper.NewRequest(c.Request, nil)
+	req := httpwrapper.NewRequest(c.Request, nil)
 	req.Params["polAssoId"], _ = c.Params.Get("polAssoId")
 
 	rsp := producer.HandleDeletePoliciesPolAssoId(req)
@@ -49,7 +49,7 @@ func HTTPPoliciesPolAssoIdDelete(c *gin.Context) {
 
 // HTTPPoliciesPolAssoIdGet -
 func HTTPPoliciesPolAssoIdGet(c *gin.Context) {
-	req := http_wrapper.NewRequest(c.Request, nil)
+	req := httpwrapper.NewRequest(c.Request, nil)
 	req.Params["polAssoId"], _ = c.Params.Get("polAssoId")
 
 	rsp := producer.HandleGetPoliciesPolAssoId(req)
@@ -98,7 +98,7 @@ func HTTPPoliciesPolAssoIdUpdatePost(c *gin.Context) {
 		return
 	}
 
-	req := http_wrapper.NewRequest(c.Request, policyAssociationUpdateRequest)
+	req := httpwrapper.NewRequest(c.Request, policyAssociationUpdateRequest)
 	req.Params["polAssoId"], _ = c.Params.Get("polAssoId")
 
 	rsp := producer.HandleUpdatePostPoliciesPolAssoId(req)
@@ -154,7 +154,7 @@ func HTTPPoliciesPost(c *gin.Context) {
 		return
 	}
 
-	req := http_wrapper.NewRequest(c.Request, policyAssociationRequest)
+	req := httpwrapper.NewRequest(c.Request, policyAssociationRequest)
 	req.Params["polAssoId"], _ = c.Params.Get("polAssoId")
 
 	rsp := producer.HandlePostPolicies(req)

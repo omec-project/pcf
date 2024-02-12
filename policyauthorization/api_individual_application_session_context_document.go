@@ -19,7 +19,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/omec-project/http_wrapper"
+	"github.com/omec-project/util/httpwrapper"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/pcf/logger"
@@ -59,7 +59,7 @@ func HTTPDeleteAppSession(c *gin.Context) {
 		}
 	}
 
-	req := http_wrapper.NewRequest(c.Request, eventsSubscReqData)
+	req := httpwrapper.NewRequest(c.Request, eventsSubscReqData)
 	req.Params["appSessionId"], _ = c.Params.Get("appSessionId")
 
 	rsp := producer.HandleDeleteAppSessionContext(req)
@@ -80,7 +80,7 @@ func HTTPDeleteAppSession(c *gin.Context) {
 
 // HTTPGetAppSession - Reads an existing Individual Application Session Context
 func HTTPGetAppSession(c *gin.Context) {
-	req := http_wrapper.NewRequest(c.Request, nil)
+	req := httpwrapper.NewRequest(c.Request, nil)
 	req.Params["appSessionId"], _ = c.Params.Get("appSessionId")
 
 	rsp := producer.HandleGetAppSessionContext(req)
@@ -129,7 +129,7 @@ func HTTPModAppSession(c *gin.Context) {
 		return
 	}
 
-	req := http_wrapper.NewRequest(c.Request, appSessionContextUpdateData)
+	req := httpwrapper.NewRequest(c.Request, appSessionContextUpdateData)
 	req.Params["appSessionId"], _ = c.Params.Get("appSessionId")
 
 	rsp := producer.HandleModAppSessionContext(req)

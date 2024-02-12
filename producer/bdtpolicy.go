@@ -14,7 +14,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/mohae/deepcopy"
 
-	"github.com/omec-project/http_wrapper"
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/Nudr_DataRepository"
 	"github.com/omec-project/openapi/models"
@@ -22,9 +21,10 @@ import (
 	pcf_context "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/pcf/util"
+	"github.com/omec-project/util/httpwrapper"
 )
 
-func HandleGetBDTPolicyContextRequest(request *http_wrapper.Request) *http_wrapper.Response {
+func HandleGetBDTPolicyContextRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	// step 1: log
 	logger.Bdtpolicylog.Infof("Handle GetBDTPolicyContext")
 
@@ -37,15 +37,15 @@ func HandleGetBDTPolicyContextRequest(request *http_wrapper.Request) *http_wrapp
 	// step 4: process the return value from step 3
 	if response != nil {
 		// status code is based on SPEC, and option headers
-		return http_wrapper.NewResponse(http.StatusOK, nil, response)
+		return httpwrapper.NewResponse(http.StatusOK, nil, response)
 	} else if problemDetails != nil {
-		return http_wrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
 	problemDetails = &models.ProblemDetails{
 		Status: http.StatusForbidden,
 		Cause:  "UNSPECIFIED",
 	}
-	return http_wrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
+	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
 }
 
 func getBDTPolicyContextProcedure(bdtPolicyID string) (
@@ -64,7 +64,7 @@ func getBDTPolicyContextProcedure(bdtPolicyID string) (
 }
 
 // UpdateBDTPolicy - Update an Individual BDT policy (choose policy data)
-func HandleUpdateBDTPolicyContextProcedure(request *http_wrapper.Request) *http_wrapper.Response {
+func HandleUpdateBDTPolicyContextProcedure(request *httpwrapper.Request) *httpwrapper.Response {
 	// step 1: log
 	logger.Bdtpolicylog.Infof("Handle UpdateBDTPolicyContext")
 
@@ -78,15 +78,15 @@ func HandleUpdateBDTPolicyContextProcedure(request *http_wrapper.Request) *http_
 	// step 4: process the return value from step 3
 	if response != nil {
 		// status code is based on SPEC, and option headers
-		return http_wrapper.NewResponse(http.StatusOK, nil, response)
+		return httpwrapper.NewResponse(http.StatusOK, nil, response)
 	} else if problemDetails != nil {
-		return http_wrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
 	problemDetails = &models.ProblemDetails{
 		Status: http.StatusForbidden,
 		Cause:  "UNSPECIFIED",
 	}
-	return http_wrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
+	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
 }
 
 func updateBDTPolicyContextProcedure(request models.BdtPolicyDataPatch, bdtPolicyID string) (
@@ -145,7 +145,7 @@ func updateBDTPolicyContextProcedure(request models.BdtPolicyDataPatch, bdtPolic
 }
 
 // CreateBDTPolicy - Create a new Individual BDT policy
-func HandleCreateBDTPolicyContextRequest(request *http_wrapper.Request) *http_wrapper.Response {
+func HandleCreateBDTPolicyContextRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	// step 1: log
 	logger.Bdtpolicylog.Infof("Handle CreateBDTPolicyContext")
 
@@ -158,11 +158,11 @@ func HandleCreateBDTPolicyContextRequest(request *http_wrapper.Request) *http_wr
 	// step 4: process the return value from step 3
 	if response != nil {
 		// status code is based on SPEC, and option headers
-		return http_wrapper.NewResponse(http.StatusCreated, header, response)
+		return httpwrapper.NewResponse(http.StatusCreated, header, response)
 	} else if problemDetails != nil {
-		return http_wrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	} else {
-		return http_wrapper.NewResponse(http.StatusNotFound, nil, nil)
+		return httpwrapper.NewResponse(http.StatusNotFound, nil, nil)
 	}
 }
 
