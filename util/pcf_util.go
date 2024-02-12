@@ -19,9 +19,9 @@ import (
 	"github.com/omec-project/openapi/Npcf_SMPolicyControl"
 	"github.com/omec-project/openapi/Nudr_DataRepository"
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/path_util"
 	"github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/logger"
+	"github.com/omec-project/util/path_util"
 )
 
 const TimeFormat = time.RFC3339

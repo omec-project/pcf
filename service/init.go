@@ -30,8 +30,6 @@ import (
 	"github.com/omec-project/logger_util"
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/path_util"
-	pathUtilLogger "github.com/omec-project/path_util/logger"
 	"github.com/omec-project/pcf/ampolicy"
 	"github.com/omec-project/pcf/bdtpolicy"
 	"github.com/omec-project/pcf/consumer"
@@ -46,6 +44,8 @@ import (
 	"github.com/omec-project/pcf/uepolicy"
 	"github.com/omec-project/pcf/util"
 	"github.com/omec-project/util/idgenerator"
+	"github.com/omec-project/util/path_util"
+	pathUtilLogger "github.com/omec-project/util/path_util/logger"
 )
 
 type PCF struct{}
