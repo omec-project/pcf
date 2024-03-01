@@ -18,7 +18,7 @@ require (
 	github.com/omec-project/openapi v1.1.0
 	github.com/omec-project/util v1.0.13-0.20240207024358-eb30f7e970e8
 	github.com/sirupsen/logrus v1.9.3
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	github.com/tim-ywliu/event v0.1.0
 	github.com/urfave/cli v1.22.14
 	gopkg.in/yaml.v2 v2.4.0
