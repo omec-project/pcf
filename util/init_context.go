@@ -10,8 +10,6 @@ import (
 	"os"
 
 	"github.com/google/uuid"
-
-	"github.com/omec-project/MongoDBLibrary"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/pcf/context"
@@ -19,7 +17,7 @@ import (
 	"github.com/omec-project/pcf/logger"
 )
 
-// Init PCF Context from config flie
+// InitpcfContext Init PCF Context from config file
 func InitpcfContext(context *context.PCFContext) {
 	config := factory.PcfConfig
 	logger.UtilLog.Infof("pcfconfig Info: Version[%s] Description[%s]", config.Info.Version, config.Info.Description)
@@ -28,10 +26,6 @@ func InitpcfContext(context *context.PCFContext) {
 	if configuration.PcfName != "" {
 		context.Name = configuration.PcfName
 	}
-
-	mongodb := config.Configuration.Mongodb
-	// Connect to MongoDB
-	MongoDBLibrary.SetMongoDB(mongodb.Name, mongodb.Url)
 
 	sbi := configuration.Sbi
 	context.NrfUri = configuration.NrfUri
