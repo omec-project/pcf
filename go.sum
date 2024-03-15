@@ -198,8 +198,8 @@ github.com/omec-project/config5g v1.3.0 h1:e/oMZlQsef8bOpHT56uAMKIag3epCOW0jpmya
 github.com/omec-project/config5g v1.3.0/go.mod h1:h6eaDdWEY7432L9rZAg1Za6HrvFvDWRNolAn5GK/5No=
 github.com/omec-project/http2_util v1.1.0 h1:8H2NME/V8iONth8TlyK/3w4pguAzaeUnEv9pmeAocwQ=
 github.com/omec-project/http2_util v1.1.0/go.mod h1:QwoZRaUyhEp/kTEqXvf0gCYtfQrNHBdkVw939vsMjZY=
-github.com/omec-project/logger_conf v1.1.1-0.20240213150911-6ea2670f1fc0 h1:Ql+yMsnlHCsJH2ajXVymfoQqUtUPorIkWsZ1pdIAXSE=
-github.com/omec-project/logger_conf v1.1.1-0.20240213150911-6ea2670f1fc0/go.mod h1:2EwoAXjOcRTweseN+ogWifJvjocEKjz3kxRaIC4I88g=
+github.com/omec-project/logger_conf v1.1.1 h1:qo0cF5gnPfth8wy+I/QjiOx+F5jB6h4GLSOdyS+ted8=
+github.com/omec-project/logger_conf v1.1.1/go.mod h1:2EwoAXjOcRTweseN+ogWifJvjocEKjz3kxRaIC4I88g=
 github.com/omec-project/logger_util v1.1.0 h1:R7tT80+ML1HlK4OoTrNv/UK+2H/u2GdIFNBx41g630Q=
 github.com/omec-project/logger_util v1.1.0/go.mod h1:UkD09amIhlh8P0k82A6Uz/atiZGeFS3C2wd334CKpuY=
 github.com/omec-project/openapi v1.1.0 h1:N3v59+FM2V/eCv2Au10kbyeTf1DsScJkEdkDEcCdKE8=

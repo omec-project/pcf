@@ -12,7 +12,7 @@ require (
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/omec-project/config5g v1.3.0
 	github.com/omec-project/http2_util v1.1.0
-	github.com/omec-project/logger_conf v1.1.1-0.20240213150911-6ea2670f1fc0
+	github.com/omec-project/logger_conf v1.1.1
 	github.com/omec-project/logger_util v1.1.0
 	github.com/omec-project/openapi v1.1.0
 	github.com/omec-project/util v1.0.13
