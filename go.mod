@@ -14,7 +14,7 @@ require (
 	github.com/omec-project/http2_util v1.2.0
 	github.com/omec-project/logger_conf v1.1.1
 	github.com/omec-project/logger_util v1.2.0
-	github.com/omec-project/openapi v1.1.0
+	github.com/omec-project/openapi v1.2.0
 	github.com/omec-project/util v1.0.13
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.9.0
@@ -41,6 +41,7 @@ require (
 	github.com/h2non/parth v0.0.0-20190131123155-b4df798d6542 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.7 // indirect
+	github.com/kr/text v0.2.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mitchellh/mapstructure v1.4.1 // indirect
