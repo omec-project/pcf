@@ -42,6 +42,7 @@ type Configuration struct {
 	TimeFormat      string    `yaml:"timeFormat,omitempty"`
 	DefaultBdtRefId string    `yaml:"defaultBdtRefId,omitempty"`
 	NrfUri          string    `yaml:"nrfUri,omitempty"`
+	WebuiUri        string    `yaml:"webuiUri"`
 	ServiceList     []Service `yaml:"serviceList,omitempty"`
 	Mongodb         *Mongodb  `yaml:"mongodb"`
 

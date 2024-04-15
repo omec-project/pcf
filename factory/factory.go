@@ -30,6 +30,9 @@ func InitConfigFactory(f string) error {
 		if yamlErr := yaml.Unmarshal(content, &PcfConfig); yamlErr != nil {
 			return yamlErr
 		}
+		if PcfConfig.Configuration.WebuiUri == "" {
+			PcfConfig.Configuration.WebuiUri = "webui:9876"
+		}
 	}
 
 	return nil
