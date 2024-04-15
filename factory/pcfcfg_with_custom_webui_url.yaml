@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2024 Canonical Ltd.
+
+configuration:
+  defaultBdtRefId: BdtPolicyId-
+  mongodb:
+    name: free5gc
+    url: http://1.1.1.1
+  nrfUri: https://nrf:443
+  webuiUri: myspecialwebui:9872 # a valid URI of Webui
+  pcfName: PCF
+info:
+  description: PCF initial local configuration
+  version: 1.0.0
