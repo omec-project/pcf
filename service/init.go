@@ -38,6 +38,7 @@ import (
 	"github.com/omec-project/pcf/httpcallback"
 	"github.com/omec-project/pcf/internal/notifyevent"
 	"github.com/omec-project/pcf/logger"
+	"github.com/omec-project/pcf/metrics"
 	"github.com/omec-project/pcf/oam"
 	"github.com/omec-project/pcf/policyauthorization"
 	"github.com/omec-project/pcf/smpolicy"
@@ -206,6 +207,8 @@ func (pcf *PCF) Start() {
 	policyauthorization.AddService(router)
 	httpcallback.AddService(router)
 	oam.AddService(router)
+
+	go metrics.InitMetrics()
 
 	router.Use(cors.New(cors.Config{
 		AllowMethods: []string{"GET", "POST", "OPTIONS", "PUT", "PATCH", "DELETE"},
