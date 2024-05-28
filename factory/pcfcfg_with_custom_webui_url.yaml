@@ -3,9 +3,6 @@
 
 configuration:
   defaultBdtRefId: BdtPolicyId-
-  mongodb:
-    name: free5gc
-    url: http://1.1.1.1
   nrfUri: https://nrf:443
   webuiUri: myspecialwebui:9872 # a valid URI of Webui
   pcfName: PCF

@@ -237,33 +237,6 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 		decision.Offline = request.Offline
 	}
 
-	// get flow rules from databases
-	/*	filter := bson.M{"ueId": ue.Supi, "snssai": util.SnssaiModelsToHex(*request.SliceInfo), "dnn": request.Dnn}
-		flowRulesInterface := MongoDBLibrary.RestfulAPIGetMany(flowRuleDataColl, filter)
-
-		for _, flowRule := range flowRulesInterface {
-			pccRule := util.CreatePccRule(smPolicyData.PccRuleIdGenarator, 33, []models.FlowInformation{
-				{
-					FlowDescription: flowRule["filter"].(string),
-					FlowDirection:   models.FlowDirectionRm_BIDIRECTIONAL,
-				},
-			}, "")
-
-			qosData := &models.QosData{
-				QosId:   util.GetQosId(smPolicyData.PccRuleIdGenarator),
-				GbrUl:   flowRule["gbrUL"].(string),
-				GbrDl:   flowRule["gbrDL"].(string),
-				MaxbrUl: flowRule["mbrUL"].(string),
-				MaxbrDl: flowRule["mbrDL"].(string),
-				Qnc:     false,
-				Var5qi:  int32(flowRule["5qi"].(float64)),
-			}
-			util.SetPccRuleRelatedData(&decision, pccRule, nil, qosData, nil, nil)
-
-			smPolicyData.PccRuleIdGenarator++
-		}
-	*/
-
 	requestSuppFeat, err := openapi.NewSupportedFeature(request.SuppFeat)
 	if err != nil {
 		logger.SMpolicylog.Errorf("openapi NewSupportedFeature error: %+v", err)

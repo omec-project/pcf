@@ -44,7 +44,6 @@ type Configuration struct {
 	NrfUri          string    `yaml:"nrfUri,omitempty"`
 	WebuiUri        string    `yaml:"webuiUri"`
 	ServiceList     []Service `yaml:"serviceList,omitempty"`
-	Mongodb         *Mongodb  `yaml:"mongodb"`
 
 	// config received from RoC
 	DnnList   map[string][]string // sst+sd os key
@@ -64,11 +63,6 @@ type Sbi struct {
 	// IPv6Addr  string `yaml:"ipv6Addr,omitempty"`
 	BindingIPv4 string `yaml:"bindingIPv4,omitempty"` // IP used to run the server in the node.
 	Port        int    `yaml:"port,omitempty"`
-}
-
-type Mongodb struct {
-	Name string `yaml:"name"`
-	Url  string `yaml:"url"`
 }
 
 type PlmnSupportItem struct {
