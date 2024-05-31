@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/cydev/zero"
-
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	pcf_context "github.com/omec-project/pcf/context"

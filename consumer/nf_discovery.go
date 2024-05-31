@@ -12,7 +12,6 @@ import (
 	"net/http"
 
 	"github.com/antihax/optional"
-
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/pcf/logger"

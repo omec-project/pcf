@@ -13,7 +13,6 @@ import (
 	"github.com/antihax/optional"
 	"github.com/google/uuid"
 	"github.com/mohae/deepcopy"
-
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/Nudr_DataRepository"
 	"github.com/omec-project/openapi/models"

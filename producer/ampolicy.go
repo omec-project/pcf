@@ -12,7 +12,6 @@ import (
 	"reflect"
 
 	"github.com/mohae/deepcopy"
-
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/pcf/consumer"

@@ -9,11 +9,10 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/tim-ywliu/event"
-
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/pcf/util"
+	"github.com/tim-ywliu/event"
 )
 
 const SendSMpolicyTerminationNotifyEventName event.Name = "SendSMpolicyTerminationNotify"

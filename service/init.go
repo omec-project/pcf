@@ -21,9 +21,6 @@ import (
 
 	"github.com/antihax/optional"
 	"github.com/gin-contrib/cors"
-	"github.com/sirupsen/logrus"
-	"github.com/urfave/cli"
-
 	"github.com/omec-project/config5g/proto/client"
 	protos "github.com/omec-project/config5g/proto/sdcoreConfig"
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
@@ -47,6 +44,8 @@ import (
 	logger_util "github.com/omec-project/util/logger"
 	"github.com/omec-project/util/path_util"
 	pathUtilLogger "github.com/omec-project/util/path_util/logger"
+	"github.com/sirupsen/logrus"
+	"github.com/urfave/cli"
 )
 
 type PCF struct{}
