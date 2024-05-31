@@ -221,15 +221,14 @@ linters:
     - staticcheck
     - unused
     - gosimple
-    # - ineffassign
+    - ineffassign
     - typecheck
     # Additional
     # - lll
     - godox
     #- gomnd
-    #- goconst
+    - goconst
     # - gocognit
-    # - maligned
     # - nestif
     # - gomodguard
     # - nakedret
