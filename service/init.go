@@ -522,7 +522,7 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 		}
 		var rule models.PccRule
 		var qos models.QosData
-		rule.PccRuleId = strconv.FormatInt(int64(id), 10)
+		rule.PccRuleId = strconv.FormatInt(id, 10)
 		rule.Precedence = pccrule.Priority
 		if pccrule.Qos != nil {
 			qos.QosId = strconv.FormatInt(id, 10)

@@ -236,7 +236,7 @@ linters:
     - misspell
     - gofumpt
     - whitespace
-    # - unconvert
+    - unconvert
     - predeclared
     - noctx
     - dogsled
@@ -244,7 +244,7 @@ linters:
     - asciicheck
       #- stylecheck
       # - unparam
-      #- wsl
+      # - wsl
 
   #disable-all: false
   fast: true
