@@ -6,10 +6,9 @@
 package notifyevent
 
 import (
-	"github.com/tim-ywliu/event"
-
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/pcf/logger"
+	"github.com/tim-ywliu/event"
 )
 
 var notifyDispatcher *event.Dispatcher

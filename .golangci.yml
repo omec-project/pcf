@@ -221,23 +221,22 @@ linters:
     - staticcheck
     - unused
     - gosimple
-    # - ineffassign
+    - ineffassign
     - typecheck
     # Additional
     # - lll
     - godox
     #- gomnd
-    #- goconst
+    - goconst
     # - gocognit
-    # - maligned
     # - nestif
     # - gomodguard
     # - nakedret
-    # - gci
+    - gci
     - misspell
-    # - gofumpt
+    - gofumpt
     - whitespace
-    # - unconvert
+    - unconvert
     - predeclared
     - noctx
     - dogsled
@@ -245,7 +244,7 @@ linters:
     - asciicheck
       #- stylecheck
       # - unparam
-      #- wsl
+      # - wsl
 
   #disable-all: false
   fast: true

@@ -9,11 +9,10 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/tim-ywliu/event"
-
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/pcf/util"
+	"github.com/tim-ywliu/event"
 )
 
 const SendSMpolicyUpdateNotifyEventName event.Name = "SendSMpolicyUpdateNotify"
@@ -31,8 +30,7 @@ func (e SendSMpolicyUpdateNotifyEvent) Handle() {
 	}
 	client := util.GetNpcfSMPolicyCallbackClient()
 	logger.NotifyEventLog.Infof("Send SM Policy Update Notification to SMF")
-	_, httpResponse, err :=
-		client.DefaultCallbackApi.SmPolicyUpdateNotification(context.Background(), e.uri, *e.request)
+	_, httpResponse, err := client.DefaultCallbackApi.SmPolicyUpdateNotification(context.Background(), e.uri, *e.request)
 	if err != nil {
 		if httpResponse != nil {
 			logger.NotifyEventLog.Warnf("SM Policy Update Notification Error[%s]", httpResponse.Status)

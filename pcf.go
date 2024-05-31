@@ -21,11 +21,10 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/sirupsen/logrus"
-	"github.com/urfave/cli"
-
 	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/pcf/service"
+	"github.com/sirupsen/logrus"
+	"github.com/urfave/cli"
 )
 
 var PCF = &service.PCF{}

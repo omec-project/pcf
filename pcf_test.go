@@ -23,8 +23,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var PCFTest = &service.PCF{}
-var bitRateValues = make(map[int64]string)
+var (
+	PCFTest       = &service.PCF{}
+	bitRateValues = make(map[int64]string)
+)
 
 func init() {
 	bitRateValues = map[int64]string{

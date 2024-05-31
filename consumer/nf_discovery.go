@@ -12,7 +12,6 @@ import (
 	"net/http"
 
 	"github.com/antihax/optional"
-
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/pcf/logger"
@@ -21,7 +20,8 @@ import (
 
 var SendSearchNFInstances = func(
 	nrfUri string, targetNfType, requestNfType models.NfType, param Nnrf_NFDiscovery.SearchNFInstancesParamOpts) (
-	*models.SearchResult, error) {
+	*models.SearchResult, error,
+) {
 	// Set client and set url
 	configuration := Nnrf_NFDiscovery.NewConfiguration()
 	configuration.SetBasePath(nrfUri)

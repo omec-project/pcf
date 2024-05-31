@@ -76,7 +76,7 @@ type PccPolicy struct {
 	PccRules      map[string]*models.PccRule
 	QosDecs       map[string]*models.QosData
 	TraffContDecs map[string]*models.TrafficControlData
-	SessionPolicy map[string]*SessionPolicy //dnn is key
+	SessionPolicy map[string]*SessionPolicy // dnn is key
 	IdGenerator   *idgenerator.IDGenerator
 }
 type PcfSubscriberPolicyData struct {

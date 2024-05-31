@@ -13,9 +13,8 @@ import (
 	"fmt"
 	"os"
 
-	"gopkg.in/yaml.v2"
-
 	"github.com/omec-project/pcf/logger"
+	"gopkg.in/yaml.v2"
 )
 
 var PcfConfig Config

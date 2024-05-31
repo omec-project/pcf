@@ -54,7 +54,8 @@ func BuildNFInstance(context *pcf_context.PCFContext) (profile models.NfProfile,
 }
 
 var SendRegisterNFInstance = func(nrfUri, nfInstanceId string, profile models.NfProfile) (
-	nfProfile models.NfProfile, resouceNrfUri string, retrieveNfInstanceID string, err error) {
+	nfProfile models.NfProfile, resouceNrfUri string, retrieveNfInstanceID string, err error,
+) {
 	// Set client and set url
 	configuration := Nnrf_NFManagement.NewConfiguration()
 	configuration.SetBasePath(nrfUri)
