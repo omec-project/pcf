@@ -238,7 +238,8 @@ func CheckSuppFeat(suppFeat string, number int) bool {
 }
 
 func CheckPolicyControlReqTrig(
-	triggers []models.PolicyControlRequestTrigger, reqTrigger models.PolicyControlRequestTrigger) bool {
+	triggers []models.PolicyControlRequestTrigger, reqTrigger models.PolicyControlRequestTrigger,
+) bool {
 	for _, trigger := range triggers {
 		if trigger == reqTrigger {
 			return true

@@ -30,8 +30,7 @@ func (e SendSMpolicyTerminationNotifyEvent) Handle() {
 	}
 	client := util.GetNpcfSMPolicyCallbackClient()
 	logger.NotifyEventLog.Infof("SM Policy Termination Request Notification to SMF")
-	rsp, err :=
-		client.DefaultCallbackApi.SmPolicyControlTerminationRequestNotification(context.Background(), e.uri, *e.request)
+	rsp, err := client.DefaultCallbackApi.SmPolicyControlTerminationRequestNotification(context.Background(), e.uri, *e.request)
 	if err != nil {
 		if rsp != nil {
 			logger.NotifyEventLog.Warnf("SM Policy Termination Request Notification Error[%s]", rsp.Status)
