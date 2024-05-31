@@ -26,8 +26,6 @@ import (
 
 	"github.com/omec-project/config5g/proto/client"
 	protos "github.com/omec-project/config5g/proto/sdcoreConfig"
-	"github.com/omec-project/http2_util"
-	"github.com/omec-project/logger_util"
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/pcf/ampolicy"
@@ -44,7 +42,9 @@ import (
 	"github.com/omec-project/pcf/smpolicy"
 	"github.com/omec-project/pcf/uepolicy"
 	"github.com/omec-project/pcf/util"
+	"github.com/omec-project/util/http2_util"
 	"github.com/omec-project/util/idgenerator"
+	logger_util "github.com/omec-project/util/logger"
 	"github.com/omec-project/util/path_util"
 	pathUtilLogger "github.com/omec-project/util/path_util/logger"
 )
