@@ -643,6 +643,40 @@ func findQosData(qosdecs map[string]*models.QosData, qos models.QosData) (bool, 
 	return false, nil
 }
 
+func (pcf *PCF) CreatePolicyDataforImsi(imsi string, sliceid string, dnn string, sessionrule *models.SessionRule, slice *protos.NetworkSlice) {
+	self := context.PCF_Self()
+	self.PcfSubscriberPolicyData[imsi] = &context.PcfSubscriberPolicyData{}
+	policyData := self.PcfSubscriberPolicyData[imsi]
+	policyData.CtxLog = logger.CtxLog.WithField(logger.FieldSupi, "imsi-"+imsi)
+	policyData.PccPolicy = make(map[string]*context.PccPolicy)
+	policyData.PccPolicy[sliceid] = &context.PccPolicy{
+		PccRules: make(map[string]*models.PccRule),
+		QosDecs:  make(map[string]*models.QosData), TraffContDecs: make(map[string]*models.TrafficControlData),
+		SessionPolicy: make(map[string]*context.SessionPolicy), IdGenerator: nil,
+	}
+	policyData.PccPolicy[sliceid].SessionPolicy[dnn] = &context.SessionPolicy{
+		SessionRules:           make(map[string]*models.SessionRule),
+		SessionRuleIdGenerator: idgenerator.NewGenerator(1, math.MaxInt16),
+	}
+	id, err := policyData.PccPolicy[sliceid].SessionPolicy[dnn].SessionRuleIdGenerator.Allocate()
+	if err != nil {
+		logger.GrpcLog.Errorf("SessionRuleIdGenerator allocation failed: %v", err)
+	}
+	sessionrule.SessRuleId = dnn + "-" + strconv.Itoa(int(id))
+	policyData.PccPolicy[sliceid].SessionPolicy[dnn].SessionRules[sessionrule.SessRuleId] = sessionrule
+	pccPolicy := getPccRules(slice, sessionrule)
+	for index, element := range pccPolicy.PccRules {
+		policyData.PccPolicy[sliceid].PccRules[index] = element
+	}
+	for index, element := range pccPolicy.QosDecs {
+		policyData.PccPolicy[sliceid].QosDecs[index] = element
+	}
+	for index, element := range pccPolicy.TraffContDecs {
+		policyData.PccPolicy[sliceid].TraffContDecs[index] = element
+	}
+	policyData.CtxLog.Infof("Policy Data: %v for IMSI: %v", policyData, imsi)
+}
+
 func (pcf *PCF) UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
 	self := context.PCF_Self()
 	sliceid := slice.Nssai.Sst + slice.Nssai.Sd
@@ -659,37 +693,10 @@ func (pcf *PCF) UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
 			dnn = devgroup.IpDomainDetails.DnnName
 			sessionrule = getSessionRule(devgroup)
 			for _, imsi := range devgroup.Imsi {
-				self.PcfSubscriberPolicyData[imsi] = &context.PcfSubscriberPolicyData{}
-				policyData := self.PcfSubscriberPolicyData[imsi]
-				policyData.CtxLog = logger.CtxLog.WithField(logger.FieldSupi, "imsi-"+imsi)
-				policyData.PccPolicy = make(map[string]*context.PccPolicy)
-				policyData.PccPolicy[sliceid] = &context.PccPolicy{
-					PccRules: make(map[string]*models.PccRule),
-					QosDecs:  make(map[string]*models.QosData), TraffContDecs: make(map[string]*models.TrafficControlData),
-					SessionPolicy: make(map[string]*context.SessionPolicy), IdGenerator: nil,
-				}
-				policyData.PccPolicy[sliceid].SessionPolicy[dnn] = &context.SessionPolicy{SessionRules: make(map[string]*models.SessionRule), SessionRuleIdGenerator: idgenerator.NewGenerator(1, math.MaxInt16)}
-				id, err := policyData.PccPolicy[sliceid].SessionPolicy[dnn].SessionRuleIdGenerator.Allocate()
-				if err != nil {
-					logger.GrpcLog.Errorf("SessionRuleIdGenerator allocation failed: %v", err)
-				}
-				// tcid, _ := policyData.PccPolicy[sliceid].TcIdGenerator.Allocate()
-				sessionrule.SessRuleId = dnn + "-" + strconv.Itoa(int(id))
-				policyData.PccPolicy[sliceid].SessionPolicy[dnn].SessionRules[sessionrule.SessRuleId] = sessionrule
-				pccPolicy := getPccRules(slice, sessionrule)
-				for index, element := range pccPolicy.PccRules {
-					policyData.PccPolicy[sliceid].PccRules[index] = element
-				}
-				for index, element := range pccPolicy.QosDecs {
-					policyData.PccPolicy[sliceid].QosDecs[index] = element
-				}
-				for index, element := range pccPolicy.TraffContDecs {
-					policyData.PccPolicy[sliceid].TraffContDecs[index] = element
-				}
-				policyData.CtxLog.Infof("Subscriber Detals: %v", policyData)
-				// self.DisplayPcfSubscriberPolicyData(imsi)
+				pcf.CreatePolicyDataforImsi(imsi, sliceid, dnn, sessionrule, slice)
 			}
 		}
+
 	case protos.OpType_SLICE_UPDATE:
 		logger.GrpcLog.Infof("Received Slice with OperationType: Update from ConfigPod")
 		for _, devgroup := range slice.DeviceGroup {
@@ -702,45 +709,13 @@ func (pcf *PCF) UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
 
 			dnn = devgroup.IpDomainDetails.DnnName
 			sessionrule = getSessionRule(devgroup)
-
+			for _, imsi := range devgroup.Imsi {
+				pcf.CreatePolicyDataforImsi(imsi, sliceid, dnn, sessionrule, slice)
+			}
 			for _, imsi := range slice.AddUpdatedImsis {
 				if ImsiExistInDeviceGroup(devgroup, imsi) {
-					// TODO policy exists, so compare and get difference with existing policy then notify the subscriber
-					self.PcfSubscriberPolicyData[imsi] = &context.PcfSubscriberPolicyData{}
-					policyData := self.PcfSubscriberPolicyData[imsi]
-					policyData.CtxLog = logger.CtxLog.WithField(logger.FieldSupi, "imsi-"+imsi)
-					policyData.PccPolicy = make(map[string]*context.PccPolicy)
-					policyData.PccPolicy[sliceid] = &context.PccPolicy{
-						PccRules: make(map[string]*models.PccRule),
-						QosDecs:  make(map[string]*models.QosData), TraffContDecs: make(map[string]*models.TrafficControlData),
-						SessionPolicy: make(map[string]*context.SessionPolicy), IdGenerator: nil,
-					}
-					policyData.PccPolicy[sliceid].SessionPolicy[dnn] = &context.SessionPolicy{
-						SessionRules:           make(map[string]*models.SessionRule),
-						SessionRuleIdGenerator: idgenerator.NewGenerator(1, math.MaxInt16),
-					}
-
-					// Added session rules
-					id, err := policyData.PccPolicy[sliceid].SessionPolicy[dnn].SessionRuleIdGenerator.Allocate()
-					if err != nil {
-						logger.GrpcLog.Errorf("SessionRuleIdGenerator allocation failed: %v", err)
-					}
-					sessionrule.SessRuleId = dnn + strconv.Itoa(int(id))
-					policyData.PccPolicy[sliceid].SessionPolicy[dnn].SessionRules[sessionrule.SessRuleId] = sessionrule
-					// Added pcc rules
-					pccPolicy := getPccRules(slice, sessionrule)
-					for index, element := range pccPolicy.PccRules {
-						policyData.PccPolicy[sliceid].PccRules[index] = element
-					}
-					for index, element := range pccPolicy.QosDecs {
-						policyData.PccPolicy[sliceid].QosDecs[index] = element
-					}
-					for index, element := range pccPolicy.TraffContDecs {
-						policyData.PccPolicy[sliceid].TraffContDecs[index] = element
-					}
-					policyData.CtxLog.Infof("Subscriber Detals: %v", policyData)
+					pcf.CreatePolicyDataforImsi(imsi, sliceid, dnn, sessionrule, slice)
 				}
-				// self.DisplayPcfSubscriberPolicyData(imsi)
 			}
 		}
 
