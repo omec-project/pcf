@@ -116,7 +116,7 @@ func (pcf *PCF) Initialize(c *cli.Context) error {
 		initLog.Infoln("MANAGED_BY_CONFIG_POD is true")
 		gClient := client.ConnectToConfigServer(factory.PcfConfig.Configuration.WebuiUri)
 		commChannel := gClient.PublishOnConfigChange(true)
-		go pcf.updateConfig(commChannel)
+		go pcf.UpdateConfig(commChannel)
 	} else {
 		go func() {
 			initLog.Infoln("Use helm chart config ")
@@ -648,23 +648,28 @@ func (pcf *PCF) CreatePolicyDataforImsi(imsi string, sliceid string, dnn string,
 	self.PcfSubscriberPolicyData[imsi] = &context.PcfSubscriberPolicyData{}
 	policyData := self.PcfSubscriberPolicyData[imsi]
 	policyData.CtxLog = logger.CtxLog.WithField(logger.FieldSupi, "imsi-"+imsi)
+
 	policyData.PccPolicy = make(map[string]*context.PccPolicy)
 	policyData.PccPolicy[sliceid] = &context.PccPolicy{
 		PccRules: make(map[string]*models.PccRule),
 		QosDecs:  make(map[string]*models.QosData), TraffContDecs: make(map[string]*models.TrafficControlData),
 		SessionPolicy: make(map[string]*context.SessionPolicy), IdGenerator: nil,
 	}
+
 	policyData.PccPolicy[sliceid].SessionPolicy[dnn] = &context.SessionPolicy{
 		SessionRules:           make(map[string]*models.SessionRule),
 		SessionRuleIdGenerator: idgenerator.NewGenerator(1, math.MaxInt16),
 	}
+
 	id, err := policyData.PccPolicy[sliceid].SessionPolicy[dnn].SessionRuleIdGenerator.Allocate()
 	if err != nil {
 		logger.GrpcLog.Errorf("SessionRuleIdGenerator allocation failed: %v", err)
 	}
+
 	sessionrule.SessRuleId = dnn + "-" + strconv.Itoa(int(id))
 	policyData.PccPolicy[sliceid].SessionPolicy[dnn].SessionRules[sessionrule.SessRuleId] = sessionrule
 	pccPolicy := getPccRules(slice, sessionrule)
+
 	for index, element := range pccPolicy.PccRules {
 		policyData.PccPolicy[sliceid].PccRules[index] = element
 	}
@@ -844,11 +849,11 @@ func (pcf *PCF) UpdatePlmnList(ns *protos.NetworkSlice) {
 	logger.GrpcLog.Infof("PlmnList Present in PCF: %v", pcfContext.PlmnList)
 }
 
-func (pcf *PCF) updateConfig(commChannel chan *protos.NetworkSliceResponse) bool {
+func (pcf *PCF) UpdateConfig(commChannel chan *protos.NetworkSliceResponse) bool {
 	var minConfig bool
 	pcfContext := context.PCF_Self()
 	for rsp := range commChannel {
-		logger.GrpcLog.Infoln("Received updateConfig in the pcf app : ", rsp)
+		logger.GrpcLog.Infoln("Received UpdateConfig in the pcf app : ", rsp)
 		for _, ns := range rsp.NetworkSlice {
 			logger.GrpcLog.Infoln("Network Slice Name ", ns.Name)
 
