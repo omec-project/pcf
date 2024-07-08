@@ -717,11 +717,6 @@ func (pcf *PCF) UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
 			for _, imsi := range devgroup.Imsi {
 				pcf.CreatePolicyDataforImsi(imsi, sliceid, dnn, sessionrule, slice)
 			}
-			for _, imsi := range slice.AddUpdatedImsis {
-				if ImsiExistInDeviceGroup(devgroup, imsi) {
-					pcf.CreatePolicyDataforImsi(imsi, sliceid, dnn, sessionrule, slice)
-				}
-			}
 		}
 
 		for _, imsi := range slice.DeletedImsis {
