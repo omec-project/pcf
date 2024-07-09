@@ -60,10 +60,18 @@ $(GO_BIN_PATH)/%: %.go $(NF_GO_FILES)
 	cd $(GO_SRC_PATH)/ && \
 	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(ROOT_PATH)/$@ $(@F).go
 
-test: $(NF_GO_FILES_ALL)
-	@echo "Start building $(@F)...."
-	cd $(GO_SRC_PATH)/ && \
-        CGO_ENABLED=0 go test -ldflags "$(LDFLAGS)" -o $(ROOT_PATH)/$@
+.coverage:
+	rm -rf $(CURDIR)/.coverage
+	mkdir -p $(CURDIR)/.coverage
+
+test: .coverage
+	docker run --rm -v $(CURDIR):/pcf -w /pcf golang:latest \
+		go test \
+			-failfast \
+			-coverprofile=.coverage/coverage-unit.txt \
+			-covermode=atomic \
+			-v \
+			./ ./...
 
 vpath %.go $(addprefix $(GO_SRC_PATH)/, $(GO_NF))
 
@@ -91,3 +99,9 @@ docker-push:
 	for target in $(DOCKER_TARGETS); do \
 		docker push ${DOCKER_REGISTRY}${DOCKER_REPOSITORY}5gc-$$target:${DOCKER_TAG}; \
 	done
+
+fmt:
+	@go fmt ./...
+
+golint:
+	@docker run --rm -v $(CURDIR):/app -w /app golangci/golangci-lint:latest golangci-lint run -v --config /app/.golangci.yml
