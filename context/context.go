@@ -42,6 +42,8 @@ type PCFContext struct {
 	UriScheme       models.UriScheme
 	BindingIPv4     string
 	RegisterIPv4    string
+	Key             string
+	PEM             string
 	TimeFormat      string
 	DefaultBdtRefId string
 	NfService       map[models.ServiceName]models.NfService
