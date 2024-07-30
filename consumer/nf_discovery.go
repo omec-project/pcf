@@ -20,18 +20,20 @@ import (
 	"github.com/omec-project/pcf/util"
 )
 
+var NRFCacheSearchNFInstances = nrfCache.SearchNFInstances
+
 var SendSearchNFInstances = func(
 	nrfUri string, targetNfType, requestNfType models.NfType, param *Nnrf_NFDiscovery.SearchNFInstancesParamOpts) (
 	models.SearchResult, error,
 ) {
 	if pcfContext.PCF_Self().EnableNrfCaching {
-		return nrfCache.SearchNFInstances(nrfUri, targetNfType, requestNfType, param)
+		return NRFCacheSearchNFInstances(nrfUri, targetNfType, requestNfType, param)
 	} else {
 		return SendNfDiscoveryToNrf(nrfUri, targetNfType, requestNfType, param)
 	}
 }
 
-func SendNfDiscoveryToNrf(nrfUri string, targetNfType, requestNfType models.NfType,
+var SendNfDiscoveryToNrf = func(nrfUri string, targetNfType, requestNfType models.NfType,
 	param *Nnrf_NFDiscovery.SearchNFInstancesParamOpts,
 ) (models.SearchResult, error) {
 	// Set client and set url
