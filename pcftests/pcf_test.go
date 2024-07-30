@@ -64,7 +64,7 @@ func TestCheckNRFCachingIsEnabled(t *testing.T) {
 	assert.Equal(t, got, true, "NRF Caching is not enabled.")
 }
 
-func TestUpdatePcfSubsriberPolicyDataUpdate(t *testing.T) {
+func TestUpdatePcfSubscriberPolicyDataUpdate(t *testing.T) {
 	var nrp protos.NetworkSliceResponse
 	err := json.Unmarshal(UData, &nrp)
 	if err != nil {
@@ -243,16 +243,31 @@ func TestRegisterNF(t *testing.T) {
 	assert.Equal(t, service.KeepAliveTimer == nil, true)
 }
 
-func TestDiscoverUDR_NRFCachingEnabled(t *testing.T) {
-	// Save current function and restore at the end:
-	origSearchNFInstances := consumer.SendSearchNFInstances
-	defer func() {
-		consumer.SendSearchNFInstances = origSearchNFInstances
-	}()
+func TestDiscoverUDR(t *testing.T) {
 	fmt.Printf("test case DiscoverUDR \n")
-	consumer.SendSearchNFInstances = func(nrfUri string, targetNfType, requestNfType models.NfType, param *Nnrf_NFDiscovery.SearchNFInstancesParamOpts) (models.SearchResult, error) {
+	callCountSearchNFInstances := 0
+	callCountSendNfDiscovery := 0
+	consumer.NRFCacheSearchNFInstances = func(nrfUri string, targetNfType, requestNfType models.NfType, param *Nnrf_NFDiscovery.SearchNFInstancesParamOpts) (models.SearchResult, error) {
 		fmt.Printf("Test SearchNFInstance called\n")
+		callCountSearchNFInstances++
 		return models.SearchResult{}, nil
 	}
-	go PCFTest.DiscoverUdr()
+	consumer.SendNfDiscoveryToNrf = func(nrfUri string, targetNfType, requestNfType models.NfType, param *Nnrf_NFDiscovery.SearchNFInstancesParamOpts) (models.SearchResult, error) {
+		fmt.Printf("Test SendNfDiscoveryToNrf called\n")
+		callCountSendNfDiscovery++
+		return models.SearchResult{}, nil
+	}
+	// NRF caching enabled
+	context.PCF_Self().EnableNrfCaching = true
+	// Try to discover UDR first time when NRF caching enabled
+	PCFTest.DiscoverUdr()
+	assert.Equal(t, 1, callCountSearchNFInstances, "NF instance should be searched in the cache.")
+	assert.Equal(t, 0, callCountSendNfDiscovery, "NF discovery request should not be sent to NRF.")
+	// NRF caching disabled
+	context.PCF_Self().EnableNrfCaching = false
+	// Try to discover UDR second time when NRF caching disabled
+	PCFTest.DiscoverUdr()
+	assert.Equal(t, 1, callCountSearchNFInstances, "NF instance should be searched in the cache.")
+	assert.Equal(t, 1, callCountSendNfDiscovery, "NF discovery request should not be sent to NRF.")
+	context.PCF_Self().EnableNrfCaching = false
 }
