@@ -49,7 +49,9 @@ type Configuration struct {
 	DnnList   map[string][]string // sst+sd os key
 	SlicePlmn map[string]PlmnSupportItem
 
-	PlmnList []PlmnSupportItem `yaml:"plmnList,omitempty"`
+	PlmnList                 []PlmnSupportItem `yaml:"plmnList,omitempty"`
+	EnableNrfCaching         bool              `yaml:"enableNrfCaching"`
+	NrfCacheEvictionInterval int               `yaml:"nrfCacheEvictionInterval,omitempty"`
 }
 
 type Service struct {

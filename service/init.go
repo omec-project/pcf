@@ -23,10 +23,12 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/omec-project/config5g/proto/client"
 	protos "github.com/omec-project/config5g/proto/sdcoreConfig"
+	nrfCache "github.com/omec-project/nrf/nrfcache"
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/pcf/ampolicy"
 	"github.com/omec-project/pcf/bdtpolicy"
+	"github.com/omec-project/pcf/callback"
 	"github.com/omec-project/pcf/consumer"
 	"github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/factory"
@@ -41,7 +43,7 @@ import (
 	"github.com/omec-project/pcf/util"
 	"github.com/omec-project/util/http2_util"
 	"github.com/omec-project/util/idgenerator"
-	logger_util "github.com/omec-project/util/logger"
+	loggerUtil "github.com/omec-project/util/logger"
 	"github.com/omec-project/util/path_util"
 	pathUtilLogger "github.com/omec-project/util/path_util/logger"
 	"github.com/sirupsen/logrus"
@@ -197,7 +199,7 @@ func (pcf *PCF) FilterCli(c *cli.Context) (args []string) {
 
 func (pcf *PCF) Start() {
 	initLog.Infoln("Server started")
-	router := logger_util.NewGinWithLogrus(logger.GinLog)
+	router := loggerUtil.NewGinWithLogrus(logger.GinLog)
 
 	bdtpolicy.AddService(router)
 	smpolicy.AddService(router)
@@ -206,6 +208,7 @@ func (pcf *PCF) Start() {
 	policyauthorization.AddService(router)
 	httpcallback.AddService(router)
 	oam.AddService(router)
+	callback.AddService(router)
 
 	go metrics.InitMetrics()
 
@@ -232,6 +235,10 @@ func (pcf *PCF) Start() {
 
 	// Attempt NRF Registration until success
 	go pcf.RegisterNF()
+	if self.EnableNrfCaching {
+		initLog.Infoln("Enable NRF caching feature")
+		nrfCache.InitNrfCaching(self.NrfCacheEvictionInterval*time.Second, consumer.SendNfDiscoveryToNrf)
+	}
 
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
@@ -391,7 +398,7 @@ func (pcf *PCF) RegisterNF() {
 	}
 }
 
-// UpdateNF is the callback function, this is called when keepalivetimer elapsed
+// UpdateNF is the callback function, this is called when keepalive timer elapsed
 func (pcf *PCF) UpdateNF() {
 	KeepAliveTimerMutex.Lock()
 	defer KeepAliveTimerMutex.Unlock()
@@ -442,7 +449,7 @@ func (pcf *PCF) DiscoverUdr() {
 	param := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
 		ServiceNames: optional.NewInterface([]models.ServiceName{models.ServiceName_NUDR_DR}),
 	}
-	if resp, err := consumer.SendSearchNFInstances(self.NrfUri, models.NfType_UDR, models.NfType_PCF, param); err != nil {
+	if resp, err := consumer.SendSearchNFInstances(self.NrfUri, models.NfType_UDR, models.NfType_PCF, &param); err != nil {
 		initLog.Errorln(err)
 	} else {
 		for _, nfProfile := range resp.NfInstances {
@@ -472,14 +479,14 @@ func GetBitRateUnit(val int64) (int64, string) {
 		return val, unit
 	}
 	if val >= 0xFFFF {
-		val = (val / 1000)
+		val = val / 1000
 		unit = " Kbps"
 		if val >= 0xFFFF {
-			val = (val / 1000)
+			val = val / 1000
 			unit = " Mbps"
 		}
 		if val >= 0xFFFF {
-			val = (val / 1000)
+			val = val / 1000
 			unit = " Gbps"
 		}
 	} else {
