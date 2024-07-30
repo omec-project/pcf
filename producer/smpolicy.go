@@ -167,7 +167,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	}
 	/*var ambr *models.Ambr
 	//sstStr := strconv.Itoa(int(request.SliceInfo.Sst))
-	if cAmbr, ok := pcfSelf.AmbrMap[sstStr+request.SliceInfo.Sd]; !ok {
+	if cAmbr, ok := PCF_Self.AmbrMap[sstStr+request.SliceInfo.Sd]; !ok {
 		ambr = request.SubsSessAmbr
 	} else {
 		ambr = &cAmbr
@@ -182,7 +182,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 
 		//Check if local config has pre-configured def Qos for the slice(via ROC)
 		var defQos *models.SubscribedDefaultQos
-		if dQos, ok := pcfSelf.DefQosMap[sstStr+request.SliceInfo.Sd]; !ok {
+		if dQos, ok := PCF_Self.DefQosMap[sstStr+request.SliceInfo.Sd]; !ok {
 			defQos = request.SubsDefQos
 		} else {
 			//ARP and Priority not coming from ROC yet, copy from request

@@ -46,7 +46,7 @@ func init() {
 	}
 }
 
-func TestUpdatePcfSubsriberPolicyDataAdd(t *testing.T) {
+func TestUpdatePcfSubscriberPolicyDataAdd(t *testing.T) {
 	var nrp protos.NetworkSliceResponse
 	err := json.Unmarshal(Data, &nrp)
 	if err != nil {
@@ -57,6 +57,11 @@ func TestUpdatePcfSubsriberPolicyDataAdd(t *testing.T) {
 	}
 	self := context.PCF_Self()
 	assert.Equal(t, len(self.PcfSubscriberPolicyData), 3)
+}
+
+func TestCheckNRFCachingIsEnabled(t *testing.T) {
+	got := factory.PcfConfig.Configuration.EnableNrfCaching
+	assert.Equal(t, got, true, "NRF Caching is not enabled.")
 }
 
 func TestUpdatePcfSubsriberPolicyDataUpdate(t *testing.T) {
@@ -73,7 +78,7 @@ func TestUpdatePcfSubsriberPolicyDataUpdate(t *testing.T) {
 }
 
 // Two imsis deleted and 1 imsi added in device group
-func TestUpdatePcfSubsriberPolicyDataUpdate1(t *testing.T) {
+func TestUpdatePcfSubscriberPolicyDataUpdate1(t *testing.T) {
 	var nrp protos.NetworkSliceResponse
 	err := json.Unmarshal(UData1, &nrp)
 	if err != nil {
@@ -86,7 +91,7 @@ func TestUpdatePcfSubsriberPolicyDataUpdate1(t *testing.T) {
 	assert.Equal(t, len(self.PcfSubscriberPolicyData), 4)
 }
 
-func TestUpdatePcfSubsriberPolicyDataDel(t *testing.T) {
+func TestUpdatePcfSubscriberPolicyDataDel(t *testing.T) {
 	var nrp protos.NetworkSliceResponse
 	err := json.Unmarshal(DelData, &nrp)
 	if err != nil {
@@ -221,9 +226,9 @@ func TestRegisterNF(t *testing.T) {
 		fmt.Printf("Test RegisterNFInstance called\n")
 		return prof, "", "", nil
 	}
-	consumer.SendSearchNFInstances = func(nrfUri string, targetNfType, requestNfType models.NfType, param Nnrf_NFDiscovery.SearchNFInstancesParamOpts) (*models.SearchResult, error) {
+	consumer.SendSearchNFInstances = func(nrfUri string, targetNfType, requestNfType models.NfType, param *Nnrf_NFDiscovery.SearchNFInstancesParamOpts) (models.SearchResult, error) {
 		fmt.Printf("Test SearchNFInstance called\n")
-		return &models.SearchResult{}, nil
+		return models.SearchResult{}, nil
 	}
 	consumer.SendUpdateNFInstance = func(patchItem []models.PatchItem) (nfProfile models.NfProfile, problemDetails *models.ProblemDetails, err error) {
 		return prof, nil, nil
@@ -236,4 +241,18 @@ func TestRegisterNF(t *testing.T) {
 	service.ConfigPodTrigger <- false
 	time.Sleep(1 * time.Second)
 	assert.Equal(t, service.KeepAliveTimer == nil, true)
+}
+
+func TestDiscoverUDR_NRFCachingEnabled(t *testing.T) {
+	// Save current function and restore at the end:
+	origSearchNFInstances := consumer.SendSearchNFInstances
+	defer func() {
+		consumer.SendSearchNFInstances = origSearchNFInstances
+	}()
+	fmt.Printf("test case DiscoverUDR \n")
+	consumer.SendSearchNFInstances = func(nrfUri string, targetNfType, requestNfType models.NfType, param *Nnrf_NFDiscovery.SearchNFInstancesParamOpts) (models.SearchResult, error) {
+		fmt.Printf("Test SearchNFInstance called\n")
+		return models.SearchResult{}, nil
+	}
+	go PCFTest.DiscoverUdr()
 }

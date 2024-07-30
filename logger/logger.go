@@ -35,6 +35,7 @@ var (
 	GinLog                 *logrus.Entry
 	GrpcLog                *logrus.Entry
 	NotifyEventLog         *logrus.Entry
+	ProducerLog            *logrus.Entry
 )
 
 const (
@@ -80,6 +81,7 @@ func init() {
 	GinLog = log.WithFields(logrus.Fields{"component": "PCF", "category": "GIN"})
 	GrpcLog = log.WithFields(logrus.Fields{"component": "PCF", "category": "GRPC"})
 	NotifyEventLog = log.WithFields(logrus.Fields{"component": "PCF", "category": "NotifyEvent"})
+	ProducerLog = log.WithFields(logrus.Fields{"component": "PCF", "category": "Producer"})
 }
 
 func SetLogLevel(level logrus.Level) {
