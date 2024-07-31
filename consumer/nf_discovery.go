@@ -20,10 +20,14 @@ import (
 	"github.com/omec-project/pcf/util"
 )
 
-var NRFCacheSearchNFInstances = nrfCache.SearchNFInstances
+var (
+	CreateSubscription        = SendCreateSubscription
+	NRFCacheSearchNFInstances = nrfCache.SearchNFInstances
+	StoreApiClient            = &Nnrf_NFDiscovery.APIClient{}
+	StoreApiSearchNFInstances = StoreApiClient.NFInstancesStoreApi.SearchNFInstances
+)
 
-var SendSearchNFInstances = func(
-	nrfUri string, targetNfType, requestNfType models.NfType, param *Nnrf_NFDiscovery.SearchNFInstancesParamOpts) (
+var SendSearchNFInstances = func(nrfUri string, targetNfType, requestNfType models.NfType, param *Nnrf_NFDiscovery.SearchNFInstancesParamOpts) (
 	models.SearchResult, error,
 ) {
 	if pcfContext.PCF_Self().EnableNrfCaching {
@@ -33,15 +37,13 @@ var SendSearchNFInstances = func(
 	}
 }
 
-var SendNfDiscoveryToNrf = func(nrfUri string, targetNfType, requestNfType models.NfType,
-	param *Nnrf_NFDiscovery.SearchNFInstancesParamOpts,
+var SendNfDiscoveryToNrf = func(nrfUri string, targetNfType, requesterNfType models.NfType, param *Nnrf_NFDiscovery.SearchNFInstancesParamOpts,
 ) (models.SearchResult, error) {
 	// Set client and set url
 	configuration := Nnrf_NFDiscovery.NewConfiguration()
 	configuration.SetBasePath(nrfUri)
-	client := Nnrf_NFDiscovery.NewAPIClient(configuration)
-
-	result, res, err := client.NFInstancesStoreApi.SearchNFInstances(context.TODO(), targetNfType, requestNfType, param)
+	StoreApiClient = Nnrf_NFDiscovery.NewAPIClient(configuration)
+	result, res, err := StoreApiSearchNFInstances(context.TODO(), targetNfType, requesterNfType, param)
 	if res != nil && res.StatusCode == http.StatusTemporaryRedirect {
 		err = fmt.Errorf("temporary redirect for non NRF consumer")
 	}
@@ -60,9 +62,9 @@ var SendNfDiscoveryToNrf = func(nrfUri string, targetNfType, requestNfType model
 			nrfSubscriptionData := models.NrfSubscriptionData{
 				NfStatusNotificationUri: fmt.Sprintf("%s/npcf-callback/v1/nf-status-notify", pcfSelf.GetIPv4Uri()),
 				SubscrCond:              &models.NfInstanceIdCond{NfInstanceId: nfProfile.NfInstanceId},
-				ReqNfType:               requestNfType,
+				ReqNfType:               requesterNfType,
 			}
-			nrfSubData, problemDetails, err = SendCreateSubscription(nrfUri, nrfSubscriptionData)
+			nrfSubData, problemDetails, err = CreateSubscription(nrfUri, nrfSubscriptionData)
 			if problemDetails != nil {
 				logger.ConsumerLog.Errorf("SendCreateSubscription to NRF, Problem[%+v]", problemDetails)
 			} else if err != nil {
@@ -103,7 +105,7 @@ func SendNFInstancesUDR(nrfUri, id string) string {
 	return ""
 }
 
-func SendNFIntancesAMF(nrfUri string, guami models.Guami, serviceName models.ServiceName) string {
+func SendNFInstancesAMF(nrfUri string, guami models.Guami, serviceName models.ServiceName) string {
 	targetNfType := models.NfType_AMF
 	requestNfType := models.NfType_PCF
 
