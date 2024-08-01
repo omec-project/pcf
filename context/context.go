@@ -187,7 +187,7 @@ func (c *PCFContext) NewPCFUe(Supi string) (*UeContext, error) {
 	}
 }
 
-// AllocBdtPolicyID Return Bdt Policy Id with format "BdtPolicyId-%d" which be allocated
+// AllocBdtPolicyID Return Bdt Policy ID with format "BdtPolicyId-%d" which be allocated
 func (c *PCFContext) AllocBdtPolicyID() (bdtPolicyID string, err error) {
 	var allocID int64
 	if allocID, err = c.BdtPolicyIDGenerator.Allocate(); err != nil {
