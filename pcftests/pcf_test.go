@@ -53,7 +53,6 @@ func setupTest() {
 }
 
 func TestUpdatePcfSubscriberPolicyDataAdd(t *testing.T) {
-	setupTest()
 	var nrp protos.NetworkSliceResponse
 	err := json.Unmarshal(Data, &nrp)
 	if err != nil {
@@ -67,13 +66,11 @@ func TestUpdatePcfSubscriberPolicyDataAdd(t *testing.T) {
 }
 
 func TestCheckNRFCachingIsEnabled(t *testing.T) {
-	setupTest()
 	got := factory.PcfConfig.Configuration.EnableNrfCaching
 	assert.Equal(t, got, true, "NRF Caching is not enabled.")
 }
 
 func TestUpdatePcfSubscriberPolicyDataUpdate(t *testing.T) {
-	setupTest()
 	var nrp protos.NetworkSliceResponse
 	err := json.Unmarshal(UData, &nrp)
 	if err != nil {
@@ -88,7 +85,6 @@ func TestUpdatePcfSubscriberPolicyDataUpdate(t *testing.T) {
 
 // Two imsis deleted and 1 imsi added in device group
 func TestUpdatePcfSubscriberPolicyDataUpdate1(t *testing.T) {
-	setupTest()
 	var nrp protos.NetworkSliceResponse
 	err := json.Unmarshal(UData1, &nrp)
 	if err != nil {
@@ -102,7 +98,6 @@ func TestUpdatePcfSubscriberPolicyDataUpdate1(t *testing.T) {
 }
 
 func TestUpdatePcfSubscriberPolicyDataDel(t *testing.T) {
-	setupTest()
 	var nrp protos.NetworkSliceResponse
 	err := json.Unmarshal(DelData, &nrp)
 	if err != nil {
@@ -116,7 +111,6 @@ func TestUpdatePcfSubscriberPolicyDataDel(t *testing.T) {
 }
 
 func TestUpdatePolicyForAllIMSIs(t *testing.T) {
-	setupTest()
 	var nrp protos.NetworkSliceResponse
 	err := json.Unmarshal(Data, &nrp)
 	if err != nil {
@@ -213,7 +207,6 @@ func TestUpdatePolicyForAllIMSIs(t *testing.T) {
 }
 
 func TestGetBitRateUnit(t *testing.T) {
-	setupTest()
 	fmt.Printf("test case TestGetBitRateUnit \n")
 	for value, expVal := range bitRateValues {
 		val, unit := service.GetBitRateUnit(value)
@@ -222,7 +215,6 @@ func TestGetBitRateUnit(t *testing.T) {
 }
 
 func TestRegisterNF(t *testing.T) {
-	setupTest()
 	origRegisterNFInstance := consumer.SendRegisterNFInstance
 	origSearchNFInstances := consumer.SendSearchNFInstances
 	origUpdateNFInstance := consumer.SendUpdateNFInstance
@@ -257,8 +249,7 @@ func TestRegisterNF(t *testing.T) {
 }
 
 func TestGetUDRUri(t *testing.T) {
-	setupTest()
-	fmt.Printf("test cases for DiscoverUDR \n")
+	fmt.Printf("test cases for Get UDR URI \n")
 	callCountSearchNFInstances := 0
 	callCountSendNfDiscovery := 0
 	origNRFCacheSearchNFInstances := consumer.NRFCacheSearchNFInstances
@@ -401,7 +392,6 @@ func TestGetUDRUri(t *testing.T) {
 }
 
 func TestCreateSubscriptionSuccess(t *testing.T) {
-	setupTest()
 	fmt.Printf("test cases for CreateSubscription \n")
 	udrProfile := models.NfProfile{
 		UdrInfo: &models.UdrInfo{
@@ -485,7 +475,7 @@ func TestCreateSubscriptionSuccess(t *testing.T) {
 		t.Run(fmt.Sprintf("CreateSubscription testname %v result %v", parameters[i].testName, parameters[i].result), func(t *testing.T) {
 			_, err := consumer.SendNfDiscoveryToNrf("testNRFUri", "UDR", "PCF", &param)
 			val, _ := pcfContext.PCF_Self().NfStatusSubscriptions.Load(parameters[i].nfInstanceId)
-			assert.Equal(t, val, parameters[i].subscriptionId)
+			assert.Equal(t, val, parameters[i].subscriptionId, "Correct Subscription ID is not stored in the PCF context.")
 			assert.Equal(t, parameters[i].expectedError, err, "SendNfDiscoveryToNrf is failed.")
 			// Subscription is created.
 			assert.Equal(t, parameters[i].expectedCallCountSendCreateSubscription, callCountSendCreateSubscription, "Subscription is not created for NF instance.")
@@ -495,7 +485,6 @@ func TestCreateSubscriptionSuccess(t *testing.T) {
 }
 
 func TestCreateSubscriptionFail(t *testing.T) {
-	setupTest()
 	fmt.Printf("test cases for CreateSubscription \n")
 	udrProfile := models.NfProfile{
 		UdrInfo: &models.UdrInfo{
@@ -632,7 +621,7 @@ func TestCreateSubscriptionFail(t *testing.T) {
 			}
 			_, err := consumer.SendNfDiscoveryToNrf("testNRFUri", "UDR", "PCF", &param)
 			val, _ := pcfContext.PCF_Self().NfStatusSubscriptions.Load(udrProfile.NfInstanceId)
-			assert.Equal(t, val, parameters[i].expectedSubscriptionId, "Subscription ID is not stored in the PCF context.")
+			assert.Equal(t, val, parameters[i].expectedSubscriptionId, "Correct Subscription ID is not stored in the PCF context.")
 			assert.Equal(t, parameters[i].expectedError, err, "SendNfDiscoveryToNrf is failed.")
 			assert.Equal(t, parameters[i].expectedCallCountSendCreateSubscription, callCountSendCreateSubscription, "Subscription is not created for NF instance.")
 			callCountSendCreateSubscription = 0
@@ -643,7 +632,6 @@ func TestCreateSubscriptionFail(t *testing.T) {
 
 func TestNfSubscriptionStatusNotify(t *testing.T) {
 	fmt.Printf("test cases fore NfSubscriptionStatusNotify \n")
-	setupTest()
 	callCountSendRemoveSubscription := 0
 	callCountNRFCacheRemoveNfProfileFromNrfCache := 0
 	origSendRemoveSubscription := producer.SendRemoveSubscription
@@ -795,4 +783,9 @@ func TestNfSubscriptionStatusNotify(t *testing.T) {
 			pcfContext.PCF_Self().NfStatusSubscriptions.Delete(parameters[i].nfInstanceIdForSubscription)
 		})
 	}
+}
+
+func TestMain(m *testing.M) {
+	setupTest()
+	m.Run()
 }
