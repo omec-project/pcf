@@ -689,7 +689,7 @@ func (pcf *PCF) CreatePolicyDataforImsi(imsi string, sliceid string, dnn string,
 	policyData.CtxLog.Infof("Policy Data: %v for IMSI: %v", policyData, imsi)
 }
 
-func (pcf *PCF) UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
+func (pcf *PCF) UpdatePcfSubscriberPolicyData(slice *protos.NetworkSlice) {
 	self := context.PCF_Self()
 	sliceid := slice.Nssai.Sst + slice.Nssai.Sd
 	switch slice.OperationType {
@@ -861,7 +861,7 @@ func (pcf *PCF) UpdateConfig(commChannel chan *protos.NetworkSliceResponse) bool
 
 			// Update Qos Info
 			// Update/Create/Delete PcfSubscriberPolicyData
-			pcf.UpdatePcfSubsriberPolicyData(ns)
+			pcf.UpdatePcfSubscriberPolicyData(ns)
 
 			pcf.UpdateDnnList(ns)
 

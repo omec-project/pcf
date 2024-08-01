@@ -17,6 +17,11 @@ import (
 	"github.com/omec-project/util/httpwrapper"
 )
 
+var (
+	NRFCacheRemoveNfProfileFromNrfCache = nrfCache.RemoveNfProfileFromNrfCache
+	SendRemoveSubscription              = consumer.SendRemoveSubscription
+)
+
 func HandleAmfStatusChangeNotify(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.CallbackLog.Warnf("[PCF] Handle Amf Status Change Notify is not implemented.")
 
@@ -78,12 +83,12 @@ func NfSubscriptionStatusNotifyProcedure(notificationData models.NotificationDat
 	// This will force the PCF to do nf discovery and get the updated nf profile from the NRF.
 	if notificationData.Event == models.NotificationEventType_DEREGISTERED {
 		if pcfContext.PCF_Self().EnableNrfCaching {
-			ok := nrfCache.RemoveNfProfileFromNrfCache(nfInstanceId)
+			ok := NRFCacheRemoveNfProfileFromNrfCache(nfInstanceId)
 			logger.ProducerLog.Tracef("nfinstance %v deleted from cache: %v", nfInstanceId, ok)
 		}
 		if subscriptionId, ok := pcfContext.PCF_Self().NfStatusSubscriptions.Load(nfInstanceId); ok {
 			logger.ConsumerLog.Debugf("SubscriptionId of nfInstance %v is %v", nfInstanceId, subscriptionId.(string))
-			problemDetails, err := consumer.SendRemoveSubscription(subscriptionId.(string))
+			problemDetails, err := SendRemoveSubscription(subscriptionId.(string))
 			if problemDetails != nil {
 				logger.ConsumerLog.Errorf("Remove NF Subscription Failed Problem[%+v]", problemDetails)
 			} else if err != nil {
