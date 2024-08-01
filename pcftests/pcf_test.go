@@ -33,8 +33,10 @@ import (
 )
 
 var (
-	PCFTest       = &service.PCF{}
-	bitRateValues = make(map[int64]string)
+	PCFTest        = &service.PCF{}
+	bitRateValues  = make(map[int64]string)
+	nfInstanceID   = "34343-4343-43-434-343"
+	subscriptionID = "46326-232353-2323"
 )
 
 func setupTest() {
@@ -260,7 +262,7 @@ func TestGetUDRUri(t *testing.T) {
 				models.DataSetId_SUBSCRIPTION,
 			},
 		},
-		NfInstanceId: "34343-4343-43-434-343",
+		NfInstanceId: nfInstanceID,
 		NfType:       "UDR",
 		NfStatus:     "REGISTERED",
 	}
@@ -399,7 +401,7 @@ func TestCreateSubscriptionSuccess(t *testing.T) {
 				models.DataSetId_SUBSCRIPTION,
 			},
 		},
-		NfInstanceId: "34343-4343-43-434-343",
+		NfInstanceId: nfInstanceID,
 		NfType:       "UDR",
 		NfStatus:     "REGISTERED",
 	}
@@ -438,7 +440,7 @@ func TestCreateSubscriptionSuccess(t *testing.T) {
 		return models.NrfSubscriptionData{
 			NfStatusNotificationUri: "https://:0/npcf-callback/v1/nf-status-notify",
 			ReqNfType:               "PCF",
-			SubscriptionId:          "46326-232353-2323",
+			SubscriptionId:          subscriptionID,
 		}, nil, nil
 	}
 	// NRF caching is disabled
@@ -458,16 +460,16 @@ func TestCreateSubscriptionSuccess(t *testing.T) {
 			nil,
 			"NF instances are found in Store Api subscription is not created for NFInstanceID yet",
 			"Subscription is created",
-			"34343-4343-43-434-343",
-			"46326-232353-2323",
+			nfInstanceID,
+			subscriptionID,
 			1,
 		},
 		{
 			nil,
 			"NF instances are found in Store Api subscription is already created for NFInstanceID",
 			"Subscription is not created again",
-			"34343-4343-43-434-343",
-			"46326-232353-2323",
+			nfInstanceID,
+			subscriptionID,
 			0,
 		},
 	}
@@ -656,7 +658,7 @@ func TestNfSubscriptionStatusNotify(t *testing.T) {
 				models.DataSetId_SUBSCRIPTION,
 			},
 		},
-		NfInstanceId: "34343-4343-43-434-343",
+		NfInstanceId: nfInstanceID,
 		NfType:       "UDR",
 		NfStatus:     "DEREGISTERED",
 	}
@@ -681,9 +683,9 @@ func TestNfSubscriptionStatusNotify(t *testing.T) {
 			nil,
 			"Notification event type DEREGISTERED NRF caching is enabled",
 			"NF profile removed from cache and subscription is removed",
-			"34343-4343-43-434-343",
-			"34343-4343-43-434-343",
-			"46326-232353-2323",
+			nfInstanceID,
+			nfInstanceID,
+			subscriptionID,
 			"NF_DEREGISTERED",
 			1,
 			1,
@@ -693,7 +695,7 @@ func TestNfSubscriptionStatusNotify(t *testing.T) {
 			nil,
 			"Notification event type DEREGISTERED NRF caching is enabled Subscription is not found",
 			"NF profile removed from cache and subscription is not removed",
-			"34343-4343-43-434-343",
+			nfInstanceID,
 			"",
 			"",
 			"NF_DEREGISTERED",
@@ -705,9 +707,9 @@ func TestNfSubscriptionStatusNotify(t *testing.T) {
 			nil,
 			"Notification event type DEREGISTERED NRF caching is disabled",
 			"NF profile is not removed from cache and subscription is removed",
-			"34343-4343-43-434-343",
-			"34343-4343-43-434-343",
-			"46326-232353-2323",
+			nfInstanceID,
+			nfInstanceID,
+			subscriptionID,
 			"NF_DEREGISTERED",
 			1,
 			0,
@@ -717,9 +719,9 @@ func TestNfSubscriptionStatusNotify(t *testing.T) {
 			nil,
 			"Notification event type REGISTERED NRF caching is enabled",
 			"NF profile is not removed from cache and subscription is not removed",
-			"34343-4343-43-434-343",
-			"34343-4343-43-434-343",
-			"46326-232353-2323",
+			nfInstanceID,
+			nfInstanceID,
+			subscriptionID,
 			"NF_REGISTERED",
 			0,
 			0,
@@ -729,9 +731,9 @@ func TestNfSubscriptionStatusNotify(t *testing.T) {
 			nil,
 			"Notification event type DEREGISTERED NRF caching is enabled NfInstanceUri in notificationData is different",
 			"NF profile removed from cache and subscription is not removed",
-			"34343-4343-43-434-343",
-			"34343-4343-43-434-343",
-			"46326-232353-2323",
+			nfInstanceID,
+			nfInstanceID,
+			subscriptionID,
 			"NF_DEREGISTERED",
 			1,
 			1,
@@ -743,7 +745,7 @@ func TestNfSubscriptionStatusNotify(t *testing.T) {
 			"Return StatusBadRequest with cause MANDATORY_IE_MISSING",
 			"",
 			"",
-			"46326-232353-2323",
+			subscriptionID,
 			"NF_DEREGISTERED",
 			0,
 			0,
@@ -753,9 +755,9 @@ func TestNfSubscriptionStatusNotify(t *testing.T) {
 			&badRequestProblem,
 			"Notification event type empty NRF caching is enabled",
 			"Return StatusBadRequest with cause MANDATORY_IE_MISSING",
-			"34343-4343-43-434-343",
-			"34343-4343-43-434-343",
-			"46326-232353-2323",
+			nfInstanceID,
+			nfInstanceID,
+			subscriptionID,
 			"",
 			0,
 			0,
