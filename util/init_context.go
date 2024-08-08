@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
 // Copyright 2019 free5GC.org
-//
+// SPDX-FileCopyrightText: 2024 Canonical Ltd.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -8,6 +8,7 @@ package util
 
 import (
 	"os"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/omec-project/openapi"
@@ -67,6 +68,14 @@ func InitpcfContext(context *context.PCFContext) {
 				logger.UtilLog.Warn("Error parsing ServerIPv4 address as string. Using the 0.0.0.0 address as default.")
 				context.BindingIPv4 = "0.0.0.0"
 			}
+		}
+	}
+	context.EnableNrfCaching = configuration.EnableNrfCaching
+	if configuration.EnableNrfCaching {
+		if configuration.NrfCacheEvictionInterval == 0 {
+			context.NrfCacheEvictionInterval = time.Duration(900) // 15 mins
+		} else {
+			context.NrfCacheEvictionInterval = time.Duration(configuration.NrfCacheEvictionInterval)
 		}
 	}
 	serviceList := configuration.ServiceList

@@ -145,7 +145,7 @@ func updateBDTPolicyContextProcedure(request models.BdtPolicyDataPatch, bdtPolic
 	return nil, &problemDetail
 }
 
-// CreateBDTPolicy - Create a new Individual BDT policy
+// HandleCreateBDTPolicyContextRequest Create a new Individual BDT policy
 func HandleCreateBDTPolicyContextRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	// step 1: log
 	logger.Bdtpolicylog.Infof("Handle CreateBDTPolicyContext")
@@ -278,7 +278,7 @@ func getDefaultUdrUri(context *pcf_context.PCFContext) string {
 	param := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
 		ServiceNames: optional.NewInterface([]models.ServiceName{models.ServiceName_NUDR_DR}),
 	}
-	resp, err := consumer.SendSearchNFInstances(context.NrfUri, models.NfType_UDR, models.NfType_PCF, param)
+	resp, err := consumer.SendSearchNFInstances(context.NrfUri, models.NfType_UDR, models.NfType_PCF, &param)
 	if err != nil {
 		return ""
 	}

@@ -4,6 +4,7 @@
 configuration:
   defaultBdtRefId: BdtPolicyId-
   nrfUri: https://nrf:443
+  enableNrfCaching: true
   webuiUri: webui:9876
   pcfName: PCF
   sbi:

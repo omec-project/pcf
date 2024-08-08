@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
 // Copyright 2019 free5GC.org
-//
+// SPDX-FileCopyrightText: 2024 Canonical Ltd.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
@@ -60,13 +61,16 @@ type PCFContext struct {
 	AppSessionPool sync.Map
 	// AMF Status Change Subscription related
 	AMFStatusSubsData       sync.Map                            // map[string]AMFStatusSubscriptionData; subscriptionID as key
+	NfStatusSubscriptions   sync.Map                            // map[NfInstanceID]models.NrfSubscriptionData.SubscriptionId
 	PcfSubscriberPolicyData map[string]*PcfSubscriberPolicyData // subscriberId is key
 
 	DnnList  []string
 	PlmnList []factory.PlmnSupportItem
 	SBIPort  int
 	// lock
-	DefaultUdrURILock sync.RWMutex
+	DefaultUdrURILock        sync.RWMutex
+	EnableNrfCaching         bool
+	NrfCacheEvictionInterval time.Duration
 }
 
 type SessionPolicy struct {
@@ -107,7 +111,7 @@ type AppSessionData struct {
 	AppSessionId string
 }
 
-// Create new PCF context
+// PCF_Self Create new PCF context
 func PCF_Self() *PCFContext {
 	return pcfCtx
 }
@@ -130,14 +134,14 @@ var (
 	Ipv6_pool              = make(map[string]string)
 )
 
-// BdtPolicy default value
+// DefaultBdtRefId BdtPolicy default value
 const DefaultBdtRefId = "BdtPolicyId-"
 
 func (c *PCFContext) GetIPv4Uri() string {
 	return fmt.Sprintf("%s://%s:%d", c.UriScheme, c.RegisterIPv4, c.SBIPort)
 }
 
-// Init NfService with supported service list ,and version of services
+// InitNFService Init NfService with supported service list and version of services
 func (c *PCFContext) InitNFService(serviceList []factory.Service, version string) {
 	tmpVersion := strings.Split(version, ".")
 	versionUri := "v" + tmpVersion[0]
@@ -167,7 +171,7 @@ func (c *PCFContext) InitNFService(serviceList []factory.Service, version string
 	}
 }
 
-// Allocate PCF Ue with supi and add to pcf Context and returns allocated ue
+// NewPCFUe Allocate PCF Ue with supi and add to pcf Context and returns allocated ue
 func (c *PCFContext) NewPCFUe(Supi string) (*UeContext, error) {
 	if strings.HasPrefix(Supi, "imsi-") {
 		newUeContext := &UeContext{}
@@ -183,7 +187,7 @@ func (c *PCFContext) NewPCFUe(Supi string) (*UeContext, error) {
 	}
 }
 
-// Return Bdt Policy Id with format "BdtPolicyId-%d" which be allocated
+// AllocBdtPolicyID Return Bdt Policy ID with format "BdtPolicyId-%d" which be allocated
 func (c *PCFContext) AllocBdtPolicyID() (bdtPolicyID string, err error) {
 	var allocID int64
 	if allocID, err = c.BdtPolicyIDGenerator.Allocate(); err != nil {
@@ -195,7 +199,7 @@ func (c *PCFContext) AllocBdtPolicyID() (bdtPolicyID string, err error) {
 	return bdtPolicyID, nil
 }
 
-// Find PcfUe which the policyId belongs to
+// PCFUeFindByPolicyId Find PcfUe which the policyId belongs to
 func (c *PCFContext) PCFUeFindByPolicyId(PolicyId string) *UeContext {
 	index := strings.LastIndex(PolicyId, "-")
 	if index == -1 {
@@ -211,7 +215,7 @@ func (c *PCFContext) PCFUeFindByPolicyId(PolicyId string) *UeContext {
 	return nil
 }
 
-// Find PcfUe which the AppSessionId belongs to
+// PCFUeFindByAppSessionId Find PcfUe which the AppSessionId belongs to
 func (c *PCFContext) PCFUeFindByAppSessionId(appSessionId string) *UeContext {
 	index := strings.LastIndex(appSessionId, "-")
 	if index == -1 {
@@ -227,7 +231,7 @@ func (c *PCFContext) PCFUeFindByAppSessionId(appSessionId string) *UeContext {
 	return nil
 }
 
-// Find PcfUe which Ipv4 belongs to
+// PcfUeFindByIPv4 Find PcfUe which Ipv4 belongs to
 func (c *PCFContext) PcfUeFindByIPv4(v4 string) *UeContext {
 	var ue *UeContext
 	c.UePool.Range(func(key, value interface{}) bool {
@@ -242,7 +246,7 @@ func (c *PCFContext) PcfUeFindByIPv4(v4 string) *UeContext {
 	return ue
 }
 
-// Find PcfUe which Ipv6 belongs to
+// PcfUeFindByIPv6 Find PcfUe which Ipv6 belongs to
 func (c *PCFContext) PcfUeFindByIPv6(v6 string) *UeContext {
 	var ue *UeContext
 	c.UePool.Range(func(key, value interface{}) bool {
@@ -265,16 +269,16 @@ func ueSMPolicyFindByAppSessionContext(ue *UeContext, req *models.AppSessionCont
 	if req.UeIpv4 != "" {
 		policy = ue.SMPolicyFindByIdentifiersIpv4(req.UeIpv4, req.SliceInfo, req.Dnn, req.IpDomain)
 		if policy == nil {
-			err = fmt.Errorf("Can't find Ue with Ipv4[%s]", req.UeIpv4)
+			err = fmt.Errorf("can't find Ue with Ipv4[%s]", req.UeIpv4)
 		}
 	} else if req.UeIpv6 != "" {
 		policy = ue.SMPolicyFindByIdentifiersIpv6(req.UeIpv6, req.SliceInfo, req.Dnn)
 		if policy == nil {
-			err = fmt.Errorf("Can't find Ue with Ipv6 prefix[%s]", req.UeIpv6)
+			err = fmt.Errorf("can't find Ue with Ipv6 prefix[%s]", req.UeIpv6)
 		}
 	} else {
 		// TODO: find by MAC address
-		err = fmt.Errorf("Ue finding by MAC address does not support")
+		err = fmt.Errorf("ue finding by MAC address does not support")
 	}
 	return policy, err
 }
@@ -313,7 +317,7 @@ func (c *PCFContext) SessionBinding(req *models.AppSessionContextReqData) (*UeSm
 		})
 	}
 	if policy == nil && err == nil {
-		err = fmt.Errorf("No SM policy found")
+		err = fmt.Errorf("no SM policy found")
 	}
 	return policy, err
 }
