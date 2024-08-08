@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
 // Copyright 2019 free5GC.org
-//
+// SPDX-FileCopyrightText: 2024 Canonical Ltd.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -23,9 +23,9 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/omec-project/config5g/proto/client"
 	protos "github.com/omec-project/config5g/proto/sdcoreConfig"
-	nrfCache "github.com/omec-project/nrf/nrfcache"
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/models"
+	nrfCache "github.com/omec-project/openapi/nrfcache"
 	"github.com/omec-project/pcf/ampolicy"
 	"github.com/omec-project/pcf/bdtpolicy"
 	"github.com/omec-project/pcf/callback"

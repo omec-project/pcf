@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
 // Copyright 2019 free5GC.org
-//
+// SPDX-FileCopyrightText: 2024 Canonical Ltd.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -12,9 +12,9 @@ import (
 	"net/http"
 
 	"github.com/antihax/optional"
-	nrfCache "github.com/omec-project/nrf/nrfcache"
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/models"
+	nrfCache "github.com/omec-project/openapi/nrfcache"
 	pcfContext "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/pcf/util"
