@@ -1,4 +1,5 @@
 // SPDX-FileCopyrightText: 2022 Infosys Limited
+// SPDX-FileCopyrightText: 2024 Canonical Ltd.
 // Copyright 2019 free5GC.org
 //
 // SPDX-License-Identifier: Apache-2.0

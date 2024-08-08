@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
 // Copyright 2019 free5GC.org
-//
+// SPDX-FileCopyrightText: 2024 Canonical Ltd.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -141,7 +141,7 @@ func (c *PCFContext) GetIPv4Uri() string {
 	return fmt.Sprintf("%s://%s:%d", c.UriScheme, c.RegisterIPv4, c.SBIPort)
 }
 
-// InitNFService Init NfService with supported service list ,and version of services
+// InitNFService Init NfService with supported service list and version of services
 func (c *PCFContext) InitNFService(serviceList []factory.Service, version string) {
 	tmpVersion := strings.Split(version, ".")
 	versionUri := "v" + tmpVersion[0]

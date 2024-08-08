@@ -1,6 +1,6 @@
-// Copyright 2019 free5GC.org
-//
 // SPDX-License-Identifier: Apache-2.0
+// Copyright 2019 free5GC.org
+// SPDX-FileCopyrightText: 2024 Canonical Ltd.
 //
 
 package callback
@@ -11,7 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/omec-project/pcf/logger"
-	logger_util "github.com/omec-project/util/logger"
+	loggerUtil "github.com/omec-project/util/logger"
 )
 
 // Route is the information for every URI.
@@ -31,7 +31,7 @@ type Routes []Route
 
 // NewRouter returns a new router.
 func NewRouter() *gin.Engine {
-	router := logger_util.NewGinWithLogrus(logger.GinLog)
+	router := loggerUtil.NewGinWithLogrus(logger.GinLog)
 	AddService(router)
 	return router
 }

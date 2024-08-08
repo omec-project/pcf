@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
 // Copyright 2019 free5GC.org
-//
+// SPDX-FileCopyrightText: 2024 Canonical Ltd.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -55,7 +55,7 @@ func BuildNFInstance(context *pcfContext.PCFContext) (profile models.NfProfile, 
 }
 
 var SendRegisterNFInstance = func(nrfUri, nfInstanceId string, profile models.NfProfile) (
-	nfProfile models.NfProfile, resouceNrfUri string, retrieveNfInstanceID string, err error,
+	nfProfile models.NfProfile, resourceNrfUri string, retrieveNfInstanceID string, err error,
 ) {
 	// Set client and set url
 	configuration := Nnrf_NFManagement.NewConfiguration()
@@ -85,14 +85,14 @@ var SendRegisterNFInstance = func(nrfUri, nfInstanceId string, profile models.Nf
 			// NFRegister
 			logger.Consumerlog.Infoln("PCF register to NRF - created Success")
 			resourceUri := res.Header.Get("Location")
-			resouceNrfUri = resourceUri[:strings.Index(resourceUri, "/nnrf-nfm/")]
+			resourceNrfUri = resourceUri[:strings.Index(resourceUri, "/nnrf-nfm/")]
 			retrieveNfInstanceID = resourceUri[strings.LastIndex(resourceUri, "/")+1:]
 			break
 		} else {
 			logger.Consumerlog.Errorf("NRF return wrong status code: %+v", status)
 		}
 	}
-	return nfProfile, resouceNrfUri, retrieveNfInstanceID, err
+	return nfProfile, resourceNrfUri, retrieveNfInstanceID, err
 }
 
 func SendDeregisterNFInstance() (problemDetails *models.ProblemDetails, err error) {
