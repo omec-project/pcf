@@ -233,12 +233,12 @@ func (pcf *PCF) Start() {
 
 	addr := fmt.Sprintf("%s:%d", self.BindingIPv4, self.SBIPort)
 
-	// Attempt NRF Registration until success
-	go pcf.RegisterNF()
 	if self.EnableNrfCaching {
 		initLog.Infoln("Enable NRF caching feature")
 		nrfCache.InitNrfCaching(self.NrfCacheEvictionInterval*time.Second, consumer.SendNfDiscoveryToNrf)
 	}
+	// Attempt NRF Registration until success
+	go pcf.RegisterNF()
 
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
