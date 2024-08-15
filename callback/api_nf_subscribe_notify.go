@@ -11,10 +11,9 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/pcf/logger"
-
-	"github.com/omec-project/openapi"
 	"github.com/omec-project/pcf/producer"
 	"github.com/omec-project/util/httpwrapper"
 )
@@ -24,7 +23,7 @@ func HTTPNfSubscriptionStatusNotify(c *gin.Context) {
 
 	requestBody, err := c.GetRawData()
 	if err != nil {
-		logger.CallbackLog.Errorf("Get Request Body error: %+v", err)
+		logger.CallbackLog.Errorf("get Request Body error: %+v", err)
 		problemDetail := models.ProblemDetails{
 			Title:  "System failure",
 			Status: http.StatusInternalServerError,

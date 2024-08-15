@@ -202,7 +202,7 @@ func SendRemoveSubscription(subscriptionId string) (problemDetails *models.Probl
 	} else if res != nil {
 		defer func() {
 			if bodyCloseErr := res.Body.Close(); bodyCloseErr != nil {
-				err = fmt.Errorf("RemoveSubscription' response body cannot close: %w", bodyCloseErr)
+				err = fmt.Errorf("RemoveSubscription's response body cannot close: %w", bodyCloseErr)
 			}
 		}()
 		if res.Status != err.Error() {

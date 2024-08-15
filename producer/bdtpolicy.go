@@ -63,7 +63,7 @@ func getBDTPolicyContextProcedure(bdtPolicyID string) (
 	}
 }
 
-// UpdateBDTPolicy - Update an Individual BDT policy (choose policy data)
+// HandleUpdateBDTPolicyContextProcedure Update an Individual BDT policy (choose policy data)
 func HandleUpdateBDTPolicyContextProcedure(request *httpwrapper.Request) *httpwrapper.Response {
 	// step 1: log
 	logger.Bdtpolicylog.Infof("Handle UpdateBDTPolicyContext")

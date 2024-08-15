@@ -52,6 +52,8 @@ func HandleSmPolicyNotify(request *httpwrapper.Request) *httpwrapper.Response {
 func SmPolicyNotifyProcedure(supi string, notification models.PolicyDataChangeNotification) {
 }
 
+// HandleNfSubscriptionStatusNotify gets the notification data from NRF
+// and perform some actions according to the notification types.
 func HandleNfSubscriptionStatusNotify(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.ProducerLog.Traceln("Handle NF Status Notify")
 
@@ -65,6 +67,9 @@ func HandleNfSubscriptionStatusNotify(request *httpwrapper.Request) *httpwrapper
 	}
 }
 
+// NfSubscriptionStatusNotifyProcedure is handler method of notification procedure.
+// According to event type retrieved in the notification data, it performs some actions.
+// For example, if event type is deregistered, it deletes cached NF profile and performs an NF discovery.
 func NfSubscriptionStatusNotifyProcedure(notificationData models.NotificationData) *models.ProblemDetails {
 	logger.ProducerLog.Debugf("NfSubscriptionStatusNotify: %+v", notificationData)
 

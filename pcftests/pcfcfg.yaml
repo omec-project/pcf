@@ -5,6 +5,7 @@ configuration:
   defaultBdtRefId: BdtPolicyId-
   nrfUri: https://nrf:443
   enableNrfCaching: true
+  nrfCacheEvictionInterval: 900
   webuiUri: webui:9876
   pcfName: PCF
   sbi:
