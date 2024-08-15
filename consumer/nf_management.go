@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
 // Copyright 2019 free5GC.org
-//
+// SPDX-FileCopyrightText: 2024 Canonical Ltd.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -8,6 +8,7 @@ package consumer
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -15,11 +16,11 @@ import (
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/Nnrf_NFManagement"
 	"github.com/omec-project/openapi/models"
-	pcf_context "github.com/omec-project/pcf/context"
+	pcfContext "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/logger"
 )
 
-func BuildNFInstance(context *pcf_context.PCFContext) (profile models.NfProfile, err error) {
+func BuildNFInstance(context *pcfContext.PCFContext) (profile models.NfProfile, err error) {
 	profile.NfInstanceId = context.NfId
 	profile.NfType = models.NfType_PCF
 	profile.NfStatus = models.NfStatus_REGISTERED
@@ -43,7 +44,7 @@ func BuildNFInstance(context *pcf_context.PCFContext) (profile models.NfProfile,
 		// SupiRanges: &[]models.SupiRange{
 		// 	{
 		// 		//from TS 29.510 6.1.6.2.9 example2
-		//		//no need to set supirange in this moment 2019/10/4
+		//		//no need to set SUPI range at this moment 2019/10/4
 		// 		Start:   "123456789040000",
 		// 		End:     "123456789059999",
 		// 		Pattern: "^imsi-12345678904[0-9]{4}$",
@@ -54,7 +55,7 @@ func BuildNFInstance(context *pcf_context.PCFContext) (profile models.NfProfile,
 }
 
 var SendRegisterNFInstance = func(nrfUri, nfInstanceId string, profile models.NfProfile) (
-	nfProfile models.NfProfile, resouceNrfUri string, retrieveNfInstanceID string, err error,
+	nfProfile models.NfProfile, resourceNrfUri string, retrieveNfInstanceID string, err error,
 ) {
 	// Set client and set url
 	configuration := Nnrf_NFManagement.NewConfiguration()
@@ -84,20 +85,20 @@ var SendRegisterNFInstance = func(nrfUri, nfInstanceId string, profile models.Nf
 			// NFRegister
 			logger.Consumerlog.Infoln("PCF register to NRF - created Success")
 			resourceUri := res.Header.Get("Location")
-			resouceNrfUri = resourceUri[:strings.Index(resourceUri, "/nnrf-nfm/")]
+			resourceNrfUri = resourceUri[:strings.Index(resourceUri, "/nnrf-nfm/")]
 			retrieveNfInstanceID = resourceUri[strings.LastIndex(resourceUri, "/")+1:]
 			break
 		} else {
 			logger.Consumerlog.Errorf("NRF return wrong status code: %+v", status)
 		}
 	}
-	return nfProfile, resouceNrfUri, retrieveNfInstanceID, err
+	return nfProfile, resourceNrfUri, retrieveNfInstanceID, err
 }
 
 func SendDeregisterNFInstance() (problemDetails *models.ProblemDetails, err error) {
 	logger.Consumerlog.Debugf("Send Deregister NFInstance")
 
-	pcfSelf := pcf_context.PCF_Self()
+	pcfSelf := pcfContext.PCF_Self()
 	// Set client and set url
 	configuration := Nnrf_NFManagement.NewConfiguration()
 	configuration.SetBasePath(pcfSelf.NrfUri)
@@ -128,7 +129,7 @@ func SendDeregisterNFInstance() (problemDetails *models.ProblemDetails, err erro
 var SendUpdateNFInstance = func(patchItem []models.PatchItem) (nfProfile models.NfProfile, problemDetails *models.ProblemDetails, err error) {
 	logger.Consumerlog.Debugf("Send Update NFInstance")
 
-	pcfSelf := pcf_context.PCF_Self()
+	pcfSelf := pcfContext.PCF_Self()
 	configuration := Nnrf_NFManagement.NewConfiguration()
 	configuration.SetBasePath(pcfSelf.NrfUri)
 	client := Nnrf_NFManagement.NewAPIClient(configuration)
@@ -145,6 +146,66 @@ var SendUpdateNFInstance = func(patchItem []models.PatchItem) (nfProfile models.
 		}()
 		if res.Status != err.Error() {
 			logger.Consumerlog.Errorf("UpdateNFInstance received error response: %v", res.Status)
+			return
+		}
+		problem := err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails)
+		problemDetails = &problem
+	} else {
+		err = openapi.ReportError("server no response")
+	}
+	return
+}
+
+func SendCreateSubscription(nrfUri string, nrfSubscriptionData models.NrfSubscriptionData) (nrfSubData models.NrfSubscriptionData, problemDetails *models.ProblemDetails, err error) {
+	logger.ConsumerLog.Debugf("Send Create Subscription")
+
+	// Set client and set url
+	configuration := Nnrf_NFManagement.NewConfiguration()
+	configuration.SetBasePath(nrfUri)
+	client := Nnrf_NFManagement.NewAPIClient(configuration)
+
+	var res *http.Response
+	nrfSubData, res, err = client.SubscriptionsCollectionApi.CreateSubscription(context.TODO(), nrfSubscriptionData)
+	if err == nil {
+		return
+	} else if res != nil {
+		defer func() {
+			if resCloseErr := res.Body.Close(); resCloseErr != nil {
+				logger.ConsumerLog.Errorf("SendCreateSubscription response cannot close: %+v", resCloseErr)
+			}
+		}()
+		if res.Status != err.Error() {
+			logger.ConsumerLog.Errorf("SendCreateSubscription received error response: %v", res.Status)
+			return
+		}
+		problem := err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails)
+		problemDetails = &problem
+	} else {
+		err = openapi.ReportError("server no response")
+	}
+	return
+}
+
+func SendRemoveSubscription(subscriptionId string) (problemDetails *models.ProblemDetails, err error) {
+	logger.ConsumerLog.Infoln("Send Remove Subscription")
+
+	pcfSelf := pcfContext.PCF_Self()
+	// Set client and set url
+	configuration := Nnrf_NFManagement.NewConfiguration()
+	configuration.SetBasePath(pcfSelf.NrfUri)
+	client := Nnrf_NFManagement.NewAPIClient(configuration)
+	var res *http.Response
+
+	res, err = client.SubscriptionIDDocumentApi.RemoveSubscription(context.Background(), subscriptionId)
+	if err == nil {
+		return
+	} else if res != nil {
+		defer func() {
+			if bodyCloseErr := res.Body.Close(); bodyCloseErr != nil {
+				err = fmt.Errorf("RemoveSubscription's response body cannot close: %w", bodyCloseErr)
+			}
+		}()
+		if res.Status != err.Error() {
 			return
 		}
 		problem := err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails)

@@ -58,12 +58,12 @@ func getBDTPolicyContextProcedure(bdtPolicyID string) (
 	} else {
 		// not found
 		problemDetail := util.GetProblemDetail("Can't find bdtPolicyID related resource", util.CONTEXT_NOT_FOUND)
-		logger.Bdtpolicylog.Warnf(problemDetail.Detail)
+		logger.Bdtpolicylog.Warnln(problemDetail.Detail)
 		return nil, &problemDetail
 	}
 }
 
-// UpdateBDTPolicy - Update an Individual BDT policy (choose policy data)
+// HandleUpdateBDTPolicyContextProcedure Update an Individual BDT policy (choose policy data)
 func HandleUpdateBDTPolicyContextProcedure(request *httpwrapper.Request) *httpwrapper.Response {
 	// step 1: log
 	logger.Bdtpolicylog.Infof("Handle UpdateBDTPolicyContext")
@@ -102,7 +102,7 @@ func updateBDTPolicyContextProcedure(request models.BdtPolicyDataPatch, bdtPolic
 	} else {
 		// not found
 		problemDetail := util.GetProblemDetail("Can't find bdtPolicyID related resource", util.CONTEXT_NOT_FOUND)
-		logger.Bdtpolicylog.Warnf(problemDetail.Detail)
+		logger.Bdtpolicylog.Warnln(problemDetail.Detail)
 		return nil, &problemDetail
 	}
 
@@ -141,11 +141,11 @@ func updateBDTPolicyContextProcedure(request models.BdtPolicyDataPatch, bdtPolic
 		fmt.Sprintf("Can't find TransPolicyId[%d] in TransfPolicies with bdtPolicyID[%s]",
 			request.SelTransPolicyId, bdtPolicyID),
 		util.CONTEXT_NOT_FOUND)
-	logger.Bdtpolicylog.Warnf(problemDetail.Detail)
+	logger.Bdtpolicylog.Warnln(problemDetail.Detail)
 	return nil, &problemDetail
 }
 
-// CreateBDTPolicy - Create a new Individual BDT policy
+// HandleCreateBDTPolicyContextRequest Create a new Individual BDT policy
 func HandleCreateBDTPolicyContextRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	// step 1: log
 	logger.Bdtpolicylog.Infof("Handle CreateBDTPolicyContext")
@@ -181,7 +181,7 @@ func createBDTPolicyContextProcedure(request *models.BdtReqData) (
 			Status: http.StatusServiceUnavailable,
 			Detail: "Can't find any UDR which supported to this PCF",
 		}
-		logger.Bdtpolicylog.Warnf(problemDetails.Detail)
+		logger.Bdtpolicylog.Warnln(problemDetails.Detail)
 		return nil, nil, problemDetails
 	}
 	pcfSelf.SetDefaultUdrURI(udrUri)
@@ -278,7 +278,7 @@ func getDefaultUdrUri(context *pcf_context.PCFContext) string {
 	param := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
 		ServiceNames: optional.NewInterface([]models.ServiceName{models.ServiceName_NUDR_DR}),
 	}
-	resp, err := consumer.SendSearchNFInstances(context.NrfUri, models.NfType_UDR, models.NfType_PCF, param)
+	resp, err := consumer.SendSearchNFInstances(context.NrfUri, models.NfType_UDR, models.NfType_PCF, &param)
 	if err != nil {
 		return ""
 	}

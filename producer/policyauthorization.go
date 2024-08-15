@@ -108,7 +108,7 @@ func handleMediaSubComponent(smPolicy *pcf_context.UeSmPolicyData, medComp *mode
 				var ul, dl bool
 				qosData, ul, dl = updateQosInMedSubComp(smPolicy.PolicyDecision.QosDecs[qosID], medComp, medSubComp)
 				if problemDetails := modifyRemainBitRate(smPolicy, &qosData, ul, dl); problemDetails != nil {
-					logger.PolicyAuthorizationlog.Errorf(problemDetails.Detail)
+					logger.PolicyAuthorizationlog.Errorln(problemDetails.Detail)
 					return nil, problemDetails
 				}
 				smPolicy.PolicyDecision.QosDecs[qosData.QosId] = &qosData
@@ -196,7 +196,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 
 	var requestSuppFeat openapi.SupportedFeature
 	if tempRequestSuppFeat, err := openapi.NewSupportedFeature(ascReqData.SuppFeat); err != nil {
-		logger.PolicyAuthorizationlog.Errorf(err.Error())
+		logger.PolicyAuthorizationlog.Errorln(err.Error())
 	} else {
 		requestSuppFeat = tempRequestSuppFeat
 	}
@@ -466,7 +466,7 @@ func DeleteAppSessionContextProcedure(appSessID string,
 	deletedSmPolicyDec := models.SmPolicyDecision{}
 	for _, pccRuleID := range appSession.RelatedPccRuleIds {
 		if err := smPolicy.RemovePccRule(pccRuleID, &deletedSmPolicyDec); err != nil {
-			logger.PolicyAuthorizationlog.Warnf(err.Error())
+			logger.PolicyAuthorizationlog.Warnln(err.Error())
 		}
 	}
 
@@ -1608,7 +1608,7 @@ func removeMediaComp(appSession *pcf_context.AppSessionData, compN string) {
 				pccRuleID := idMaps[key]
 				err := smPolicy.RemovePccRule(pccRuleID, nil)
 				if err != nil {
-					logger.PolicyAuthorizationlog.Warnf(err.Error())
+					logger.PolicyAuthorizationlog.Warnln(err.Error())
 				}
 				delete(appSession.RelatedPccRuleIds, key)
 				delete(appSession.PccRuleIdMapToCompId, pccRuleID)
@@ -1617,7 +1617,7 @@ func removeMediaComp(appSession *pcf_context.AppSessionData, compN string) {
 			pccRuleID := idMaps[compN]
 			err := smPolicy.RemovePccRule(pccRuleID, nil)
 			if err != nil {
-				logger.PolicyAuthorizationlog.Warnf(err.Error())
+				logger.PolicyAuthorizationlog.Warnln(err.Error())
 			}
 			delete(appSession.RelatedPccRuleIds, compN)
 			delete(appSession.PccRuleIdMapToCompId, pccRuleID)

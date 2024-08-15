@@ -214,7 +214,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 			var gbrDL float64
 			gbrDL, err = pcf_context.ConvertBitRateToKbps(dnnData.GbrDl)
 			if err != nil {
-				logger.SMpolicylog.Warnf(err.Error())
+				logger.SMpolicylog.Warnln(err.Error())
 			} else {
 				smPolicyData.RemainGbrDL = &gbrDL
 				logger.SMpolicylog.Tracef("SM Policy Dnn[%s] Data Aggregate DL GBR[%.2f Kbps]", request.Dnn, gbrDL)
@@ -224,7 +224,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 			var gbrUL float64
 			gbrUL, err = pcf_context.ConvertBitRateToKbps(dnnData.GbrUl)
 			if err != nil {
-				logger.SMpolicylog.Warnf(err.Error())
+				logger.SMpolicylog.Warnln(err.Error())
 			} else {
 				smPolicyData.RemainGbrUL = &gbrUL
 				logger.SMpolicylog.Tracef("SM Policy Dnn[%s] Data Aggregate UL GBR[%.2f Kbps]", request.Dnn, gbrUL)
@@ -284,7 +284,7 @@ func deleteSmPolicyContextProcedure(smPolicyID string) *models.ProblemDetails {
 	logger.SMpolicylog.Infof("smPolicyID: %v, ue: %v", smPolicyID, ue)
 	if ue == nil || ue.SmPolicyData[smPolicyID] == nil {
 		problemDetail := util.GetProblemDetail("smPolicyID not found in PCF", util.CONTEXT_NOT_FOUND)
-		logger.SMpolicylog.Warnf(problemDetail.Detail)
+		logger.SMpolicylog.Warnln(problemDetail.Detail)
 		return &problemDetail
 	}
 
@@ -342,7 +342,7 @@ func getSmPolicyContextProcedure(smPolicyID string) (
 	ue := pcf_context.PCF_Self().PCFUeFindByPolicyId(smPolicyID)
 	if ue == nil || ue.SmPolicyData[smPolicyID] == nil {
 		problemDetail := util.GetProblemDetail("smPolicyID not found in PCF", util.CONTEXT_NOT_FOUND)
-		logger.SMpolicylog.Warnf(problemDetail.Detail)
+		logger.SMpolicylog.Warnln(problemDetail.Detail)
 		return nil, &problemDetail
 	}
 	smPolicyData := ue.SmPolicyData[smPolicyID]
@@ -388,7 +388,7 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 	ue := pcf_context.PCF_Self().PCFUeFindByPolicyId(smPolicyID)
 	if ue == nil || ue.SmPolicyData[smPolicyID] == nil {
 		problemDetail := util.GetProblemDetail("smPolicyID not found in PCF", util.CONTEXT_NOT_FOUND)
-		logger.SMpolicylog.Warnf(problemDetail.Detail)
+		logger.SMpolicylog.Warnln(problemDetail.Detail)
 		return nil, &problemDetail
 	}
 	smPolicy := ue.SmPolicyData[smPolicyID]
@@ -448,7 +448,7 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 				qosData.GbrDl, qosData.GbrUl, err = smPolicy.DecreaseRemainGBR(req.ReqQos)
 				if err != nil {
 					problemDetail := util.GetProblemDetail(err.Error(), util.ERROR_TRAFFIC_MAPPING_INFO_REJECTED)
-					logger.SMpolicylog.Warnf(problemDetail.Detail)
+					logger.SMpolicylog.Warnln(problemDetail.Detail)
 					return nil, &problemDetail
 				}
 				if qosData.GbrDl != "" {
@@ -496,7 +496,7 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 								smPolicy.RemainGbrDL = origDl
 								smPolicy.RemainGbrUL = origUl
 								problemDetail := util.GetProblemDetail(err.Error(), util.ERROR_TRAFFIC_MAPPING_INFO_REJECTED)
-								logger.SMpolicylog.Warnf(problemDetail.Detail)
+								logger.SMpolicylog.Warnln(problemDetail.Detail)
 								return nil, &problemDetail
 							}
 							qosData.Var5qi = req.ReqQos.Var5qi
@@ -745,7 +745,7 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 
 	if errCause != "" {
 		problemDetail := util.GetProblemDetail(errCause, util.ERROR_TRIGGER_EVENT)
-		logger.SMpolicylog.Warnf(errCause)
+		logger.SMpolicylog.Warnln(errCause)
 		return nil, &problemDetail
 	}
 	logger.SMpolicylog.Tracef("SMPolicy smPolicyID[%s] Update", smPolicyID)

@@ -44,7 +44,7 @@ func DeletePoliciesPolAssoIdProcedure(polAssoId string) *models.ProblemDetails {
 	return nil
 }
 
-// PoliciesPolAssoIdGet -
+// HandleGetPoliciesPolAssoId PoliciesPolAssoIdGet -
 func HandleGetPoliciesPolAssoId(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.AMpolicylog.Infof("Handle AM Policy Association Get")
 
@@ -183,7 +183,7 @@ func UpdatePostPoliciesPolAssoIdProcedure(polAssoId string,
 	return &response, nil
 }
 
-// Create AM Policy
+// HandlePostPolicies Create AM Policy
 func HandlePostPolicies(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.AMpolicylog.Infof("Handle AM Policy Create Request")
 
@@ -301,7 +301,7 @@ func PostPoliciesProcedure(polAssoId string,
 
 		if needSubscribe {
 			logger.AMpolicylog.Debugf("Subscribe AMF status change[GUAMI: %+v]", *policyAssociationRequest.Guami)
-			amfUri := consumer.SendNFIntancesAMF(pcfSelf.NrfUri, *policyAssociationRequest.Guami, models.ServiceName_NAMF_COMM)
+			amfUri := consumer.SendNFInstancesAMF(pcfSelf.NrfUri, *policyAssociationRequest.Guami, models.ServiceName_NAMF_COMM)
 			if amfUri != "" {
 				problemDetails, err := consumer.AmfStatusChangeSubscribe(amfUri, []models.Guami{*policyAssociationRequest.Guami})
 				if err != nil {
@@ -319,7 +319,7 @@ func PostPoliciesProcedure(polAssoId string,
 	return &response, locationHeader, nil
 }
 
-// Send AM Policy Update to AMF if policy has changed
+// SendAMPolicyUpdateNotification Send AM Policy Update to AMF if policy has changed
 func SendAMPolicyUpdateNotification(ue *pcf_context.UeContext, PolId string, request models.PolicyUpdate) {
 	if ue == nil {
 		logger.AMpolicylog.Warnln("Policy Update Notification Error[Ue is nil]")
@@ -366,7 +366,7 @@ func SendAMPolicyUpdateNotification(ue *pcf_context.UeContext, PolId string, req
 	}
 }
 
-// Send AM Policy Update to AMF if policy has been terminated
+// SendAMPolicyTerminationRequestNotification Send AM Policy Update to AMF if policy has been terminated
 func SendAMPolicyTerminationRequestNotification(ue *pcf_context.UeContext,
 	PolId string, request models.TerminationNotification,
 ) {
@@ -419,5 +419,5 @@ func SendAMPolicyTerminationRequestNotification(ue *pcf_context.UeContext,
 
 // returns UDR Uri of Ue, if ue.UdrUri dose not exist, query NRF to get supported Udr Uri
 func getUdrUri(ue *pcf_context.UeContext) string {
-	return consumer.SendNFIntancesUDR(pcf_context.PCF_Self().NrfUri, ue.Supi)
+	return consumer.SendNFInstancesUDR(pcf_context.PCF_Self().NrfUri, ue.Supi)
 }
