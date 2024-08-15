@@ -58,7 +58,7 @@ func getBDTPolicyContextProcedure(bdtPolicyID string) (
 	} else {
 		// not found
 		problemDetail := util.GetProblemDetail("Can't find bdtPolicyID related resource", util.CONTEXT_NOT_FOUND)
-		logger.Bdtpolicylog.Warnf(problemDetail.Detail)
+		logger.Bdtpolicylog.Warnln(problemDetail.Detail)
 		return nil, &problemDetail
 	}
 }
@@ -102,7 +102,7 @@ func updateBDTPolicyContextProcedure(request models.BdtPolicyDataPatch, bdtPolic
 	} else {
 		// not found
 		problemDetail := util.GetProblemDetail("Can't find bdtPolicyID related resource", util.CONTEXT_NOT_FOUND)
-		logger.Bdtpolicylog.Warnf(problemDetail.Detail)
+		logger.Bdtpolicylog.Warnln(problemDetail.Detail)
 		return nil, &problemDetail
 	}
 
@@ -141,7 +141,7 @@ func updateBDTPolicyContextProcedure(request models.BdtPolicyDataPatch, bdtPolic
 		fmt.Sprintf("Can't find TransPolicyId[%d] in TransfPolicies with bdtPolicyID[%s]",
 			request.SelTransPolicyId, bdtPolicyID),
 		util.CONTEXT_NOT_FOUND)
-	logger.Bdtpolicylog.Warnf(problemDetail.Detail)
+	logger.Bdtpolicylog.Warnln(problemDetail.Detail)
 	return nil, &problemDetail
 }
 
@@ -181,7 +181,7 @@ func createBDTPolicyContextProcedure(request *models.BdtReqData) (
 			Status: http.StatusServiceUnavailable,
 			Detail: "Can't find any UDR which supported to this PCF",
 		}
-		logger.Bdtpolicylog.Warnf(problemDetails.Detail)
+		logger.Bdtpolicylog.Warnln(problemDetails.Detail)
 		return nil, nil, problemDetails
 	}
 	pcfSelf.SetDefaultUdrURI(udrUri)
