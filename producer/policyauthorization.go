@@ -1178,7 +1178,7 @@ func handleSponsoredConnectivityInformation(smPolicy *pcf_context.UeSmPolicyData
 		if umData != nil {
 			supp := util.CheckSuppFeat(smPolicy.PolicyDecision.SuppFeat, 5) // UMC support = 5 in 29512
 			if !supp {
-				err := fmt.Errorf("Usage Monitor Control is not supported in SMF")
+				err := fmt.Errorf("usage monitor control is not supported in SMF")
 				return err
 			}
 		}
@@ -1278,7 +1278,7 @@ func getFlowInfos(comp models.MediaComponent) (flows []models.FlowInformation, e
 func getFlowInfos(subComp *models.MediaSubComponent) ([]models.FlowInformation, error) {
 	var flows []models.FlowInformation
 	if subComp.EthfDescs != nil {
-		return nil, fmt.Errorf("Flow Description with Mac Address does not support")
+		return nil, fmt.Errorf("flow description with mac address not supported")
 	}
 	fStatus := subComp.FStatus
 	if subComp.FlowUsage == models.FlowUsage_RTCP {
@@ -1328,7 +1328,7 @@ func flowDescFromN5toN7(n5Flow string) (n7Flow string, direction models.FlowDire
 		n7Flow = strings.Replace(n5Flow, "permit inout", "permit out", -1)
 		direction = models.FlowDirection_BIDIRECTIONAL
 	} else {
-		err = fmt.Errorf("Invaild flow Description[%s]", n5Flow)
+		err = fmt.Errorf("invaild flow description[%s]", n5Flow)
 	}
 	return
 }

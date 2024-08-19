@@ -168,7 +168,7 @@ func (ue *UeContext) NewUeSmPolicyData(
 func (policy *UeSmPolicyData) RemovePccRule(pccRuleId string, deletedSmPolicyDec *models.SmPolicyDecision) error {
 	decision := policy.PolicyDecision
 	if decision == nil {
-		return fmt.Errorf("Can't find the Policy Decision")
+		return fmt.Errorf("can't find the Policy Decision")
 	}
 	if rule, exist := decision.PccRules[pccRuleId]; exist {
 		if deletedSmPolicyDec != nil {
@@ -255,7 +255,7 @@ func (policy *UeSmPolicyData) RemovePccRule(pccRuleId string, deletedSmPolicyDec
 		}
 		delete(decision.PccRules, pccRuleId)
 	} else {
-		return fmt.Errorf("Can't find the pccRuleId[%s] in Session[%d]", pccRuleId, policy.PolicyContext.PduSessionId)
+		return fmt.Errorf("can't find the pccRuleId[%s] in Session[%d]", pccRuleId, policy.PolicyContext.PduSessionId)
 	}
 	return nil
 }
@@ -362,7 +362,7 @@ func DecreaseRamainBitRate(remainBitRate *float64, reqBitRate string) error {
 		}
 		if remainBitRate != nil {
 			if *remainBitRate < bitRate {
-				return fmt.Errorf("Request BitRate exceed Dnn Aggregate BitRate of UE")
+				return fmt.Errorf("request BitRate exceed Dnn Aggregate BitRate of UE")
 			}
 			*remainBitRate -= bitRate
 		}

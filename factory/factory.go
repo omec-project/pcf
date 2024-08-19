@@ -41,7 +41,7 @@ func CheckConfigVersion() error {
 	currentVersion := PcfConfig.GetVersion()
 
 	if currentVersion != PCF_EXPECTED_CONFIG_VERSION {
-		return fmt.Errorf("config version is [%s], but expected is [%s].",
+		return fmt.Errorf("config version is [%s], but expected is [%s]",
 			currentVersion, PCF_EXPECTED_CONFIG_VERSION)
 	}
 
