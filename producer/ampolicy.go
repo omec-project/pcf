@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"strings"
 
 	"github.com/mohae/deepcopy"
 	"github.com/omec-project/openapi"
@@ -301,7 +302,9 @@ func PostPoliciesProcedure(polAssoId string,
 
 		if needSubscribe {
 			logger.AMpolicylog.Debugf("Subscribe AMF status change[GUAMI: %+v]", *policyAssociationRequest.Guami)
-			amfUri := consumer.SendNFInstancesAMF(pcfSelf.NrfUri, *policyAssociationRequest.Guami, models.ServiceName_NAMF_COMM)
+			ipAddress := strings.SplitN(strings.TrimPrefix(policyAssociationRequest.NotificationUri,
+				"http://"), ":", 2)[0]
+			amfUri := consumer.SendNFInstancesAMF(pcfSelf.NrfUri, *policyAssociationRequest.Guami, models.ServiceName_NAMF_COMM, ipAddress)
 			if amfUri != "" {
 				problemDetails, err := consumer.AmfStatusChangeSubscribe(amfUri, []models.Guami{*policyAssociationRequest.Guami})
 				if err != nil {
@@ -419,5 +422,8 @@ func SendAMPolicyTerminationRequestNotification(ue *pcf_context.UeContext,
 
 // returns UDR Uri of Ue, if ue.UdrUri dose not exist, query NRF to get supported Udr Uri
 func getUdrUri(ue *pcf_context.UeContext) string {
+	if ue.UdrUri != "" {
+		return ue.UdrUri
+	}
 	return consumer.SendNFInstancesUDR(pcf_context.PCF_Self().NrfUri, ue.Supi)
 }

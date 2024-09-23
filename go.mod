@@ -1,6 +1,7 @@
 module github.com/omec-project/pcf
 
 go 1.21
+replace github.com/omec-project/nrf => ../nrf
 
 require (
 	github.com/antihax/optional v1.0.0

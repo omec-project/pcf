@@ -275,6 +275,9 @@ func createBDTPolicyContextProcedure(request *models.BdtReqData) (
 func getDefaultUdrUri(context *pcf_context.PCFContext) string {
 	context.DefaultUdrURILock.RLock()
 	defer context.DefaultUdrURILock.RUnlock()
+	if context.DefaultUdrURI != "" {
+		return context.DefaultUdrURI
+	}
 	param := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
 		ServiceNames: optional.NewInterface([]models.ServiceName{models.ServiceName_NUDR_DR}),
 	}

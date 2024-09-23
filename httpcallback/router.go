@@ -67,4 +67,8 @@ var routes = Routes{
 		Name: "HTTPAmfStatusChangeNotify", Method: "POST",
 		Pattern: "/amfstatus", HandlerFunc: HTTPAmfStatusChangeNotify,
 	},
+	{
+		Name: "NfStatusNotify", Method: "POST",
+		Pattern: "/nf-status-notify", HandlerFunc: HTTPNfSubscriptionStatusNotify,
+	},
 }

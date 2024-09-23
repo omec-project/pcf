@@ -349,6 +349,21 @@ func (pcf *PCF) Terminate() {
 	} else {
 		logger.InitLog.Infof("Deregister from NRF successfully")
 	}
+	pcfSelf := context.PCF_Self()
+	pcfSelf.NfStatusSubscriptions.Range(func(nfInstanceId, v interface{}) bool {
+		if subscriptionId, ok := pcfSelf.NfStatusSubscriptions.Load(nfInstanceId); ok {
+			logger.InitLog.Debugf("SubscriptionId is %v", subscriptionId.(string))
+			problemDetails, err := consumer.SendRemoveSubscription(subscriptionId.(string))
+			if problemDetails != nil {
+				logger.InitLog.Errorf("Remove NF Subscription Failed Problem[%+v]", problemDetails)
+			} else if err != nil {
+				logger.InitLog.Errorf("Remove NF Subscription Error[%+v]", err)
+			} else {
+				logger.InitLog.Infoln("[PCF] Remove NF Subscription successful")
+			}
+		}
+		return true
+	})
 	logger.InitLog.Infof("PCF terminated")
 }
 

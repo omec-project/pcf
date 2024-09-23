@@ -71,6 +71,7 @@ type PCFContext struct {
 	DefaultUdrURILock        sync.RWMutex
 	EnableNrfCaching         bool
 	NrfCacheEvictionInterval time.Duration
+	EnableScaling            bool
 }
 
 type SessionPolicy struct {
