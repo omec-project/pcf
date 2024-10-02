@@ -19,7 +19,7 @@ import (
 	"github.com/omec-project/pcf/factory"
 	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/util/idgenerator"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 )
 
 var pcfCtx *PCFContext
@@ -87,7 +87,7 @@ type PccPolicy struct {
 }
 type PcfSubscriberPolicyData struct {
 	PccPolicy map[string]*PccPolicy // sst+sd is key
-	CtxLog    *logrus.Entry
+	CtxLog    *zap.SugaredLogger
 	Supi      string
 }
 
@@ -191,7 +191,7 @@ func (c *PCFContext) NewPCFUe(Supi string) (*UeContext, error) {
 func (c *PCFContext) AllocBdtPolicyID() (bdtPolicyID string, err error) {
 	var allocID int64
 	if allocID, err = c.BdtPolicyIDGenerator.Allocate(); err != nil {
-		logger.CtxLog.Warnf("Allocate pathID error: %+v", err)
+		logger.CtxLog.Warnf("allocate pathID error: %+v", err)
 		return "", err
 	}
 
@@ -445,10 +445,10 @@ func (sess SessionPolicy) String() string {
 }
 
 func (c *PCFContext) DisplayPcfSubscriberPolicyData(imsi string) {
-	logger.CtxLog.Infof("Pcf Subscriber [%v] Policy Details :", imsi)
+	logger.CtxLog.Infof("pcf subscriber [%v] Policy Details:", imsi)
 	subs, exist := pcfCtx.PcfSubscriberPolicyData[imsi]
 	if !exist {
-		logger.CtxLog.Infof("Pcf Subscriber [%v] not exist", imsi)
+		logger.CtxLog.Warnf("pcf subscriber [%v] not exist", imsi)
 	} else {
 		for slice, val := range subs.PccPolicy {
 			subs.CtxLog.Infof("   SliceId: %v", slice)

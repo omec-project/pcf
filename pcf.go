@@ -23,13 +23,13 @@ import (
 
 	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/pcf/service"
-	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
+	"go.uber.org/zap"
 )
 
 var PCF = &service.PCF{}
 
-var appLog *logrus.Entry
+var appLog *zap.SugaredLogger
 
 var (
 	VERSION     string
@@ -71,7 +71,7 @@ func init() {
 func main() {
 	app := cli.NewApp()
 	app.Name = "pcf"
-	fmt.Print(app.Name, "\n")
+	appLog.Infoln(app.Name)
 	appLog.Infoln("PCF version: ", GetVersion())
 	app.Usage = "-free5gccfg common configuration file -pcfcfg pcf configuration file"
 	app.Action = action
