@@ -20,6 +20,7 @@ import (
 	"github.com/omec-project/openapi/models"
 	pcf_context "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/logger"
+	stats "github.com/omec-project/pcf/metrics"
 	"github.com/omec-project/pcf/util"
 	"github.com/omec-project/util/httpwrapper"
 )
@@ -36,11 +37,14 @@ func HandleCreateSmPolicyRequest(request *httpwrapper.Request) *httpwrapper.Resp
 
 	// step 4: process the return value from step 3
 	if response != nil {
+		stats.IncrementPcfSmPolicyStats("create", requestDataType.Dnn, "SUCCESS")
 		// status code is based on SPEC, and option headers
 		return httpwrapper.NewResponse(http.StatusCreated, header, response)
 	} else if problemDetails != nil {
+		stats.IncrementPcfSmPolicyStats("create", requestDataType.Dnn, "FAILURE")
 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	} else {
+		stats.IncrementPcfSmPolicyStats("create", requestDataType.Dnn, "FAILURE")
 		return httpwrapper.NewResponse(http.StatusNotFound, nil, nil)
 	}
 }
@@ -265,14 +269,21 @@ func HandleDeleteSmPolicyContextRequest(request *httpwrapper.Request) *httpwrapp
 	// step 2: retrieve request
 	smPolicyID := request.Params["smPolicyId"]
 
+	response, problems := getSmPolicyContextProcedure(smPolicyID)
+	smPolicyDnn := "UNKNOWN_DNN"
+	if problems != nil {
+		smPolicyDnn = response.Context.Dnn
+	}
 	// step 3: handle the message
 	problemDetails := deleteSmPolicyContextProcedure(smPolicyID)
 
 	// step 4: process the return value from step 3
 	if problemDetails != nil {
+		stats.IncrementPcfSmPolicyStats("delete", smPolicyDnn, "FAILURE")
 		// status code is based on SPEC, and option headers
 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	} else {
+		stats.IncrementPcfSmPolicyStats("delete", smPolicyDnn, "SUCCESS")
 		return httpwrapper.NewResponse(http.StatusNoContent, nil, nil)
 	}
 }
@@ -322,15 +333,18 @@ func HandleGetSmPolicyContextRequest(request *httpwrapper.Request) *httpwrapper.
 
 	// step 4: process the return value from step 3
 	if response != nil {
+		stats.IncrementPcfSmPolicyStats("get", response.Context.Dnn, "SUCCESS")
 		// status code is based on SPEC, and option headers
 		return httpwrapper.NewResponse(http.StatusOK, nil, response)
 	} else if problemDetails != nil {
+		stats.IncrementPcfSmPolicyStats("get", "UNKNOWN_DNN", "SUCCESS")
 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
 	problemDetails = &models.ProblemDetails{
 		Status: http.StatusForbidden,
 		Cause:  "UNSPECIFIED",
 	}
+	stats.IncrementPcfSmPolicyStats("get", "UNKNOWN_DNN", "SUCCESS")
 	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
 }
 
@@ -363,20 +377,29 @@ func HandleUpdateSmPolicyContextRequest(request *httpwrapper.Request) *httpwrapp
 	requestDataType := request.Body.(models.SmPolicyUpdateContextData)
 	smPolicyID := request.Params["smPolicyId"]
 
+	getResponse, getProblemDetails := getSmPolicyContextProcedure(smPolicyID)
+	smPolicyDnn := "UNKNOWN_DNN"
+	if getProblemDetails != nil {
+		smPolicyDnn = getResponse.Context.Dnn
+	}
+
 	// step 3: handle the message
 	response, problemDetails := updateSmPolicyContextProcedure(requestDataType, smPolicyID)
 
 	// step 4: process the return value from step 3
 	if response != nil {
+		stats.IncrementPcfSmPolicyStats("update", smPolicyDnn, "SUCCESS")
 		// status code is based on SPEC, and option headers
 		return httpwrapper.NewResponse(http.StatusOK, nil, response)
 	} else if problemDetails != nil {
+		stats.IncrementPcfSmPolicyStats("update", smPolicyDnn, "FAILURE")
 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
 	problemDetails = &models.ProblemDetails{
 		Status: http.StatusForbidden,
 		Cause:  "UNSPECIFIED",
 	}
+	stats.IncrementPcfSmPolicyStats("update", smPolicyDnn, "FAILURE")
 	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
 }
 
