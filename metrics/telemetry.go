@@ -18,7 +18,6 @@ import (
 // PcfStats captures PCF stats
 type PcfStats struct {
 	pcfSmPolicy            *prometheus.CounterVec
-	pcfUePolicy            *prometheus.CounterVec
 	pcfPolicyAuthorization *prometheus.CounterVec
 }
 
@@ -30,10 +29,6 @@ func initPcfStats() *PcfStats {
 			Name: "pcf_smpolicy",
 			Help: "Counter of total Session Management policy queries",
 		}, []string{"query_type", "dnn", "result"}),
-		pcfUePolicy: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "pcf_uepolicy",
-			Help: "Counter of total UE policy queries",
-		}, []string{"query_type", "policy_id", "result"}),
 		pcfPolicyAuthorization: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "pcf_policy_authorization",
 			Help: "Counter of total policy authorization queries",
@@ -67,11 +62,6 @@ func InitMetrics() {
 // IncrementPcfSmPolicyStats increments number of total Session Management policy queries
 func IncrementPcfSmPolicyStats(queryType, dnn, result string) {
 	pcfStats.pcfSmPolicy.WithLabelValues(queryType, dnn, result).Inc()
-}
-
-// IncrementPcfUePolicyStats increments number of total UE policy queries
-func IncrementPcfUePolicyStats(queryType, policyId, result string) {
-	pcfStats.pcfUePolicy.WithLabelValues(queryType, policyId, result).Inc()
 }
 
 // IncrementPcfPolicyAuthorizationStats increments number of total policy authorization queries
