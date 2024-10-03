@@ -23,7 +23,7 @@ var (
 )
 
 func HandleAmfStatusChangeNotify(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.CallbackLog.Warnf("[PCF] Handle Amf Status Change Notify is not implemented.")
+	logger.CallbackLog.Warnln("[PCF] Handle Amf Status Change Notify is not implemented")
 
 	notification := request.Body.(models.AmfStatusChangeNotification)
 
@@ -38,7 +38,7 @@ func AmfStatusChangeNotifyProcedure(notification models.AmfStatusChangeNotificat
 }
 
 func HandleSmPolicyNotify(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.CallbackLog.Warnf("[PCF] Handle Sm Policy Notify is not implemented.")
+	logger.CallbackLog.Warnln("[PCF] Handle Sm Policy Notify is not implemented")
 
 	notification := request.Body.(models.PolicyDataChangeNotification)
 	supi := request.Params["ReqURI"]
@@ -55,7 +55,7 @@ func SmPolicyNotifyProcedure(supi string, notification models.PolicyDataChangeNo
 // HandleNfSubscriptionStatusNotify gets the notification data from NRF
 // and perform some actions according to the notification types.
 func HandleNfSubscriptionStatusNotify(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.ProducerLog.Traceln("Handle NF Status Notify")
+	logger.ProducerLog.Debugln("handle NF Status Notify")
 
 	notificationData := request.Body.(models.NotificationData)
 
@@ -89,17 +89,17 @@ func NfSubscriptionStatusNotifyProcedure(notificationData models.NotificationDat
 	if notificationData.Event == models.NotificationEventType_DEREGISTERED {
 		if pcfContext.PCF_Self().EnableNrfCaching {
 			ok := NRFCacheRemoveNfProfileFromNrfCache(nfInstanceId)
-			logger.ProducerLog.Tracef("nfinstance %v deleted from cache: %v", nfInstanceId, ok)
+			logger.ProducerLog.Debugf("nfinstance %v deleted from cache: %v", nfInstanceId, ok)
 		}
 		if subscriptionId, ok := pcfContext.PCF_Self().NfStatusSubscriptions.Load(nfInstanceId); ok {
 			logger.ConsumerLog.Debugf("SubscriptionId of nfInstance %v is %v", nfInstanceId, subscriptionId.(string))
 			problemDetails, err := SendRemoveSubscription(subscriptionId.(string))
 			if problemDetails != nil {
-				logger.ConsumerLog.Errorf("Remove NF Subscription Failed Problem[%+v]", problemDetails)
+				logger.ConsumerLog.Errorf("remove NF Subscription Failed Problem[%+v]", problemDetails)
 			} else if err != nil {
-				logger.ConsumerLog.Errorf("Remove NF Subscription Error[%+v]", err)
+				logger.ConsumerLog.Errorf("remove NF Subscription Error[%+v]", err)
 			} else {
-				logger.ConsumerLog.Infoln("Remove NF Subscription successful")
+				logger.ConsumerLog.Infoln("remove NF Subscription successful")
 				pcfContext.PCF_Self().NfStatusSubscriptions.Delete(nfInstanceId)
 			}
 		} else {

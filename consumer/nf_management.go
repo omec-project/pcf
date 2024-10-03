@@ -66,7 +66,6 @@ var SendRegisterNFInstance = func(nrfUri, nfInstanceId string, profile models.Nf
 	for {
 		nfProfile, res, err = client.NFInstanceIDDocumentApi.RegisterNFInstance(context.TODO(), nfInstanceId, profile)
 		if err != nil || res == nil {
-			// TODO : add log
 			logger.Consumerlog.Infof("PCF register to NRF Error[%v]", err.Error())
 			time.Sleep(2 * time.Second)
 			continue
@@ -96,7 +95,7 @@ var SendRegisterNFInstance = func(nrfUri, nfInstanceId string, profile models.Nf
 }
 
 func SendDeregisterNFInstance() (problemDetails *models.ProblemDetails, err error) {
-	logger.Consumerlog.Debugf("Send Deregister NFInstance")
+	logger.Consumerlog.Debugln("send Deregister NFInstance")
 
 	pcfSelf := pcfContext.PCF_Self()
 	// Set client and set url
@@ -127,7 +126,7 @@ func SendDeregisterNFInstance() (problemDetails *models.ProblemDetails, err erro
 }
 
 var SendUpdateNFInstance = func(patchItem []models.PatchItem) (nfProfile models.NfProfile, problemDetails *models.ProblemDetails, err error) {
-	logger.Consumerlog.Debugf("Send Update NFInstance")
+	logger.Consumerlog.Debugln("send Update NFInstance")
 
 	pcfSelf := pcfContext.PCF_Self()
 	configuration := Nnrf_NFManagement.NewConfiguration()
@@ -157,7 +156,7 @@ var SendUpdateNFInstance = func(patchItem []models.PatchItem) (nfProfile models.
 }
 
 func SendCreateSubscription(nrfUri string, nrfSubscriptionData models.NrfSubscriptionData) (nrfSubData models.NrfSubscriptionData, problemDetails *models.ProblemDetails, err error) {
-	logger.ConsumerLog.Debugf("Send Create Subscription")
+	logger.ConsumerLog.Debugln("send Create Subscription")
 
 	// Set client and set url
 	configuration := Nnrf_NFManagement.NewConfiguration()
@@ -187,7 +186,7 @@ func SendCreateSubscription(nrfUri string, nrfSubscriptionData models.NrfSubscri
 }
 
 func SendRemoveSubscription(subscriptionId string) (problemDetails *models.ProblemDetails, err error) {
-	logger.ConsumerLog.Infoln("Send Remove Subscription")
+	logger.ConsumerLog.Infoln("send Remove Subscription")
 
 	pcfSelf := pcfContext.PCF_Self()
 	// Set client and set url

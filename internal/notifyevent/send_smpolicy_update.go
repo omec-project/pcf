@@ -23,13 +23,13 @@ type SendSMpolicyUpdateNotifyEvent struct {
 }
 
 func (e SendSMpolicyUpdateNotifyEvent) Handle() {
-	logger.NotifyEventLog.Infof("Handle SendSMpolicyUpdateNotifyEvent\n")
+	logger.NotifyEventLog.Infoln("handle SendSMpolicyUpdateNotifyEvent")
 	if e.uri == "" {
-		logger.NotifyEventLog.Warnln("SM Policy Update Notification Error[URI is empty]")
+		logger.NotifyEventLog.Warnln("SM Policy Update Notification Error [URI is empty]")
 		return
 	}
 	client := util.GetNpcfSMPolicyCallbackClient()
-	logger.NotifyEventLog.Infof("Send SM Policy Update Notification to SMF")
+	logger.NotifyEventLog.Infoln("send SM Policy Update Notification to SMF")
 	_, httpResponse, err := client.DefaultCallbackApi.SmPolicyUpdateNotification(context.Background(), e.uri, *e.request)
 	if err != nil {
 		if httpResponse != nil {
@@ -39,7 +39,7 @@ func (e SendSMpolicyUpdateNotifyEvent) Handle() {
 		}
 		return
 	} else if httpResponse == nil {
-		logger.NotifyEventLog.Warnln("SM Policy Update Notification Failed[HTTP Response is nil]")
+		logger.NotifyEventLog.Warnln("SM Policy Update Notification Failed [HTTP Response is nil]")
 		return
 	}
 	defer func() {
@@ -48,8 +48,8 @@ func (e SendSMpolicyUpdateNotifyEvent) Handle() {
 		}
 	}()
 	if httpResponse.StatusCode != http.StatusOK && httpResponse.StatusCode != http.StatusNoContent {
-		logger.NotifyEventLog.Warnf("SM Policy Update Notification Failed")
+		logger.NotifyEventLog.Warnln("SM Policy Update Notification Failed")
 	} else {
-		logger.NotifyEventLog.Tracef("SM Policy Update Notification Success")
+		logger.NotifyEventLog.Debugln("SM Policy Update Notification Success")
 	}
 }
