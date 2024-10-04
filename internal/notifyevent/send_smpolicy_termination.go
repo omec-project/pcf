@@ -23,13 +23,13 @@ type SendSMpolicyTerminationNotifyEvent struct {
 }
 
 func (e SendSMpolicyTerminationNotifyEvent) Handle() {
-	logger.NotifyEventLog.Infof("Handle SendSMpolicyTerminationNotifyEvent\n")
+	logger.NotifyEventLog.Infoln("handle SendSMpolicyTerminationNotifyEvent")
 	if e.uri == "" {
 		logger.NotifyEventLog.Warnln("SM Policy Termination Request Notification Error[URI is empty]")
 		return
 	}
 	client := util.GetNpcfSMPolicyCallbackClient()
-	logger.NotifyEventLog.Infof("SM Policy Termination Request Notification to SMF")
+	logger.NotifyEventLog.Infoln("SM Policy Termination Request Notification to SMF")
 	rsp, err := client.DefaultCallbackApi.SmPolicyControlTerminationRequestNotification(context.Background(), e.uri, *e.request)
 	if err != nil {
 		if rsp != nil {
@@ -48,8 +48,8 @@ func (e SendSMpolicyTerminationNotifyEvent) Handle() {
 		}
 	}()
 	if rsp.StatusCode != http.StatusNoContent {
-		logger.NotifyEventLog.Warnf("SM Policy Termination Request Notification  Failed")
+		logger.NotifyEventLog.Warnln("SM Policy Termination Request Notification Failed")
 	} else {
-		logger.NotifyEventLog.Tracef("SM Policy Termination Request Notification Success")
+		logger.NotifyEventLog.Debugln("SM Policy Termination Request Notification Success")
 	}
 }

@@ -29,16 +29,9 @@ type UEAmPolicy struct {
 type UEAmPolicys []UEAmPolicy
 
 func HandleOAMGetAmPolicyRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	// step 1: log
-	logger.OamLog.Infof("Handle OAMGetAmPolicy")
-
-	// step 2: retrieve request
+	logger.OamLog.Infoln("handle OAMGetAmPolicy")
 	supi := request.Params["supi"]
-
-	// step 3: handle the message
 	response, problemDetails := OAMGetAmPolicyProcedure(supi)
-
-	// step 4: process the return value from step 3
 	if response != nil {
 		// status code is based on SPEC, and option headers
 		return httpwrapper.NewResponse(http.StatusOK, nil, response)
@@ -53,7 +46,7 @@ func HandleOAMGetAmPolicyRequest(request *httpwrapper.Request) *httpwrapper.Resp
 }
 
 func OAMGetAmPolicyProcedure(supi string) (response *UEAmPolicys, problemDetails *models.ProblemDetails) {
-	logger.OamLog.Infof("Handle OAM Get Am Policy")
+	logger.OamLog.Infoln("handle OAM Get Am Policy")
 	response = &UEAmPolicys{}
 	pcfSelf := context.PCF_Self()
 

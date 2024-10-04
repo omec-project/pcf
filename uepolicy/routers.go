@@ -20,7 +20,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/omec-project/pcf/logger"
-	logger_util "github.com/omec-project/util/logger"
+	utilLogger "github.com/omec-project/util/logger"
 )
 
 type Route struct {
@@ -37,7 +37,7 @@ type Route struct {
 type Routes []Route
 
 func NewRouter() *gin.Engine {
-	router := logger_util.NewGinWithLogrus(logger.GinLog)
+	router := utilLogger.NewGinWithZap(logger.GinLog)
 	AddService(router)
 	return router
 }
