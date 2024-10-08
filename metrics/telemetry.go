@@ -40,6 +40,9 @@ func (ps *PcfStats) register() error {
 	if err := prometheus.Register(ps.pcfSmPolicy); err != nil {
 		return err
 	}
+	if err := prometheus.Register(ps.pcfPolicyAuthorization); err != nil {
+		return err
+	}
 	return nil
 }
 
