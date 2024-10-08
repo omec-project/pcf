@@ -259,10 +259,10 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 func HandleDeleteSmPolicyContextRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.SMpolicylog.Infoln("handle DeleteSmPolicyContext")
 	smPolicyID := request.Params["smPolicyId"]
-	response, problems := getSmPolicyContextProcedure(smPolicyID)
+	getResponse, getProblemDetails := getSmPolicyContextProcedure(smPolicyID)
 	smPolicyDnn := "UNKNOWN_DNN"
-	if problems != nil {
-		smPolicyDnn = response.Context.Dnn
+	if getProblemDetails == nil {
+		smPolicyDnn = getResponse.Context.Dnn
 	}
 	problemDetails := deleteSmPolicyContextProcedure(smPolicyID)
 	if problemDetails != nil {
@@ -318,14 +318,14 @@ func HandleGetSmPolicyContextRequest(request *httpwrapper.Request) *httpwrapper.
 		// status code is based on SPEC, and option headers
 		return httpwrapper.NewResponse(http.StatusOK, nil, response)
 	} else if problemDetails != nil {
-		stats.IncrementPcfSmPolicyStats("get", "UNKNOWN_DNN", "SUCCESS")
+		stats.IncrementPcfSmPolicyStats("get", "UNKNOWN_DNN", "FAILURE")
 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
 	problemDetails = &models.ProblemDetails{
 		Status: http.StatusForbidden,
 		Cause:  "UNSPECIFIED",
 	}
-	stats.IncrementPcfSmPolicyStats("get", "UNKNOWN_DNN", "SUCCESS")
+	stats.IncrementPcfSmPolicyStats("get", "UNKNOWN_DNN", "FAILURE")
 	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
 }
 
@@ -356,7 +356,7 @@ func HandleUpdateSmPolicyContextRequest(request *httpwrapper.Request) *httpwrapp
 	smPolicyID := request.Params["smPolicyId"]
 	getResponse, getProblemDetails := getSmPolicyContextProcedure(smPolicyID)
 	smPolicyDnn := "UNKNOWN_DNN"
-	if getProblemDetails != nil {
+	if getProblemDetails == nil {
 		smPolicyDnn = getResponse.Context.Dnn
 	}
 	response, problemDetails := updateSmPolicyContextProcedure(requestDataType, smPolicyID)
