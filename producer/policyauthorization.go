@@ -19,6 +19,7 @@ import (
 	pcf_context "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/internal/notifyevent"
 	"github.com/omec-project/pcf/logger"
+	stats "github.com/omec-project/pcf/metrics"
 	"github.com/omec-project/pcf/util"
 	"github.com/omec-project/util/httpwrapper"
 )
@@ -140,14 +141,17 @@ func HandlePostAppSessionsContext(request *httpwrapper.Request) *httpwrapper.Res
 		headers := http.Header{
 			"Location": {locationHeader},
 		}
+		stats.IncrementPcfPolicyAuthorizationStats("create", "application_sessions", "SUCCESS")
 		return httpwrapper.NewResponse(http.StatusCreated, headers, response)
 	} else if problemDetails != nil {
+		stats.IncrementPcfPolicyAuthorizationStats("create", "application_sessions", "FAILURE")
 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
 	problemDetails = &models.ProblemDetails{
 		Status: http.StatusForbidden,
 		Cause:  "UNSPECIFIED",
 	}
+	stats.IncrementPcfPolicyAuthorizationStats("create", "events_subscription", "FAILURE")
 	return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 }
 
@@ -440,8 +444,10 @@ func HandleDeleteAppSessionContext(request *httpwrapper.Request) *httpwrapper.Re
 
 	problemDetails := DeleteAppSessionContextProcedure(appSessID, eventsSubscReqData)
 	if problemDetails == nil {
+		stats.IncrementPcfPolicyAuthorizationStats("delete", "application_sessions", "SUCCESS")
 		return httpwrapper.NewResponse(http.StatusNoContent, nil, nil)
 	} else {
+		stats.IncrementPcfPolicyAuthorizationStats("delete", "application_sessions", "FAILURE")
 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
 }
@@ -508,8 +514,10 @@ func HandleGetAppSessionContext(request *httpwrapper.Request) *httpwrapper.Respo
 
 	problemDetails, response := GetAppSessionContextProcedure(appSessID)
 	if problemDetails == nil {
+		stats.IncrementPcfPolicyAuthorizationStats("get", "application_sessions", "SUCCESS")
 		return httpwrapper.NewResponse(http.StatusOK, nil, response)
 	} else {
+		stats.IncrementPcfPolicyAuthorizationStats("get", "application_sessions", "FAILURE")
 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
 }
@@ -537,8 +545,10 @@ func HandleModAppSessionContext(request *httpwrapper.Request) *httpwrapper.Respo
 
 	problemDetails, response := ModAppSessionContextProcedure(appSessID, ascUpdateData)
 	if problemDetails == nil {
+		stats.IncrementPcfPolicyAuthorizationStats("update", "application_sessions", "SUCCESS")
 		return httpwrapper.NewResponse(http.StatusOK, nil, response)
 	} else {
+		stats.IncrementPcfPolicyAuthorizationStats("update", "application_sessions", "FAILURE")
 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
 }
@@ -819,8 +829,10 @@ func HandleDeleteEventsSubscContext(request *httpwrapper.Request) *httpwrapper.R
 
 	problemDetails := DeleteEventsSubscContextProcedure(appSessID)
 	if problemDetails == nil {
+		stats.IncrementPcfPolicyAuthorizationStats("delete", "events_subscriptions", "SUCCESS")
 		return httpwrapper.NewResponse(http.StatusNoContent, nil, nil)
 	} else {
+		stats.IncrementPcfPolicyAuthorizationStats("delete", "events_subscriptions", "FAILURE")
 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
 }
@@ -866,21 +878,26 @@ func HandleUpdateEventsSubscContext(request *httpwrapper.Request) *httpwrapper.R
 
 	response, locationHeader, status, problemDetails := UpdateEventsSubscContextProcedure(appSessID, EventsSubscReqData)
 	if problemDetails != nil {
+		stats.IncrementPcfPolicyAuthorizationStats("update", "events_subscriptions", "FAILURE")
 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	} else if status == http.StatusCreated {
+		stats.IncrementPcfPolicyAuthorizationStats("update", "events_subscriptions", "SUCCESS")
 		headers := http.Header{
 			"Location": {locationHeader},
 		}
 		return httpwrapper.NewResponse(http.StatusCreated, headers, response)
 	} else if status == http.StatusOK {
+		stats.IncrementPcfPolicyAuthorizationStats("update", "events_subscriptions", "SUCCESS")
 		return httpwrapper.NewResponse(http.StatusOK, nil, response)
 	} else if status == http.StatusNoContent {
+		stats.IncrementPcfPolicyAuthorizationStats("update", "events_subscriptions", "SUCCESS")
 		return httpwrapper.NewResponse(http.StatusNoContent, nil, response)
 	}
 	problemDetails = &models.ProblemDetails{
 		Status: http.StatusForbidden,
 		Cause:  "UNSPECIFIED",
 	}
+	stats.IncrementPcfPolicyAuthorizationStats("update", "events_subscriptions", "FAILURE")
 	return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 }
 

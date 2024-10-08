@@ -20,6 +20,7 @@ import (
 	"github.com/omec-project/openapi/models"
 	pcf_context "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/logger"
+	stats "github.com/omec-project/pcf/metrics"
 	"github.com/omec-project/pcf/util"
 	"github.com/omec-project/util/httpwrapper"
 )
@@ -30,11 +31,14 @@ func HandleCreateSmPolicyRequest(request *httpwrapper.Request) *httpwrapper.Resp
 	requestDataType := request.Body.(models.SmPolicyContextData)
 	header, response, problemDetails := createSMPolicyProcedure(requestDataType)
 	if response != nil {
+		stats.IncrementPcfSmPolicyStats("create", requestDataType.Dnn, "SUCCESS")
 		// status code is based on SPEC, and option headers
 		return httpwrapper.NewResponse(http.StatusCreated, header, response)
 	} else if problemDetails != nil {
+		stats.IncrementPcfSmPolicyStats("create", requestDataType.Dnn, "FAILURE")
 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	} else {
+		stats.IncrementPcfSmPolicyStats("create", requestDataType.Dnn, "FAILURE")
 		return httpwrapper.NewResponse(http.StatusNotFound, nil, nil)
 	}
 }
@@ -255,11 +259,18 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 func HandleDeleteSmPolicyContextRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.SMpolicylog.Infoln("handle DeleteSmPolicyContext")
 	smPolicyID := request.Params["smPolicyId"]
+	getResponse, getProblemDetails := getSmPolicyContextProcedure(smPolicyID)
+	smPolicyDnn := "UNKNOWN_DNN"
+	if getProblemDetails == nil {
+		smPolicyDnn = getResponse.Context.Dnn
+	}
 	problemDetails := deleteSmPolicyContextProcedure(smPolicyID)
 	if problemDetails != nil {
+		stats.IncrementPcfSmPolicyStats("delete", smPolicyDnn, "FAILURE")
 		// status code is based on SPEC, and option headers
 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	} else {
+		stats.IncrementPcfSmPolicyStats("delete", smPolicyDnn, "SUCCESS")
 		return httpwrapper.NewResponse(http.StatusNoContent, nil, nil)
 	}
 }
@@ -303,15 +314,18 @@ func HandleGetSmPolicyContextRequest(request *httpwrapper.Request) *httpwrapper.
 	smPolicyID := request.Params["smPolicyID"]
 	response, problemDetails := getSmPolicyContextProcedure(smPolicyID)
 	if response != nil {
+		stats.IncrementPcfSmPolicyStats("get", response.Context.Dnn, "SUCCESS")
 		// status code is based on SPEC, and option headers
 		return httpwrapper.NewResponse(http.StatusOK, nil, response)
 	} else if problemDetails != nil {
+		stats.IncrementPcfSmPolicyStats("get", "UNKNOWN_DNN", "FAILURE")
 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
 	problemDetails = &models.ProblemDetails{
 		Status: http.StatusForbidden,
 		Cause:  "UNSPECIFIED",
 	}
+	stats.IncrementPcfSmPolicyStats("get", "UNKNOWN_DNN", "FAILURE")
 	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
 }
 
@@ -340,17 +354,25 @@ func HandleUpdateSmPolicyContextRequest(request *httpwrapper.Request) *httpwrapp
 	logger.SMpolicylog.Infoln("handle UpdateSmPolicyContext")
 	requestDataType := request.Body.(models.SmPolicyUpdateContextData)
 	smPolicyID := request.Params["smPolicyId"]
+	getResponse, getProblemDetails := getSmPolicyContextProcedure(smPolicyID)
+	smPolicyDnn := "UNKNOWN_DNN"
+	if getProblemDetails == nil {
+		smPolicyDnn = getResponse.Context.Dnn
+	}
 	response, problemDetails := updateSmPolicyContextProcedure(requestDataType, smPolicyID)
 	if response != nil {
+		stats.IncrementPcfSmPolicyStats("update", smPolicyDnn, "SUCCESS")
 		// status code is based on SPEC, and option headers
 		return httpwrapper.NewResponse(http.StatusOK, nil, response)
 	} else if problemDetails != nil {
+		stats.IncrementPcfSmPolicyStats("update", smPolicyDnn, "FAILURE")
 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
 	problemDetails = &models.ProblemDetails{
 		Status: http.StatusForbidden,
 		Cause:  "UNSPECIFIED",
 	}
+	stats.IncrementPcfSmPolicyStats("update", smPolicyDnn, "FAILURE")
 	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
 }
 
