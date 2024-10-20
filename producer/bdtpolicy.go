@@ -24,16 +24,9 @@ import (
 )
 
 func HandleGetBDTPolicyContextRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	// step 1: log
-	logger.Bdtpolicylog.Infof("Handle GetBDTPolicyContext")
-
-	// step 2: retrieve request
+	logger.Bdtpolicylog.Infoln("handle GetBDTPolicyContext")
 	bdtPolicyID := request.Params["bdtPolicyId"]
-
-	// step 3: handle the message
 	response, problemDetails := getBDTPolicyContextProcedure(bdtPolicyID)
-
-	// step 4: process the return value from step 3
 	if response != nil {
 		// status code is based on SPEC, and option headers
 		return httpwrapper.NewResponse(http.StatusOK, nil, response)
@@ -50,7 +43,7 @@ func HandleGetBDTPolicyContextRequest(request *httpwrapper.Request) *httpwrapper
 func getBDTPolicyContextProcedure(bdtPolicyID string) (
 	response *models.BdtPolicy, problemDetails *models.ProblemDetails,
 ) {
-	logger.Bdtpolicylog.Traceln("Handle BDT Policy GET")
+	logger.Bdtpolicylog.Debugln("handle BDT Policy GET")
 	// check bdtPolicyID from pcfUeContext
 	if value, ok := pcf_context.PCF_Self().BdtPolicyPool.Load(bdtPolicyID); ok {
 		bdtPolicy := value.(*models.BdtPolicy)
@@ -65,17 +58,10 @@ func getBDTPolicyContextProcedure(bdtPolicyID string) (
 
 // HandleUpdateBDTPolicyContextProcedure Update an Individual BDT policy (choose policy data)
 func HandleUpdateBDTPolicyContextProcedure(request *httpwrapper.Request) *httpwrapper.Response {
-	// step 1: log
-	logger.Bdtpolicylog.Infof("Handle UpdateBDTPolicyContext")
-
-	// step 2: retrieve request
+	logger.Bdtpolicylog.Infoln("handle UpdateBDTPolicyContext")
 	requestDataType := request.Body.(models.BdtPolicyDataPatch)
 	bdtPolicyID := request.Params["bdtPolicyId"]
-
-	// step 3: handle the message
 	response, problemDetails := updateBDTPolicyContextProcedure(requestDataType, bdtPolicyID)
-
-	// step 4: process the return value from step 3
 	if response != nil {
 		// status code is based on SPEC, and option headers
 		return httpwrapper.NewResponse(http.StatusOK, nil, response)
@@ -92,7 +78,7 @@ func HandleUpdateBDTPolicyContextProcedure(request *httpwrapper.Request) *httpwr
 func updateBDTPolicyContextProcedure(request models.BdtPolicyDataPatch, bdtPolicyID string) (
 	response *models.BdtPolicy, problemDetails *models.ProblemDetails,
 ) {
-	logger.Bdtpolicylog.Infoln("Handle BDTPolicyUpdate")
+	logger.Bdtpolicylog.Infoln("handle BDTPolicyUpdate")
 	// check bdtPolicyID from pcfUeContext
 	pcfSelf := pcf_context.PCF_Self()
 
@@ -132,7 +118,7 @@ func updateBDTPolicyContextProcedure(request models.BdtPolicyDataPatch, bdtPolic
 					logger.Bdtpolicylog.Errorf("PolicyDataBdtDataBdtReferenceIdPut response body cannot close: %+v", rspCloseErr)
 				}
 			}()
-			logger.Bdtpolicylog.Tracef("bdtPolicyID[%s] has Updated with SelTransPolicyId[%d]",
+			logger.Bdtpolicylog.Debugf("bdtPolicyID[%s] has Updated with SelTransPolicyId[%d]",
 				bdtPolicyID, request.SelTransPolicyId)
 			return bdtPolicy, nil
 		}
@@ -147,16 +133,9 @@ func updateBDTPolicyContextProcedure(request models.BdtPolicyDataPatch, bdtPolic
 
 // HandleCreateBDTPolicyContextRequest Create a new Individual BDT policy
 func HandleCreateBDTPolicyContextRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	// step 1: log
-	logger.Bdtpolicylog.Infof("Handle CreateBDTPolicyContext")
-
-	// step 2: retrieve request
+	logger.Bdtpolicylog.Infoln("handle CreateBDTPolicyContext")
 	requestMsg := request.Body.(models.BdtReqData)
-
-	// step 3: handle the message
 	header, response, problemDetails := createBDTPolicyContextProcedure(&requestMsg)
-
-	// step 4: process the return value from step 3
 	if response != nil {
 		// status code is based on SPEC, and option headers
 		return httpwrapper.NewResponse(http.StatusCreated, header, response)
@@ -171,7 +150,7 @@ func createBDTPolicyContextProcedure(request *models.BdtReqData) (
 	header http.Header, response *models.BdtPolicy, problemDetails *models.ProblemDetails,
 ) {
 	response = &models.BdtPolicy{}
-	logger.Bdtpolicylog.Traceln("Handle BDT Policy Create")
+	logger.Bdtpolicylog.Debugln("handle BDT Policy Create")
 
 	pcfSelf := pcf_context.PCF_Self()
 	udrUri := getDefaultUdrUri(pcfSelf)
@@ -194,7 +173,7 @@ func createBDTPolicyContextProcedure(request *models.BdtReqData) (
 			Status: http.StatusServiceUnavailable,
 			Detail: "Query to UDR failed",
 		}
-		logger.Bdtpolicylog.Warnf("Query to UDR failed")
+		logger.Bdtpolicylog.Warnln("query to UDR failed")
 		return nil, nil, problemDetails
 	}
 	defer func() {
@@ -240,7 +219,7 @@ func createBDTPolicyContextProcedure(request *models.BdtReqData) (
 			Status: http.StatusServiceUnavailable,
 			Detail: "Allocate bdtPolicyID failed",
 		}
-		logger.Bdtpolicylog.Warnf("Allocate bdtPolicyID failed")
+		logger.Bdtpolicylog.Warnln("allocate bdtPolicyID failed")
 		return nil, nil, problemDetails
 	}
 
@@ -268,7 +247,7 @@ func createBDTPolicyContextProcedure(request *models.BdtReqData) (
 	header = http.Header{
 		"Location": {locationHeader},
 	}
-	logger.Bdtpolicylog.Tracef("BDT Policy Id[%s] Create", bdtPolicyID)
+	logger.Bdtpolicylog.Debugf("BDT Policy Id[%s] Create", bdtPolicyID)
 	return header, response, problemDetails
 }
 

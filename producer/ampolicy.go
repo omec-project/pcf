@@ -23,7 +23,7 @@ import (
 )
 
 func HandleDeletePoliciesPolAssoId(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.AMpolicylog.Infof("Handle AM Policy Association Delete")
+	logger.AMpolicylog.Infoln("handle AM Policy Association Delete")
 
 	polAssoId := request.Params["polAssoId"]
 
@@ -47,7 +47,7 @@ func DeletePoliciesPolAssoIdProcedure(polAssoId string) *models.ProblemDetails {
 
 // HandleGetPoliciesPolAssoId PoliciesPolAssoIdGet -
 func HandleGetPoliciesPolAssoId(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.AMpolicylog.Infof("Handle AM Policy Association Get")
+	logger.AMpolicylog.Infoln("handle AM Policy Association Get")
 
 	polAssoId := request.Params["polAssoId"]
 
@@ -93,7 +93,7 @@ func GetPoliciesPolAssoIdProcedure(polAssoId string) (*models.PolicyAssociation,
 }
 
 func HandleUpdatePostPoliciesPolAssoId(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.AMpolicylog.Infof("Handle AM Policy Association Update")
+	logger.AMpolicylog.Infoln("handle AM Policy Association Update")
 
 	polAssoId := request.Params["polAssoId"]
 	policyAssociationUpdateRequest := request.Body.(models.PolicyAssociationUpdateRequest)
@@ -186,7 +186,7 @@ func UpdatePostPoliciesPolAssoIdProcedure(polAssoId string,
 
 // HandlePostPolicies Create AM Policy
 func HandlePostPolicies(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.AMpolicylog.Infof("Handle AM Policy Create Request")
+	logger.AMpolicylog.Infoln("handle AM Policy Create Request")
 
 	polAssoId := request.Params["polAssoId"]
 	policyAssociationRequest := request.Body.(models.PolicyAssociationRequest)
@@ -282,7 +282,7 @@ func PostPoliciesProcedure(polAssoId string,
 	ue.PolAssociationIDGenerator++
 	// Create location header for update, delete, get
 	locationHeader := util.GetResourceUri(models.ServiceName_NPCF_AM_POLICY_CONTROL, assolId)
-	logger.AMpolicylog.Tracef("AMPolicy association Id[%s] Create", assolId)
+	logger.AMpolicylog.Debugf("AMPolicy association Id[%s] Create", assolId)
 
 	// if consumer is AMF then subscribe this AMF Status
 	if policyAssociationRequest.Guami != nil {
@@ -301,16 +301,16 @@ func PostPoliciesProcedure(polAssoId string,
 		})
 
 		if needSubscribe {
-			logger.AMpolicylog.Debugf("Subscribe AMF status change[GUAMI: %+v]", *policyAssociationRequest.Guami)
+			logger.AMpolicylog.Debugf("subscribe AMF status change[GUAMI: %+v]", *policyAssociationRequest.Guami)
 			ipAddress := strings.SplitN(strings.TrimPrefix(policyAssociationRequest.NotificationUri,
 				"http://"), ":", 2)[0]
 			amfUri := consumer.SendNFInstancesAMF(pcfSelf.NrfUri, *policyAssociationRequest.Guami, models.ServiceName_NAMF_COMM, ipAddress)
 			if amfUri != "" {
 				problemDetails, err := consumer.AmfStatusChangeSubscribe(amfUri, []models.Guami{*policyAssociationRequest.Guami})
 				if err != nil {
-					logger.AMpolicylog.Errorf("Subscribe AMF status change error[%+v]", err)
+					logger.AMpolicylog.Errorf("subscribe AMF status change error[%+v]", err)
 				} else if problemDetails != nil {
-					logger.AMpolicylog.Errorf("Subscribe AMF status change failed[%+v]", problemDetails)
+					logger.AMpolicylog.Errorf("subscribe AMF status change failed[%+v]", problemDetails)
 				} else {
 					amPolicy.Guami = policyAssociationRequest.Guami
 				}

@@ -24,6 +24,7 @@ import (
 	"github.com/omec-project/config5g/proto/client"
 	protos "github.com/omec-project/config5g/proto/sdcoreConfig"
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
+	openapiLogger "github.com/omec-project/openapi/logger"
 	"github.com/omec-project/openapi/models"
 	nrfCache "github.com/omec-project/openapi/nrfcache"
 	"github.com/omec-project/pcf/ampolicy"
@@ -43,11 +44,11 @@ import (
 	"github.com/omec-project/pcf/util"
 	"github.com/omec-project/util/http2_util"
 	"github.com/omec-project/util/idgenerator"
-	loggerUtil "github.com/omec-project/util/logger"
+	utilLogger "github.com/omec-project/util/logger"
 	"github.com/omec-project/util/path_util"
-	pathUtilLogger "github.com/omec-project/util/path_util/logger"
-	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type PCF struct{}
@@ -82,7 +83,7 @@ var pcfCLi = []cli.Flag{
 	},
 }
 
-var initLog *logrus.Entry
+var initLog *zap.SugaredLogger
 
 func init() {
 	initLog = logger.InitLog
@@ -136,52 +137,34 @@ func (pcf *PCF) setLogLevel() {
 
 	if factory.PcfConfig.Logger.PCF != nil {
 		if factory.PcfConfig.Logger.PCF.DebugLevel != "" {
-			if level, err := logrus.ParseLevel(factory.PcfConfig.Logger.PCF.DebugLevel); err != nil {
+			if level, err := zapcore.ParseLevel(factory.PcfConfig.Logger.PCF.DebugLevel); err != nil {
 				initLog.Warnf("PCF Log level [%s] is invalid, set to [info] level",
 					factory.PcfConfig.Logger.PCF.DebugLevel)
-				logger.SetLogLevel(logrus.InfoLevel)
+				logger.SetLogLevel(zap.InfoLevel)
 			} else {
 				initLog.Infof("PCF Log level is set to [%s] level", level)
 				logger.SetLogLevel(level)
 			}
 		} else {
 			initLog.Infoln("PCF Log level is default set to [info] level")
-			logger.SetLogLevel(logrus.InfoLevel)
+			logger.SetLogLevel(zap.InfoLevel)
 		}
-		logger.SetReportCaller(factory.PcfConfig.Logger.PCF.ReportCaller)
 	}
 
-	if factory.PcfConfig.Logger.PathUtil != nil {
-		if factory.PcfConfig.Logger.PathUtil.DebugLevel != "" {
-			if level, err := logrus.ParseLevel(factory.PcfConfig.Logger.PathUtil.DebugLevel); err != nil {
-				pathUtilLogger.PathLog.Warnf("PathUtil Log level [%s] is invalid, set to [info] level",
-					factory.PcfConfig.Logger.PathUtil.DebugLevel)
-				pathUtilLogger.SetLogLevel(logrus.InfoLevel)
-			} else {
-				pathUtilLogger.SetLogLevel(level)
-			}
-		} else {
-			pathUtilLogger.PathLog.Warnln("PathUtil Log level not set. Default set to [info] level")
-			pathUtilLogger.SetLogLevel(logrus.InfoLevel)
-		}
-		pathUtilLogger.SetReportCaller(factory.PcfConfig.Logger.PathUtil.ReportCaller)
-	}
-
-	/*if factory.PcfConfig.Logger.OpenApi != nil {
+	if factory.PcfConfig.Logger.OpenApi != nil {
 		if factory.PcfConfig.Logger.OpenApi.DebugLevel != "" {
-			if level, err := logrus.ParseLevel(factory.PcfConfig.Logger.OpenApi.DebugLevel); err != nil {
-				openApiLogger.OpenApiLog.Warnf("OpenAPI Log level [%s] is invalid, set to [info] level",
+			if level, err := zapcore.ParseLevel(factory.PcfConfig.Logger.OpenApi.DebugLevel); err != nil {
+				openapiLogger.OpenapiLog.Warnf("OpenAPI Log level [%s] is invalid, set to [info] level",
 					factory.PcfConfig.Logger.OpenApi.DebugLevel)
-				openApiLogger.SetLogLevel(logrus.InfoLevel)
+				openapiLogger.SetLogLevel(zap.InfoLevel)
 			} else {
-				openApiLogger.SetLogLevel(level)
+				openapiLogger.SetLogLevel(level)
 			}
 		} else {
-			openApiLogger.OpenApiLog.Warnln("OpenAPI Log level not set. Default set to [info] level")
-			openApiLogger.SetLogLevel(logrus.InfoLevel)
+			openapiLogger.OpenapiLog.Warnln("OpenAPI Log level not set. Default set to [info] level")
+			openapiLogger.SetLogLevel(zap.InfoLevel)
 		}
-		openApiLogger.SetReportCaller(factory.PcfConfig.Logger.OpenApi.ReportCaller)
-	}*/
+	}
 }
 
 func (pcf *PCF) FilterCli(c *cli.Context) (args []string) {
@@ -199,7 +182,7 @@ func (pcf *PCF) FilterCli(c *cli.Context) (args []string) {
 
 func (pcf *PCF) Start() {
 	initLog.Infoln("Server started")
-	router := loggerUtil.NewGinWithLogrus(logger.GinLog)
+	router := utilLogger.NewGinWithZap(logger.GinLog)
 
 	bdtpolicy.AddService(router)
 	smpolicy.AddService(router)
@@ -271,9 +254,9 @@ func (pcf *PCF) Start() {
 }
 
 func (pcf *PCF) Exec(c *cli.Context) error {
-	initLog.Traceln("args:", c.String("pcfcfg"))
+	initLog.Debugln("args:", c.String("pcfcfg"))
 	args := pcf.FilterCli(c)
-	initLog.Traceln("filter: ", args)
+	initLog.Debugln("filter:", args)
 	command := exec.Command("./pcf", args...)
 
 	stdout, err := command.StdoutPipe()
@@ -285,7 +268,7 @@ func (pcf *PCF) Exec(c *cli.Context) error {
 	go func() {
 		in := bufio.NewScanner(stdout)
 		for in.Scan() {
-			fmt.Println(in.Text())
+			initLog.Infoln(in.Text())
 		}
 		wg.Done()
 	}()
@@ -296,19 +279,19 @@ func (pcf *PCF) Exec(c *cli.Context) error {
 	}
 	go func() {
 		in := bufio.NewScanner(stderr)
-		fmt.Println("PCF log start")
+		initLog.Infoln("PCF log start")
 		for in.Scan() {
-			fmt.Println(in.Text())
+			initLog.Infoln(in.Text())
 		}
 		wg.Done()
 	}()
 
 	go func() {
-		fmt.Println("PCF start")
+		initLog.Infoln("PCF start")
 		if err = command.Start(); err != nil {
-			fmt.Printf("command.Start() error: %v", err)
+			initLog.Errorf("command.Start() error: %v", err)
 		}
-		fmt.Println("PCF end")
+		initLog.Infoln("PCF end")
 		wg.Done()
 	}()
 
@@ -325,29 +308,29 @@ func (pcf *PCF) StartKeepAliveTimer(nfProfile models.NfProfile) {
 		// heartbeat timer value set to 60 sec
 		nfProfile.HeartBeatTimer = 60
 	}
-	logger.InitLog.Infof("Started KeepAlive Timer: %v sec", nfProfile.HeartBeatTimer)
+	logger.InitLog.Infof("started KeepAlive Timer: %v sec", nfProfile.HeartBeatTimer)
 	// AfterFunc starts timer and waits for KeepAliveTimer to elapse and then calls pcf.UpdateNF function
 	KeepAliveTimer = time.AfterFunc(time.Duration(nfProfile.HeartBeatTimer)*time.Second, pcf.UpdateNF)
 }
 
 func (pcf *PCF) StopKeepAliveTimer() {
 	if KeepAliveTimer != nil {
-		logger.InitLog.Infof("Stopped KeepAlive Timer.")
+		logger.InitLog.Infof("stopped KeepAlive Timer")
 		KeepAliveTimer.Stop()
 		KeepAliveTimer = nil
 	}
 }
 
 func (pcf *PCF) Terminate() {
-	logger.InitLog.Infof("Terminating PCF...")
+	logger.InitLog.Infof("terminating PCF...")
 	// deregister with NRF
 	problemDetails, err := consumer.SendDeregisterNFInstance()
 	if problemDetails != nil {
-		logger.InitLog.Errorf("Deregister NF instance Failed Problem[%+v]", problemDetails)
+		logger.InitLog.Errorf("deregister NF instance Failed Problem[%+v]", problemDetails)
 	} else if err != nil {
-		logger.InitLog.Errorf("Deregister NF instance Error[%+v]", err)
+		logger.InitLog.Errorf("deregister NF instance Error[%+v]", err)
 	} else {
-		logger.InitLog.Infof("Deregister from NRF successfully")
+		logger.InitLog.Infoln("deregister from NRF successfully")
 	}
 	pcfSelf := context.PCF_Self()
 	pcfSelf.NfStatusSubscriptions.Range(func(nfInstanceId, v interface{}) bool {
@@ -407,7 +390,7 @@ func (pcf *PCF) RegisterNF() {
 			if err != nil {
 				initLog.Errorf("PCF Deregister Instance to NRF Error[%s]", err.Error())
 			} else {
-				logger.InitLog.Infof("Deregister from NRF successfully")
+				logger.InitLog.Infoln("deregister from NRF successfully")
 			}
 		}
 	}
@@ -454,7 +437,7 @@ func (pcf *PCF) UpdateNF() {
 		// use hearbeattimer value with received timer value from NRF
 		heartBeatTimer = nfProfile.HeartBeatTimer
 	}
-	logger.InitLog.Debugf("Restarted KeepAlive Timer: %v sec", heartBeatTimer)
+	logger.InitLog.Debugf("restarted KeepAlive Timer: %v sec", heartBeatTimer)
 	// restart timer with received HeartBeatTimer value
 	KeepAliveTimer = time.AfterFunc(time.Duration(heartBeatTimer)*time.Second, pcf.UpdateNF)
 }
@@ -669,7 +652,7 @@ func (pcf *PCF) CreatePolicyDataforImsi(imsi string, sliceid string, dnn string,
 	self := context.PCF_Self()
 	self.PcfSubscriberPolicyData[imsi] = &context.PcfSubscriberPolicyData{}
 	policyData := self.PcfSubscriberPolicyData[imsi]
-	policyData.CtxLog = logger.CtxLog.WithField(logger.FieldSupi, "imsi-"+imsi)
+	policyData.CtxLog = logger.CtxLog.With(logger.FieldSupi, "imsi-"+imsi)
 
 	policyData.PccPolicy = make(map[string]*context.PccPolicy)
 	policyData.PccPolicy[sliceid] = &context.PccPolicy{
@@ -709,7 +692,7 @@ func (pcf *PCF) UpdatePcfSubscriberPolicyData(slice *protos.NetworkSlice) {
 	sliceid := slice.Nssai.Sst + slice.Nssai.Sd
 	switch slice.OperationType {
 	case protos.OpType_SLICE_ADD:
-		logger.GrpcLog.Infoln("Received Slice with OperationType: Add from ConfigPod")
+		logger.GrpcLog.Infoln("received Slice with OperationType: Add from ConfigPod")
 		for _, devgroup := range slice.DeviceGroup {
 			var sessionrule *models.SessionRule
 			var dnn string
@@ -725,7 +708,7 @@ func (pcf *PCF) UpdatePcfSubscriberPolicyData(slice *protos.NetworkSlice) {
 		}
 
 	case protos.OpType_SLICE_UPDATE:
-		logger.GrpcLog.Infof("Received Slice with OperationType: Update from ConfigPod")
+		logger.GrpcLog.Infoln("received Slice with OperationType: Update from ConfigPod")
 		for _, devgroup := range slice.DeviceGroup {
 			var sessionrule *models.SessionRule
 			var dnn string
@@ -762,7 +745,7 @@ func (pcf *PCF) UpdatePcfSubscriberPolicyData(slice *protos.NetworkSlice) {
 		}
 
 	case protos.OpType_SLICE_DELETE:
-		logger.GrpcLog.Infof("Received Slice with OperationType: Delete from ConfigPod")
+		logger.GrpcLog.Infoln("received Slice with OperationType: Delete from ConfigPod")
 		for _, imsi := range slice.DeletedImsis {
 			policyData, ok := self.PcfSubscriberPolicyData[imsi]
 			if !ok {
@@ -870,9 +853,9 @@ func (pcf *PCF) UpdateConfig(commChannel chan *protos.NetworkSliceResponse) bool
 	var minConfig bool
 	pcfContext := context.PCF_Self()
 	for rsp := range commChannel {
-		logger.GrpcLog.Infoln("Received UpdateConfig in the pcf app : ", rsp)
+		logger.GrpcLog.Infoln("received UpdateConfig in the pcf app:", rsp)
 		for _, ns := range rsp.NetworkSlice {
-			logger.GrpcLog.Infoln("Network Slice Name ", ns.Name)
+			logger.GrpcLog.Infoln("Network Slice Name:", ns.Name)
 
 			// Update Qos Info
 			// Update/Create/Delete PcfSubscriberPolicyData
@@ -900,18 +883,18 @@ func (pcf *PCF) UpdateConfig(commChannel chan *protos.NetworkSliceResponse) bool
 				minConfig = true
 				ConfigPodTrigger <- true
 				// Start Heart Beat timer for periodic config updates to NRF
-				logger.GrpcLog.Infoln("Send config trigger to main routine first time config")
+				logger.GrpcLog.Infoln("send config trigger to main routine first time config")
 			}
 		} else if minConfig { // one or more slices are configured hence minConfig is true
 			// minConfig is true but PlmnList is '0' means slices were configured then deleted.
 			if len(pcfContext.PlmnList) == 0 {
 				minConfig = false
 				ConfigPodTrigger <- false
-				logger.GrpcLog.Infoln("Send config trigger to main routine config deleted")
+				logger.GrpcLog.Infoln("send config trigger to main routine config deleted")
 			} else {
 				// configuration update from simapp/RoC
 				ConfigPodTrigger <- true
-				logger.GrpcLog.Infoln("Send config trigger to main routine config updated")
+				logger.GrpcLog.Infoln("send config trigger to main routine config updated")
 			}
 		}
 	}
