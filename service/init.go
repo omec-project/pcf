@@ -21,7 +21,7 @@ import (
 
 	"github.com/antihax/optional"
 	"github.com/gin-contrib/cors"
-	"github.com/omec-project/config5g/proto/client"
+	grpcClient "github.com/omec-project/config5g/proto/client"
 	protos "github.com/omec-project/config5g/proto/sdcoreConfig"
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	openapiLogger "github.com/omec-project/openapi/logger"
@@ -107,13 +107,13 @@ func (pcf *PCF) Initialize(c *cli.Context) error {
 	if err := factory.CheckConfigVersion(); err != nil {
 		return err
 	}
-
-	roc := os.Getenv("MANAGED_BY_CONFIG_POD")
-	if roc == "true" {
+	if os.Getenv("MANAGED_BY_CONFIG_POD") == "true" {
 		logger.InitLog.Infoln("MANAGED_BY_CONFIG_POD is true")
-		gClient := client.ConnectToConfigServer(factory.PcfConfig.Configuration.WebuiUri)
-		commChannel := gClient.PublishOnConfigChange(true)
-		go pcf.UpdateConfig(commChannel)
+		client, err := grpcClient.ConnectToConfigServer(factory.PcfConfig.Configuration.WebuiUri)
+		if err != nil {
+			go updateConfig(client, pcf)
+		}
+		return err
 	} else {
 		go func() {
 			logger.InitLog.Infoln("use helm chart config")
@@ -121,6 +121,43 @@ func (pcf *PCF) Initialize(c *cli.Context) error {
 		}()
 	}
 	return nil
+}
+
+// updateConfig connects the config pod GRPC server and subscribes the config changes
+// then updates PCF configuration
+func updateConfig(client grpcClient.ConfClient, pcf *PCF) {
+	var stream protos.ConfigService_NetworkSliceSubscribeClient
+	var err error
+	var configChannel chan *protos.NetworkSliceResponse
+	for {
+		if client != nil {
+			stream, err = client.CheckGrpcConnectivity()
+			if err != nil {
+				logger.InitLog.Errorf("%v", err)
+				if stream != nil {
+					time.Sleep(time.Second * 30)
+					continue
+				} else {
+					err = client.GetConfigClientConn().Close()
+					if err != nil {
+						logger.InitLog.Debugf("failing ConfigClient is not closed properly: %+v", err)
+					}
+					client = nil
+					continue
+				}
+			}
+			if configChannel == nil {
+				configChannel = client.PublishOnConfigChange(true, stream)
+				go pcf.UpdateConfig(configChannel)
+			}
+		} else {
+			client, err = grpcClient.ConnectToConfigServer(factory.PcfConfig.Configuration.WebuiUri)
+			if err != nil {
+				logger.InitLog.Errorf("%+v", err)
+			}
+			continue
+		}
+	}
 }
 
 func (pcf *PCF) setLogLevel() {
