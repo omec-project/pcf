@@ -455,52 +455,52 @@ func (c *PCFContext) DisplayPcfSubscriberPolicyData(imsi string) {
 			for name, srule := range val.SessionPolicy {
 				subs.CtxLog.Infof("   Session-Name/Dnn: %v", name)
 				for _, srules := range srule.SessionRules {
-					logger.CtxLog.Infof("   SessionRuleId: %v", srules.SessRuleId)
+					subs.CtxLog.Infof("   SessionRuleId: %v", srules.SessRuleId)
 					if srules.AuthSessAmbr != nil {
-						logger.CtxLog.Infof("   AmbrUplink  %v", srules.AuthSessAmbr.Uplink)
-						logger.CtxLog.Infof("   AmbrDownlink  %v", srules.AuthSessAmbr.Downlink)
+						subs.CtxLog.Infof("   AmbrUplink  %v", srules.AuthSessAmbr.Uplink)
+						subs.CtxLog.Infof("   AmbrDownlink  %v", srules.AuthSessAmbr.Downlink)
 					}
 					if srules.AuthDefQos != nil {
-						logger.CtxLog.Infof("    DefQos.5qi: %v", srules.AuthDefQos.Var5qi)
+						subs.CtxLog.Infof("    DefQos.5qi: %v", srules.AuthDefQos.Var5qi)
 						if srules.AuthDefQos.Arp != nil {
-							logger.CtxLog.Infof("    DefQos.Arp.PriorityLevel: %v", srules.AuthDefQos.Arp.PriorityLevel)
-							logger.CtxLog.Infof("    DefQos.Arp.PreemptCapability: %v", srules.AuthDefQos.Arp.PreemptCap)
-							logger.CtxLog.Infof("    DefQos.Arp.PreemptVulnerability: %v", srules.AuthDefQos.Arp.PreemptVuln)
+							subs.CtxLog.Infof("    DefQos.Arp.PriorityLevel: %v", srules.AuthDefQos.Arp.PriorityLevel)
+							subs.CtxLog.Infof("    DefQos.Arp.PreemptCapability: %v", srules.AuthDefQos.Arp.PreemptCap)
+							subs.CtxLog.Infof("    DefQos.Arp.PreemptVulnerability: %v", srules.AuthDefQos.Arp.PreemptVuln)
 						}
-						logger.CtxLog.Infof("    DefQos.prioritylevel: %v", srules.AuthDefQos.PriorityLevel)
+						subs.CtxLog.Infof("    DefQos.prioritylevel: %v", srules.AuthDefQos.PriorityLevel)
 					}
 				}
 			}
 			for rulename, rule := range val.PccRules {
-				logger.CtxLog.Infof("   PccRule-Name: %v", rulename)
-				logger.CtxLog.Infof("   PccRule-Id: %v", rule.PccRuleId)
-				logger.CtxLog.Infof("   Precedence: %v", rule.Precedence)
+				subs.CtxLog.Infof("   PccRule-Name: %v", rulename)
+				subs.CtxLog.Infof("   PccRule-Id: %v", rule.PccRuleId)
+				subs.CtxLog.Infof("   Precedence: %v", rule.Precedence)
 
 				for _, flow := range rule.FlowInfos {
-					logger.CtxLog.Infof("   FlowDescription: %v", flow.FlowDescription)
-					logger.CtxLog.Infof("   TosTrafficClass: %v", flow.TosTrafficClass)
-					logger.CtxLog.Infof("   FlowDirection: %v", flow.FlowDirection)
+					subs.CtxLog.Infof("   FlowDescription: %v", flow.FlowDescription)
+					subs.CtxLog.Infof("   TosTrafficClass: %v", flow.TosTrafficClass)
+					subs.CtxLog.Infof("   FlowDirection: %v", flow.FlowDirection)
 				}
 			}
-			logger.CtxLog.Infof("   Qos Details")
+			subs.CtxLog.Infof("   Qos Details")
 			for _, qos := range val.QosDecs {
-				logger.CtxLog.Infof("     QosId: %v", qos.QosId)
-				logger.CtxLog.Infof("     5qi: %v", qos.Var5qi)
-				logger.CtxLog.Infof("     MaxbrUl: %v", qos.MaxbrUl)
-				logger.CtxLog.Infof("     MaxbrDl: %v", qos.MaxbrDl)
-				logger.CtxLog.Infof("     GbrDl: %v", qos.GbrDl)
-				logger.CtxLog.Infof("     GbrUl: %v", qos.GbrUl)
-				logger.CtxLog.Infof("     PriorityLevel: %v", qos.PriorityLevel)
+				subs.CtxLog.Infof("     QosId: %v", qos.QosId)
+				subs.CtxLog.Infof("     5qi: %v", qos.Var5qi)
+				subs.CtxLog.Infof("     MaxbrUl: %v", qos.MaxbrUl)
+				subs.CtxLog.Infof("     MaxbrDl: %v", qos.MaxbrDl)
+				subs.CtxLog.Infof("     GbrDl: %v", qos.GbrDl)
+				subs.CtxLog.Infof("     GbrUl: %v", qos.GbrUl)
+				subs.CtxLog.Infof("     PriorityLevel: %v", qos.PriorityLevel)
 				if qos.Arp != nil {
-					logger.CtxLog.Infof("    Arp.PreemptCapability: %v", qos.Arp.PreemptCap)
-					logger.CtxLog.Infof("    Arp.PreemptVulnerability: %v", qos.Arp.PreemptVuln)
+					subs.CtxLog.Infof("    Arp.PreemptCapability: %v", qos.Arp.PreemptCap)
+					subs.CtxLog.Infof("    Arp.PreemptVulnerability: %v", qos.Arp.PreemptVuln)
 				}
 			}
 
-			logger.CtxLog.Infof("   Traffic Control Details")
+			subs.CtxLog.Infof("   Traffic Control Details")
 			for _, t := range val.TraffContDecs {
-				logger.CtxLog.Infof("     TcId: %v", t.TcId)
-				logger.CtxLog.Infof("     FlowStatus: %v", t.FlowStatus)
+				subs.CtxLog.Infof("     TcId: %v", t.TcId)
+				subs.CtxLog.Infof("     FlowStatus: %v", t.FlowStatus)
 			}
 		}
 	}
