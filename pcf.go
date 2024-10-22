@@ -19,66 +19,24 @@ package main
 import (
 	"fmt"
 	"os"
-	"runtime"
 
 	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/pcf/service"
 	"github.com/urfave/cli"
-	"go.uber.org/zap"
 )
 
 var PCF = &service.PCF{}
 
-var appLog *zap.SugaredLogger
-
-var (
-	VERSION     string
-	BUILD_TIME  string
-	COMMIT_HASH string
-	COMMIT_TIME string
-)
-
-func GetVersion() string {
-	if VERSION != "" {
-		return fmt.Sprintf(
-			"\n\tfree5GC version: %s"+
-				"\n\tbuild time:      %s"+
-				"\n\tcommit hash:     %s"+
-				"\n\tcommit time:     %s"+
-				"\n\tgo version:      %s %s/%s",
-			VERSION,
-			BUILD_TIME,
-			COMMIT_HASH,
-			COMMIT_TIME,
-			runtime.Version(),
-			runtime.GOOS,
-			runtime.GOARCH,
-		)
-	} else {
-		return fmt.Sprintf(
-			"\n\tNot specify ldflags (which link version) during go build\n\tgo version: %s %s/%s",
-			runtime.Version(),
-			runtime.GOOS,
-			runtime.GOARCH,
-		)
-	}
-}
-
-func init() {
-	appLog = logger.AppLog
-}
-
 func main() {
 	app := cli.NewApp()
 	app.Name = "pcf"
-	appLog.Infoln(app.Name)
-	appLog.Infoln("PCF version: ", GetVersion())
+	logger.AppLog.Infoln(app.Name)
 	app.Usage = "-free5gccfg common configuration file -pcfcfg pcf configuration file"
 	app.Action = action
 	app.Flags = PCF.GetCliCmd()
 
 	if err := app.Run(os.Args); err != nil {
-		appLog.Errorf("PCF Run Error: %v", err)
+		logger.AppLog.Errorf("PCF run error: %v", err)
 	}
 }
 

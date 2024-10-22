@@ -83,12 +83,6 @@ var pcfCLi = []cli.Flag{
 	},
 }
 
-var initLog *zap.SugaredLogger
-
-func init() {
-	initLog = logger.InitLog
-}
-
 func (*PCF) GetCliCmd() (flags []cli.Flag) {
 	return pcfCLi
 }
@@ -116,13 +110,13 @@ func (pcf *PCF) Initialize(c *cli.Context) error {
 
 	roc := os.Getenv("MANAGED_BY_CONFIG_POD")
 	if roc == "true" {
-		initLog.Infoln("MANAGED_BY_CONFIG_POD is true")
+		logger.InitLog.Infoln("MANAGED_BY_CONFIG_POD is true")
 		gClient := client.ConnectToConfigServer(factory.PcfConfig.Configuration.WebuiUri)
 		commChannel := gClient.PublishOnConfigChange(true)
 		go pcf.UpdateConfig(commChannel)
 	} else {
 		go func() {
-			initLog.Infoln("Use helm chart config ")
+			logger.InitLog.Infoln("use helm chart config")
 			ConfigPodTrigger <- true
 		}()
 	}
@@ -131,22 +125,22 @@ func (pcf *PCF) Initialize(c *cli.Context) error {
 
 func (pcf *PCF) setLogLevel() {
 	if factory.PcfConfig.Logger == nil {
-		initLog.Warnln("PCF config without log level setting!!!")
+		logger.InitLog.Warnln("PCF config without log level setting")
 		return
 	}
 
 	if factory.PcfConfig.Logger.PCF != nil {
 		if factory.PcfConfig.Logger.PCF.DebugLevel != "" {
 			if level, err := zapcore.ParseLevel(factory.PcfConfig.Logger.PCF.DebugLevel); err != nil {
-				initLog.Warnf("PCF Log level [%s] is invalid, set to [info] level",
+				logger.InitLog.Warnf("PCF Log level [%s] is invalid, set to [info] level",
 					factory.PcfConfig.Logger.PCF.DebugLevel)
 				logger.SetLogLevel(zap.InfoLevel)
 			} else {
-				initLog.Infof("PCF Log level is set to [%s] level", level)
+				logger.InitLog.Infof("PCF Log level is set to [%s] level", level)
 				logger.SetLogLevel(level)
 			}
 		} else {
-			initLog.Infoln("PCF Log level is default set to [info] level")
+			logger.InitLog.Infoln("PCF Log level is default set to [info] level")
 			logger.SetLogLevel(zap.InfoLevel)
 		}
 	}
@@ -181,7 +175,7 @@ func (pcf *PCF) FilterCli(c *cli.Context) (args []string) {
 }
 
 func (pcf *PCF) Start() {
-	initLog.Infoln("Server started")
+	logger.InitLog.Infoln("server started")
 	router := utilLogger.NewGinWithZap(logger.GinLog)
 
 	bdtpolicy.AddService(router)
@@ -208,7 +202,7 @@ func (pcf *PCF) Start() {
 	}))
 
 	if err := notifyevent.RegisterNotifyDispatcher(); err != nil {
-		initLog.Error("Register NotifyDispatcher Error")
+		logger.InitLog.Errorln("register NotifyDispatcher error")
 	}
 
 	self := context.PCF_Self()
@@ -217,7 +211,7 @@ func (pcf *PCF) Start() {
 	addr := fmt.Sprintf("%s:%d", self.BindingIPv4, self.SBIPort)
 
 	if self.EnableNrfCaching {
-		initLog.Infoln("Enable NRF caching feature")
+		logger.InitLog.Infoln("enable NRF caching feature")
 		nrfCache.InitNrfCaching(self.NrfCacheEvictionInterval*time.Second, consumer.SendNfDiscoveryToNrf)
 	}
 	// Attempt NRF Registration until success
@@ -233,12 +227,12 @@ func (pcf *PCF) Start() {
 
 	server, err := http2_util.NewServer(addr, util.PCF_LOG_PATH, router)
 	if server == nil {
-		initLog.Errorf("Initialize HTTP server failed: %+v", err)
+		logger.InitLog.Errorf("initialize HTTP server failed: %+v", err)
 		return
 	}
 
 	if err != nil {
-		initLog.Warnf("Initialize HTTP server: +%v", err)
+		logger.InitLog.Warnf("initialize HTTP server: +%v", err)
 	}
 
 	serverScheme := factory.PcfConfig.Configuration.Sbi.Scheme
@@ -249,49 +243,49 @@ func (pcf *PCF) Start() {
 	}
 
 	if err != nil {
-		initLog.Fatalf("HTTP server setup failed: %+v", err)
+		logger.InitLog.Fatalf("HTTP server setup failed: %+v", err)
 	}
 }
 
 func (pcf *PCF) Exec(c *cli.Context) error {
-	initLog.Debugln("args:", c.String("pcfcfg"))
+	logger.InitLog.Debugln("args:", c.String("pcfcfg"))
 	args := pcf.FilterCli(c)
-	initLog.Debugln("filter:", args)
+	logger.InitLog.Debugln("filter:", args)
 	command := exec.Command("./pcf", args...)
 
 	stdout, err := command.StdoutPipe()
 	if err != nil {
-		initLog.Fatalln(err)
+		logger.InitLog.Fatalln(err)
 	}
 	wg := sync.WaitGroup{}
 	wg.Add(4)
 	go func() {
 		in := bufio.NewScanner(stdout)
 		for in.Scan() {
-			initLog.Infoln(in.Text())
+			logger.InitLog.Infoln(in.Text())
 		}
 		wg.Done()
 	}()
 
 	stderr, err := command.StderrPipe()
 	if err != nil {
-		initLog.Fatalln(err)
+		logger.InitLog.Fatalln(err)
 	}
 	go func() {
 		in := bufio.NewScanner(stderr)
-		initLog.Infoln("PCF log start")
+		logger.InitLog.Infoln("PCF log start")
 		for in.Scan() {
-			initLog.Infoln(in.Text())
+			logger.InitLog.Infoln(in.Text())
 		}
 		wg.Done()
 	}()
 
 	go func() {
-		initLog.Infoln("PCF start")
+		logger.InitLog.Infoln("PCF start")
 		if err = command.Start(); err != nil {
-			initLog.Errorf("command.Start() error: %v", err)
+			logger.InitLog.Errorf("command.Start() error: %v", err)
 		}
-		initLog.Infoln("PCF end")
+		logger.InitLog.Infoln("PCF end")
 		wg.Done()
 	}()
 
@@ -322,7 +316,7 @@ func (pcf *PCF) StopKeepAliveTimer() {
 }
 
 func (pcf *PCF) Terminate() {
-	logger.InitLog.Infof("terminating PCF...")
+	logger.InitLog.Infof("terminating PCF")
 	// deregister with NRF
 	problemDetails, err := consumer.SendDeregisterNFInstance()
 	if problemDetails != nil {
@@ -339,10 +333,10 @@ func (pcf *PCF) BuildAndSendRegisterNFInstance() (models.NfProfile, error) {
 	self := context.PCF_Self()
 	profile, err := consumer.BuildNFInstance(self)
 	if err != nil {
-		initLog.Errorf("Build PCF Profile Error: %v", err)
+		logger.InitLog.Errorf("build PCF Profile Error: %v", err)
 		return profile, err
 	}
-	initLog.Infof("Pcf Profile Registering to NRF: %v", profile)
+	logger.InitLog.Infof("PCF Profile Registering to NRF: %v", profile)
 	// Indefinite attempt to register until success
 	profile, _, self.NfId, err = consumer.SendRegisterNFInstance(self.NrfUri, self.NfId, profile)
 	return profile, err
@@ -353,10 +347,10 @@ func (pcf *PCF) RegisterNF() {
 		msg := <-ConfigPodTrigger
 		// wait till Config pod updates config
 		if msg {
-			initLog.Infof("Config update trigger %v received in PCF App", msg)
+			logger.InitLog.Infof("config update trigger %v received in PCF App", msg)
 			profile, err := pcf.BuildAndSendRegisterNFInstance()
 			if err != nil {
-				initLog.Errorf("PCF register to NRF Error[%s]", err.Error())
+				logger.InitLog.Errorf("PCF register to NRF Error[%s]", err.Error())
 			} else {
 				pcf.StartKeepAliveTimer(profile)
 				// NRF Registration Successful, Trigger for UDR Discovery
@@ -367,13 +361,13 @@ func (pcf *PCF) RegisterNF() {
 			KeepAliveTimerMutex.Lock()
 			pcf.StopKeepAliveTimer()
 			KeepAliveTimerMutex.Unlock()
-			initLog.Infof("PCF is not having Minimum Config to Register/Update to NRF")
+			logger.InitLog.Infof("PCF is not having Minimum Config to Register/Update to NRF")
 			problemDetails, err := consumer.SendDeregisterNFInstance()
 			if problemDetails != nil {
-				initLog.Errorf("PCF Deregister Instance to NRF failed, Problem: [+%v]", problemDetails)
+				logger.InitLog.Errorf("PCF Deregister Instance to NRF failed, Problem: [+%v]", problemDetails)
 			}
 			if err != nil {
-				initLog.Errorf("PCF Deregister Instance to NRF Error[%s]", err.Error())
+				logger.InitLog.Errorf("PCF Deregister Instance to NRF Error[%s]", err.Error())
 			} else {
 				logger.InitLog.Infoln("deregister from NRF successfully")
 			}
@@ -386,7 +380,7 @@ func (pcf *PCF) UpdateNF() {
 	KeepAliveTimerMutex.Lock()
 	defer KeepAliveTimerMutex.Unlock()
 	if KeepAliveTimer == nil {
-		initLog.Warnf("KeepAlive timer has been stopped.")
+		logger.InitLog.Warnf("KeepAlive timer has been stopped")
 		return
 	}
 	// setting default value 60 sec
@@ -400,21 +394,21 @@ func (pcf *PCF) UpdateNF() {
 	patchItem = append(patchItem, pitem)
 	nfProfile, problemDetails, err := consumer.SendUpdateNFInstance(patchItem)
 	if problemDetails != nil {
-		initLog.Errorf("PCF update to NRF ProblemDetails[%v]", problemDetails)
+		logger.InitLog.Errorf("PCF update to NRF ProblemDetails[%v]", problemDetails)
 		// 5xx response from NRF, 404 Not Found, 400 Bad Request
 		if (problemDetails.Status/100) == 5 ||
 			problemDetails.Status == 404 || problemDetails.Status == 400 {
 			// register with NRF full profile
 			nfProfile, err = pcf.BuildAndSendRegisterNFInstance()
 			if err != nil {
-				initLog.Errorf("PCF register to NRF Error[%s]", err.Error())
+				logger.InitLog.Errorf("PCF register to NRF Error[%s]", err.Error())
 			}
 		}
 	} else if err != nil {
-		initLog.Errorf("PCF update to NRF Error[%s]", err.Error())
+		logger.InitLog.Errorf("PCF update to NRF Error[%s]", err.Error())
 		nfProfile, err = pcf.BuildAndSendRegisterNFInstance()
 		if err != nil {
-			initLog.Errorf("PCF register to NRF Error[%s]", err.Error())
+			logger.InitLog.Errorf("PCF register to NRF Error[%s]", err.Error())
 		}
 	}
 
@@ -433,7 +427,7 @@ func (pcf *PCF) DiscoverUdr() {
 		ServiceNames: optional.NewInterface([]models.ServiceName{models.ServiceName_NUDR_DR}),
 	}
 	if resp, err := consumer.SendSearchNFInstances(self.NrfUri, models.NfType_UDR, models.NfType_PCF, &param); err != nil {
-		initLog.Errorln(err)
+		logger.InitLog.Errorln(err)
 	} else {
 		for _, nfProfile := range resp.NfInstances {
 			udruri := util.SearchNFServiceUri(nfProfile, models.ServiceName_NUDR_DR, models.NfServiceStatus_REGISTERED)
