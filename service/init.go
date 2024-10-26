@@ -109,11 +109,7 @@ func (pcf *PCF) Initialize(c *cli.Context) error {
 	}
 	if os.Getenv("MANAGED_BY_CONFIG_POD") == "true" {
 		logger.InitLog.Infoln("MANAGED_BY_CONFIG_POD is true")
-		client, err := grpcClient.ConnectToConfigServer(factory.PcfConfig.Configuration.WebuiUri)
-		if err != nil {
-			go updateConfig(client, pcf)
-		}
-		return err
+		go manageGrpcClient(factory.PcfConfig.Configuration.WebuiUri, pcf)
 	} else {
 		go func() {
 			logger.InitLog.Infoln("use helm chart config")
@@ -123,35 +119,50 @@ func (pcf *PCF) Initialize(c *cli.Context) error {
 	return nil
 }
 
-// updateConfig connects the config pod GRPC server and subscribes the config changes
-// then updates PCF configuration
-func updateConfig(client grpcClient.ConfClient, pcf *PCF) {
+// manageGrpcClient connects the config pod GRPC server and subscribes the config changes.
+// Then it updates PCF configuration.
+func manageGrpcClient(webuiUri string, pcf *PCF) {
+	var configChannel chan *protos.NetworkSliceResponse
+	var client grpcClient.ConfClient
 	var stream protos.ConfigService_NetworkSliceSubscribeClient
 	var err error
-	var configChannel chan *protos.NetworkSliceResponse
+	count := 0
 	for {
 		if client != nil {
-			stream, err = client.CheckGrpcConnectivity()
-			if err != nil {
-				logger.InitLog.Errorf("%v", err)
-				if stream != nil {
-					time.Sleep(time.Second * 30)
-					continue
-				} else {
+			if client.CheckGrpcConnectivity() != "ready" {
+				time.Sleep(time.Second * 30)
+				count++
+				if count > 5 {
 					err = client.GetConfigClientConn().Close()
 					if err != nil {
-						logger.InitLog.Debugf("failing ConfigClient is not closed properly: %+v", err)
+						logger.InitLog.Infof("failing ConfigClient is not closed properly: %+v", err)
 					}
 					client = nil
+					count = 0
+				}
+				logger.InitLog.Infoln("checking the connectivity readiness")
+				continue
+			}
+
+			if stream == nil {
+				stream, err = client.SubscribeToConfigServer()
+				if err != nil {
+					logger.InitLog.Infof("failing SubscribeToConfigServer: %+v", err)
 					continue
 				}
 			}
+
 			if configChannel == nil {
 				configChannel = client.PublishOnConfigChange(true, stream)
+				logger.InitLog.Infoln("PublishOnConfigChange is triggered.")
 				go pcf.UpdateConfig(configChannel)
+				logger.InitLog.Infoln("PCF updateConfig is triggered.")
 			}
 		} else {
-			client, err = grpcClient.ConnectToConfigServer(factory.PcfConfig.Configuration.WebuiUri)
+			client, err = grpcClient.ConnectToConfigServer(webuiUri)
+			stream = nil
+			configChannel = nil
+			logger.InitLog.Infoln("connecting to config server.")
 			if err != nil {
 				logger.InitLog.Errorf("%+v", err)
 			}
