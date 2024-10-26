@@ -154,15 +154,15 @@ func manageGrpcClient(webuiUri string, pcf *PCF) {
 
 			if configChannel == nil {
 				configChannel = client.PublishOnConfigChange(true, stream)
-				logger.InitLog.Infoln("PublishOnConfigChange is triggered.")
+				logger.InitLog.Infoln("PublishOnConfigChange is triggered")
 				go pcf.UpdateConfig(configChannel)
-				logger.InitLog.Infoln("PCF updateConfig is triggered.")
+				logger.InitLog.Infoln("PCF updateConfig is triggered")
 			}
 		} else {
 			client, err = grpcClient.ConnectToConfigServer(webuiUri)
 			stream = nil
 			configChannel = nil
-			logger.InitLog.Infoln("connecting to config server.")
+			logger.InitLog.Infoln("connecting to config server")
 			if err != nil {
 				logger.InitLog.Errorf("%+v", err)
 			}
