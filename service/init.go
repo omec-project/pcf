@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
 // Copyright 2019 free5GC.org
 // SPDX-FileCopyrightText: 2024 Canonical Ltd.
+// SPDX-FileCopyrightText: 2024 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -287,7 +288,7 @@ func (pcf *PCF) Start() {
 	if serverScheme == "http" {
 		err = server.ListenAndServe()
 	} else if serverScheme == "https" {
-		err = server.ListenAndServeTLS(util.PCF_PEM_PATH, util.PCF_KEY_PATH)
+		err = server.ListenAndServeTLS(self.PEM, self.Key)
 	}
 
 	if err != nil {
