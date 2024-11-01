@@ -37,7 +37,7 @@ func main() {
 	app.Flags = PCF.GetCliCmd()
 
 	if err := app.Run(os.Args); err != nil {
-		logger.AppLog.Errorf("PCF run error: %v", err)
+		logger.AppLog.Fatalf("PCF run error: %v", err)
 	}
 }
 
