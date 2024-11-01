@@ -21,17 +21,12 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/logger"
-	"github.com/omec-project/util/path_util"
 )
 
 const TimeFormat = time.RFC3339
 
 // Path of HTTP2 key and log file
 var (
-	PCF_LOG_PATH                                 = path_util.Free5gcPath("free5gc/pcfsslkey.log")
-	PCF_PEM_PATH                                 = path_util.Free5gcPath("free5gc/support/TLS/pcf.pem")
-	PCF_KEY_PATH                                 = path_util.Free5gcPath("free5gc/support/TLS/pcf.key")
-	PCF_CONFIG_PATH                              = path_util.Free5gcPath("free5gc/config/pcfcfg.yaml")
 	PCF_BASIC_PATH                               = "https://localhost:29507"
 	ERROR_REQUEST_PARAMETERS                     = "ERROR_REQUEST_PARAMETERS"
 	USER_UNKNOWN                                 = "USER_UNKNOWN"

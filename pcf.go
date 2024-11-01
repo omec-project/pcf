@@ -31,7 +31,8 @@ func main() {
 	app := cli.NewApp()
 	app.Name = "pcf"
 	logger.AppLog.Infoln(app.Name)
-	app.Usage = "-free5gccfg common configuration file -pcfcfg pcf configuration file"
+	app.Usage = "Policy Control Function"
+	app.UsageText = "pcf -cfg <pcf_config_file.conf>"
 	app.Action = action
 	app.Flags = PCF.GetCliCmd()
 

@@ -1488,7 +1488,7 @@ func updateQosInMedSubComp(qosData *models.QosData, comp *models.MediaComponent,
 	if comp.FStatus == models.FlowStatus_REMOVED {
 		updatedQosData.MaxbrDl = ""
 		updatedQosData.MaxbrUl = ""
-		return
+		return updatedQosData, false, false
 	}
 	maxBwUl := 0.0
 	maxBwDl := 0.0
