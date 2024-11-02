@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -46,7 +47,6 @@ import (
 	"github.com/omec-project/util/http2_util"
 	"github.com/omec-project/util/idgenerator"
 	utilLogger "github.com/omec-project/util/logger"
-	"github.com/omec-project/util/path_util"
 	"github.com/urfave/cli"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -57,7 +57,7 @@ type PCF struct{}
 type (
 	// Config information.
 	Config struct {
-		pcfcfg string
+		cfg string
 	}
 )
 
@@ -75,12 +75,9 @@ var config Config
 
 var pcfCLi = []cli.Flag{
 	cli.StringFlag{
-		Name:  "free5gccfg",
-		Usage: "common config file",
-	},
-	cli.StringFlag{
-		Name:  "pcfcfg",
-		Usage: "config file",
+		Name:     "cfg",
+		Usage:    "pcf config file",
+		Required: true,
 	},
 }
 
@@ -90,17 +87,17 @@ func (*PCF) GetCliCmd() (flags []cli.Flag) {
 
 func (pcf *PCF) Initialize(c *cli.Context) error {
 	config = Config{
-		pcfcfg: c.String("pcfcfg"),
+		cfg: c.String("cfg"),
 	}
-	if config.pcfcfg != "" {
-		if err := factory.InitConfigFactory(config.pcfcfg); err != nil {
-			return err
-		}
-	} else {
-		DefaultPcfConfigPath := path_util.Free5gcPath("free5gc/config/pcfcfg.yaml")
-		if err := factory.InitConfigFactory(DefaultPcfConfigPath); err != nil {
-			return err
-		}
+
+	absPath, err := filepath.Abs(config.cfg)
+	if err != nil {
+		logger.CfgLog.Errorln(err)
+		return err
+	}
+
+	if err := factory.InitConfigFactory(absPath); err != nil {
+		return err
 	}
 
 	pcf.setLogLevel()
@@ -108,6 +105,9 @@ func (pcf *PCF) Initialize(c *cli.Context) error {
 	if err := factory.CheckConfigVersion(); err != nil {
 		return err
 	}
+
+	factory.PcfConfig.CfgLocation = absPath
+
 	if os.Getenv("MANAGED_BY_CONFIG_POD") == "true" {
 		logger.InitLog.Infoln("MANAGED_BY_CONFIG_POD is true")
 		go manageGrpcClient(factory.PcfConfig.Configuration.WebuiUri, pcf)
@@ -274,7 +274,8 @@ func (pcf *PCF) Start() {
 		os.Exit(0)
 	}()
 
-	server, err := http2_util.NewServer(addr, util.PCF_LOG_PATH, router)
+	sslLog := filepath.Dir(factory.PcfConfig.CfgLocation) + "/sslkey.log"
+	server, err := http2_util.NewServer(addr, sslLog, router)
 	if server == nil {
 		logger.InitLog.Errorf("initialize HTTP server failed: %+v", err)
 		return
@@ -297,10 +298,10 @@ func (pcf *PCF) Start() {
 }
 
 func (pcf *PCF) Exec(c *cli.Context) error {
-	logger.InitLog.Debugln("args:", c.String("pcfcfg"))
+	logger.InitLog.Debugln("args:", c.String("cfg"))
 	args := pcf.FilterCli(c)
 	logger.InitLog.Debugln("filter:", args)
-	command := exec.Command("./pcf", args...)
+	command := exec.Command("pcf", args...)
 
 	stdout, err := command.StdoutPipe()
 	if err != nil {
@@ -358,7 +359,7 @@ func (pcf *PCF) StartKeepAliveTimer(nfProfile models.NfProfile) {
 
 func (pcf *PCF) StopKeepAliveTimer() {
 	if KeepAliveTimer != nil {
-		logger.InitLog.Infof("stopped KeepAlive Timer")
+		logger.InitLog.Infof("stopped KeepAlive timer")
 		KeepAliveTimer.Stop()
 		KeepAliveTimer = nil
 	}
@@ -545,7 +546,7 @@ func getSessionRule(devGroup *protos.DeviceGroup) (sessionRule *models.SessionRu
 func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (pccPolicy context.PccPolicy) {
 	if slice.AppFilters == nil || slice.AppFilters.PccRuleBase == nil {
 		logger.GrpcLog.Warnf("PccRules not exist in slice: %v", slice.Name)
-		return
+		return pccPolicy
 	}
 	pccPolicy.IdGenerator = idgenerator.NewGenerator(1, math.MaxInt64)
 	for _, pccrule := range slice.AppFilters.PccRuleBase {
@@ -656,7 +657,7 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 		pccPolicy.PccRules[pccrule.RuleId] = &rule
 	}
 
-	return
+	return pccPolicy
 }
 
 func findQosData(qosdecs map[string]*models.QosData, qos models.QosData) (bool, *models.QosData) {
@@ -767,13 +768,13 @@ func (pcf *PCF) UpdatePcfSubscriberPolicyData(slice *protos.NetworkSlice) {
 			policyData.CtxLog.Infof("slice: %v deleted from SubscriberPolicyData", sliceid)
 			delete(policyData.PccPolicy, sliceid)
 			if len(policyData.PccPolicy) == 0 {
-				policyData.CtxLog.Infof("Subscriber Deleted from PcfSubscriberPolicyData map")
+				policyData.CtxLog.Infoln("subscriber deleted from PcfSubscriberPolicyData map")
 				delete(self.PcfSubscriberPolicyData, imsi)
 			}
 		}
 
 	case protos.OpType_SLICE_DELETE:
-		logger.GrpcLog.Infoln("received Slice with OperationType: Delete from ConfigPod")
+		logger.GrpcLog.Infoln("received Slice with OperationType: delete from ConfigPod")
 		for _, imsi := range slice.DeletedImsis {
 			policyData, ok := self.PcfSubscriberPolicyData[imsi]
 			if !ok {
@@ -788,7 +789,7 @@ func (pcf *PCF) UpdatePcfSubscriberPolicyData(slice *protos.NetworkSlice) {
 			policyData.CtxLog.Infof("slice: %v deleted from SubscriberPolicyData", sliceid)
 			delete(policyData.PccPolicy, sliceid)
 			if len(policyData.PccPolicy) == 0 {
-				policyData.CtxLog.Infof("Subscriber Deleted from PcfSubscriberPolicyData map")
+				policyData.CtxLog.Infoln("subscriber deleted from PcfSubscriberPolicyData map")
 				delete(self.PcfSubscriberPolicyData, imsi)
 			}
 		}
@@ -836,7 +837,7 @@ func (pcf *PCF) UpdateDnnList(ns *protos.NetworkSlice) {
 			}
 		}
 	}
-	logger.GrpcLog.Infof("DnnList Present in PCF: %v", pcfContext.DnnList)
+	logger.GrpcLog.Infof("DnnList present in PCF: %v", pcfContext.DnnList)
 }
 
 func (pcf *PCF) UpdatePlmnList(ns *protos.NetworkSlice) {
@@ -874,7 +875,7 @@ func (pcf *PCF) UpdatePlmnList(ns *protos.NetworkSlice) {
 			pcfContext.PlmnList = append(pcfContext.PlmnList, plmn)
 		}
 	}
-	logger.GrpcLog.Infof("PlmnList Present in PCF: %v", pcfContext.PlmnList)
+	logger.GrpcLog.Infof("PlmnList present in PCF: %v", pcfContext.PlmnList)
 }
 
 func (pcf *PCF) UpdateConfig(commChannel chan *protos.NetworkSliceResponse) bool {
@@ -883,7 +884,7 @@ func (pcf *PCF) UpdateConfig(commChannel chan *protos.NetworkSliceResponse) bool
 	for rsp := range commChannel {
 		logger.GrpcLog.Infoln("received UpdateConfig in the pcf app:", rsp)
 		for _, ns := range rsp.NetworkSlice {
-			logger.GrpcLog.Infoln("Network Slice Name:", ns.Name)
+			logger.GrpcLog.Infoln("network slice name:", ns.Name)
 
 			// Update Qos Info
 			// Update/Create/Delete PcfSubscriberPolicyData
@@ -893,7 +894,7 @@ func (pcf *PCF) UpdateConfig(commChannel chan *protos.NetworkSliceResponse) bool
 
 			if ns.Site != nil {
 				site := ns.Site
-				logger.GrpcLog.Infof("Network Slice [%v] has site name: %v", ns.Nssai.Sst+ns.Nssai.Sd, site.SiteName)
+				logger.GrpcLog.Infof("network slice [%v] has site name: %v", ns.Nssai.Sst+ns.Nssai.Sd, site.SiteName)
 				if site.Plmn != nil {
 					pcf.UpdatePlmnList(ns)
 				} else {

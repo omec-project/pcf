@@ -45,12 +45,19 @@ func AmfStatusChangeSubscribe(amfUri string, guamiList []models.Guami) (
 	} else if httpResp != nil {
 		if httpResp.Status != localErr.Error() {
 			err = localErr
-			return
+			return nil, err
 		}
 		problem := localErr.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails)
 		problemDetails = &problem
 	} else {
 		err = openapi.ReportError("%s: server no response", amfUri)
 	}
+
+	defer func() {
+		if err = httpResp.Body.Close(); err != nil {
+			logger.Consumerlog.Errorf("error closing response body: %v", err)
+		}
+	}()
+
 	return problemDetails, err
 }

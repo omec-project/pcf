@@ -33,8 +33,6 @@ func InitpcfContext(context *context.PCFContext) {
 	context.UriScheme = ""
 	context.RegisterIPv4 = factory.PCF_DEFAULT_IPV4 // default localhost
 	context.SBIPort = factory.PCF_DEFAULT_PORT_INT  // default port
-	context.Key = PCF_KEY_PATH                      // default key path
-	context.PEM = PCF_PEM_PATH                      // default PEM path
 	if sbi != nil {
 		if sbi.Scheme != "" {
 			context.UriScheme = models.UriScheme(sbi.Scheme)
@@ -61,7 +59,7 @@ func InitpcfContext(context *context.PCFContext) {
 
 		context.BindingIPv4 = os.Getenv(sbi.BindingIPv4)
 		if context.BindingIPv4 != "" {
-			logger.UtilLog.Infoln("parsing ServerIPv4 address from ENV Variable")
+			logger.UtilLog.Infoln("parsing ServerIPv4 address from ENV variable")
 		} else {
 			context.BindingIPv4 = sbi.BindingIPv4
 			if context.BindingIPv4 == "" {
