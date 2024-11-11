@@ -11,7 +11,7 @@ require (
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/omec-project/config5g v1.5.4
 	github.com/omec-project/openapi v1.3.1
-	github.com/omec-project/util v1.2.3
+	github.com/omec-project/util v1.2.5
 	github.com/prometheus/client_golang v1.20.5
 	github.com/stretchr/testify v1.9.0
 	github.com/tim-ywliu/event v0.1.0
