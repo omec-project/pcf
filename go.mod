@@ -13,7 +13,7 @@ require (
 	github.com/omec-project/openapi v1.3.2
 	github.com/omec-project/util v1.2.6
 	github.com/prometheus/client_golang v1.20.5
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	github.com/tim-ywliu/event v0.1.0
 	github.com/urfave/cli v1.22.16
 	go.uber.org/zap v1.27.0
