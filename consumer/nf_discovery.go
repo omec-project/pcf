@@ -10,6 +10,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/antihax/optional"
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
@@ -96,15 +99,37 @@ func SendNFInstancesUDR(nrfUri, id string) string {
 		logger.Consumerlog.Error(err.Error())
 		return ""
 	}
+	nfInstanceIds := make([]string, 0, len(result.NfInstances))
 	for _, profile := range result.NfInstances {
+		nfInstanceIds = append(nfInstanceIds, profile.NfInstanceId)
+	}
+	sort.Strings(nfInstanceIds)
+
+	nfInstanceIdIndexMap := make(map[string]int)
+	for index, value := range nfInstanceIds {
+		nfInstanceIdIndexMap[value] = index
+	}
+
+	nfInstanceIndex := 0
+	if pcfContext.PCF_Self().EnableScaling && len(result.NfInstances) > 0 {
+		parts := strings.Split(id, "-")
+		imsiNumber, _ := strconv.Atoi(parts[1])
+		nfInstanceIndex = imsiNumber % len(result.NfInstances)
+	}
+
+	for _, profile := range result.NfInstances {
+		if nfInstanceIndex != nfInstanceIdIndexMap[profile.NfInstanceId] {
+			continue
+		}
 		if uri := util.SearchNFServiceUri(profile, models.ServiceName_NUDR_DR, models.NfServiceStatus_REGISTERED); uri != "" {
+			logger.ConsumerLog.Warnln("for Ue: ", id, " nfInstanceIndex: ", nfInstanceIndex, " for targetNfType ", string(targetNfType), " uri:", uri, " NF is: ", profile)
 			return uri
 		}
 	}
 	return ""
 }
 
-func SendNFInstancesAMF(nrfUri string, guami models.Guami, serviceName models.ServiceName) string {
+func SendNFInstancesAMF(nrfUri string, guami models.Guami, serviceName models.ServiceName, ipAddress string) string {
 	targetNfType := models.NfType_AMF
 	requestNfType := models.NfType_PCF
 
@@ -126,6 +151,10 @@ func SendNFInstancesAMF(nrfUri string, guami models.Guami, serviceName models.Se
 		return ""
 	}
 	for _, profile := range result.NfInstances {
+		//logger.ConsumerLog.Infof("Looking for ip match %v %v %d", profile.Ipv4Addresses[0], ipAddress, len(result.NfInstances))
+		if profile.Ipv4Addresses[0] != ipAddress {
+			continue
+		}
 		return util.SearchNFServiceUri(profile, serviceName, models.NfServiceStatus_REGISTERED)
 	}
 	return ""
