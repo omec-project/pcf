@@ -957,10 +957,7 @@ func UpdateEventsSubscContextProcedure(appSessID string, eventsSubscReqData mode
 	eventSubs := make(map[models.AfEvent]models.AfNotifMethod)
 
 	updataSmPolicy := false
-	created := false
-	if appSession.Events == nil {
-		created = true
-	}
+	created := appSession.Events == nil
 
 	for _, subs := range eventsSubscReqData.Events {
 		if subs.NotifMethod == "" {
@@ -1339,10 +1336,10 @@ func flowDescFromN5toN7(n5Flow string) (n7Flow string, direction models.FlowDire
 		n7Flow = n5Flow
 		direction = models.FlowDirection_DOWNLINK
 	} else if strings.HasPrefix(n5Flow, "permit in") {
-		n7Flow = strings.Replace(n5Flow, "permit in", "permit out", -1)
+		n7Flow = strings.ReplaceAll(n5Flow, "permit in", "permit out")
 		direction = models.FlowDirection_UPLINK
 	} else if strings.HasPrefix(n5Flow, "permit inout") {
-		n7Flow = strings.Replace(n5Flow, "permit inout", "permit out", -1)
+		n7Flow = strings.ReplaceAll(n5Flow, "permit inout", "permit out")
 		direction = models.FlowDirection_BIDIRECTIONAL
 	} else {
 		err = fmt.Errorf("invaild flow description[%s]", n5Flow)

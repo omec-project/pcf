@@ -288,10 +288,14 @@ func (pcf *PCF) Start() {
 	}
 
 	serverScheme := factory.PcfConfig.Configuration.Sbi.Scheme
-	if serverScheme == "http" {
+	switch serverScheme {
+	case "http":
 		err = server.ListenAndServe()
-	} else if serverScheme == "https" {
+	case "https":
 		err = server.ListenAndServeTLS(self.PEM, self.Key)
+	default:
+		logger.InitLog.Fatalf("HTTP server setup failed: invalid server scheme %+v", serverScheme)
+		return
 	}
 
 	if err != nil {
@@ -581,14 +585,16 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 			}
 			if pccrule.Qos.Arp != nil {
 				qos.Arp = &models.Arp{PriorityLevel: pccrule.Qos.Arp.PL}
-				if pccrule.Qos.Arp.PC == protos.PccArpPc_NOT_PREEMPT {
+				switch pccrule.Qos.Arp.PC {
+				case protos.PccArpPc_NOT_PREEMPT:
 					qos.Arp.PreemptCap = models.PreemptionCapability_NOT_PREEMPT
-				} else if pccrule.Qos.Arp.PC == protos.PccArpPc_MAY_PREEMPT {
+				case protos.PccArpPc_MAY_PREEMPT:
 					qos.Arp.PreemptCap = models.PreemptionCapability_MAY_PREEMPT
 				}
-				if pccrule.Qos.Arp.PV == protos.PccArpPv_NOT_PREEMPTABLE {
+				switch pccrule.Qos.Arp.PV {
+				case protos.PccArpPv_NOT_PREEMPTABLE:
 					qos.Arp.PreemptVuln = models.PreemptionVulnerability_NOT_PREEMPTABLE
-				} else if pccrule.Qos.Arp.PV == protos.PccArpPv_PREEMPTABLE {
+				case protos.PccArpPv_PREEMPTABLE:
 					qos.Arp.PreemptVuln = models.PreemptionVulnerability_PREEMPTABLE
 				}
 			}
@@ -613,13 +619,14 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 			}
 			flow.PackFiltId = strconv.FormatInt(id, 10)
 
-			if pflow.FlowDir == protos.PccFlowDirection_DOWNLINK {
+			switch pflow.FlowDir {
+			case protos.PccFlowDirection_DOWNLINK:
 				flow.FlowDirection = models.FlowDirectionRm_DOWNLINK
-			} else if pflow.FlowDir == protos.PccFlowDirection_UPLINK {
+			case protos.PccFlowDirection_UPLINK:
 				flow.FlowDirection = models.FlowDirectionRm_UPLINK
-			} else if pflow.FlowDir == protos.PccFlowDirection_BIDIRECTIONAL {
+			case protos.PccFlowDirection_BIDIRECTIONAL:
 				flow.FlowDirection = models.FlowDirectionRm_BIDIRECTIONAL
-			} else if pflow.FlowDir == protos.PccFlowDirection_UNSPECIFIED {
+			case protos.PccFlowDirection_UNSPECIFIED:
 				flow.FlowDirection = models.FlowDirectionRm_UNSPECIFIED
 			}
 			if strings.HasSuffix(flow.FlowDescription, "any to assigned") ||
@@ -630,9 +637,10 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 			var tcData models.TrafficControlData
 			tcData.TcId = "TcId-" + strconv.FormatInt(id, 10)
 
-			if pflow.FlowStatus == protos.PccFlowStatus_ENABLED {
+			switch pflow.FlowStatus {
+			case protos.PccFlowStatus_ENABLED:
 				tcData.FlowStatus = models.FlowStatus_ENABLED
-			} else if pflow.FlowStatus == protos.PccFlowStatus_DISABLED {
+			case protos.PccFlowStatus_DISABLED:
 				tcData.FlowStatus = models.FlowStatus_DISABLED
 			}
 
