@@ -47,7 +47,7 @@ import (
 	"github.com/omec-project/util/http2_util"
 	"github.com/omec-project/util/idgenerator"
 	utilLogger "github.com/omec-project/util/logger"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v3"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -74,7 +74,7 @@ func init() {
 var config Config
 
 var pcfCLi = []cli.Flag{
-	cli.StringFlag{
+	&cli.StringFlag{
 		Name:     "cfg",
 		Usage:    "pcf config file",
 		Required: true,
@@ -85,7 +85,7 @@ func (*PCF) GetCliCmd() (flags []cli.Flag) {
 	return pcfCLi
 }
 
-func (pcf *PCF) Initialize(c *cli.Context) error {
+func (pcf *PCF) Initialize(c *cli.Command) error {
 	config = Config{
 		cfg: c.String("cfg"),
 	}
@@ -212,9 +212,9 @@ func (pcf *PCF) setLogLevel() {
 	}
 }
 
-func (pcf *PCF) FilterCli(c *cli.Context) (args []string) {
+func (pcf *PCF) FilterCli(c *cli.Command) (args []string) {
 	for _, flag := range pcf.GetCliCmd() {
-		name := flag.GetName()
+		name := flag.Names()[0]
 		value := fmt.Sprint(c.Generic(name))
 		if value == "" {
 			continue
@@ -303,7 +303,7 @@ func (pcf *PCF) Start() {
 	}
 }
 
-func (pcf *PCF) Exec(c *cli.Context) error {
+func (pcf *PCF) Exec(c *cli.Command) error {
 	logger.InitLog.Debugln("args:", c.String("cfg"))
 	args := pcf.FilterCli(c)
 	logger.InitLog.Debugln("filter:", args)
