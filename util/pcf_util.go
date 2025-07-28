@@ -30,6 +30,7 @@ var (
 	PCF_BASIC_PATH                               = "https://localhost:29507"
 	ERROR_REQUEST_PARAMETERS                     = "ERROR_REQUEST_PARAMETERS"
 	USER_UNKNOWN                                 = "USER_UNKNOWN"
+	SLICE_NOT_FOUND                              = "SLICE_NOT_FOUND"
 	CONTEXT_NOT_FOUND                            = "CONTEXT_NOT_FOUND"
 	ERROR_INITIAL_PARAMETERS                     = "ERROR_INITIAL_PARAMETERS"
 	POLICY_CONTEXT_DENIED                        = "POLICY_CONTEXT_DENIED"
@@ -44,6 +45,7 @@ var (
 	PcpErrHttpStatusMap                          = map[string]int32{
 		ERROR_REQUEST_PARAMETERS:                     http.StatusBadRequest,
 		USER_UNKNOWN:                                 http.StatusBadRequest,
+		SLICE_NOT_FOUND:                              http.StatusBadRequest,
 		ERROR_INITIAL_PARAMETERS:                     http.StatusBadRequest,
 		ERROR_TRIGGER_EVENT:                          http.StatusBadRequest,
 		POLICY_CONTEXT_DENIED:                        http.StatusForbidden,

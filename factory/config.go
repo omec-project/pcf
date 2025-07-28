@@ -46,10 +46,6 @@ type Configuration struct {
 	WebuiUri        string    `yaml:"webuiUri"`
 	ServiceList     []Service `yaml:"serviceList,omitempty"`
 
-	// config received from RoC
-	DnnList   map[string][]string // sst+sd os key
-	SlicePlmn map[string]PlmnSupportItem
-
 	PlmnList                 []PlmnSupportItem `yaml:"plmnList,omitempty"`
 	EnableNrfCaching         bool              `yaml:"enableNrfCaching"`
 	NrfCacheEvictionInterval int               `yaml:"nrfCacheEvictionInterval,omitempty"`

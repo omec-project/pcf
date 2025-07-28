@@ -16,6 +16,7 @@ import (
 
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
+	"github.com/omec-project/openapi/nfConfigApi"
 	"github.com/omec-project/pcf/factory"
 	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/util/idgenerator"
@@ -34,7 +35,7 @@ func init() {
 	pcfCtx.PcfServiceUris = make(map[models.ServiceName]string)
 	pcfCtx.PcfSuppFeats = make(map[models.ServiceName]openapi.SupportedFeature)
 	pcfCtx.BdtPolicyIDGenerator = idgenerator.NewGenerator(1, math.MaxInt64)
-	pcfCtx.PcfSubscriberPolicyData = make(map[string]*PcfSubscriberPolicyData)
+	pcfCtx.PcfPccPolicies = make(map[models.Snssai]*PccPolicy)
 }
 
 type PCFContext struct {
@@ -60,13 +61,11 @@ type PCFContext struct {
 	// App Session related
 	AppSessionPool sync.Map
 	// AMF Status Change Subscription related
-	AMFStatusSubsData       sync.Map                            // map[string]AMFStatusSubscriptionData; subscriptionID as key
-	NfStatusSubscriptions   sync.Map                            // map[NfInstanceID]models.NrfSubscriptionData.SubscriptionId
-	PcfSubscriberPolicyData map[string]*PcfSubscriberPolicyData // subscriberId is key
+	AMFStatusSubsData     sync.Map                     // map[string]AMFStatusSubscriptionData; subscriptionID as key
+	NfStatusSubscriptions sync.Map                     // map[NfInstanceID]models.NrfSubscriptionData.SubscriptionId
+	PcfPccPolicies        map[models.Snssai]*PccPolicy // Snssai is key
 
-	DnnList  []string
-	PlmnList []factory.PlmnSupportItem
-	SBIPort  int
+	SBIPort int
 	// lock
 	DefaultUdrURILock        sync.RWMutex
 	EnableNrfCaching         bool
@@ -114,6 +113,68 @@ type AppSessionData struct {
 // PCF_Self Create new PCF context
 func PCF_Self() *PCFContext {
 	return pcfCtx
+}
+
+func UpdatePcfContext(pcfContext *PCFContext, newConfig []nfConfigApi.PolicyControl) error {
+	logger.CtxLog.Infof("processing config update from polling service")
+	if len(newConfig) == 0 {
+		logger.CtxLog.Warn("received empty Policy Control config. Clearing PCC Policy data")
+		pcfContext.PcfPccPolicies = make(map[models.Snssai]*PccPolicy, 0)
+		return nil
+	}
+	newPcfPccPolicies := makePcfPccPolicies(newConfig)
+	pcfContext.PcfPccPolicies = newPcfPccPolicies
+	logger.CtxLog.Debugf("PCF context updated from dynamic config successfully")
+	return nil
+}
+
+func makePcfPccPolicies(policyControlConfig []nfConfigApi.PolicyControl) map[models.Snssai]*PccPolicy {
+	pccPolicies := make(map[models.Snssai]*PccPolicy)
+	for _, policyControl := range policyControlConfig {
+		snssai := models.Snssai{
+			Sst: policyControl.Snssai.Sst,
+		}
+		if sd, ok := policyControl.Snssai.GetSdOk(); ok {
+			snssai.Sd = *sd
+		}
+		pccPolicies[snssai] = getPccPolicy(policyControl)
+	}
+
+	return pccPolicies
+}
+
+func getPccPolicy(policyControl nfConfigApi.PolicyControl) *PccPolicy {
+	policy := PccPolicy{
+		PccRules:      buildPccRules(policyControl),
+		QosDecs:       buildQosDecs(policyControl),
+		TraffContDecs: buildTraffContDecs(policyControl),
+		SessionPolicy: buildSessionPolicy(policyControl),
+		IdGenerator:   idgenerator.NewGenerator(1, math.MaxInt64),
+	}
+	return &policy
+}
+
+func buildPccRules(policyControl nfConfigApi.PolicyControl) map[string]*models.PccRule {
+	pccRules := make(map[string]*models.PccRule)
+	for index, rule := range policyControl.PccRules {
+		pccRules[strconv.Itoa(index)] = &models.PccRule{
+			PccRuleId:  rule.RuleId,
+			Precedence: rule.Precedence,
+		}
+	}
+	return pccRules
+}
+
+func buildQosDecs(policyControl nfConfigApi.PolicyControl) map[string]*models.QosData {
+	return make(map[string]*models.QosData)
+}
+
+func buildTraffContDecs(policyControl nfConfigApi.PolicyControl) map[string]*models.TrafficControlData {
+	return make(map[string]*models.TrafficControlData)
+}
+
+func buildSessionPolicy(policyControl nfConfigApi.PolicyControl) map[string]*SessionPolicy {
+	return make(map[string]*SessionPolicy)
 }
 
 func GetTimeformat() string {

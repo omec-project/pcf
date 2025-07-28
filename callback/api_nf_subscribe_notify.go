@@ -13,6 +13,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
+	"github.com/omec-project/pcf/consumer"
+	pcfContext "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/pcf/producer"
 	"github.com/omec-project/util/httpwrapper"
@@ -62,5 +64,25 @@ func HTTPNfSubscriptionStatusNotify(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, problemDetails)
 	} else if rsp.Body != nil {
 		c.Data(rsp.Status, "application/json", responseBody)
+		if nfSubscriptionStatusNotification.Event != models.NotificationEventType_DEREGISTERED {
+			return
+		}
+		nfID := nfSubscriptionStatusNotification.NfProfile.NfInstanceId
+		value, found := pcfContext.PCF_Self().NfStatusSubscriptions.Load(nfID)
+		if !found {
+			logger.ConsumerLog.Warnf("no subscriptionId found for NF instance %s", nfID)
+			return
+		}
+		subID := value.(string)
+		problem, err := consumer.SendRemoveSubscription(subID)
+		if err != nil {
+			logger.ConsumerLog.Errorf("failed to remove NRF subscription %s: %+v", subID, err)
+			return
+		}
+		if problem != nil {
+			logger.ConsumerLog.Warnf("NRF responded with problem while removing %s: %+v", subID, problem)
+			return
+		}
+		pcfContext.PCF_Self().NfStatusSubscriptions.Delete(nfID)
 	}
 }

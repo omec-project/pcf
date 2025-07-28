@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2025 Canonical Ltd
 // SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
 // Copyright 2019 free5GC.org
 //
@@ -116,28 +117,25 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 		delete(ue.SmPolicyData, smPolicyID)
 	}
 	smPolicyData = ue.NewUeSmPolicyData(smPolicyID, request, &smData)
+
 	// Policy Decision
-	decision := models.SmPolicyDecision{
-		SessRules:     make(map[string]*models.SessionRule),
-		PccRules:      make(map[string]*models.PccRule),
-		QosDecs:       make(map[string]*models.QosData),
-		TraffContDecs: make(map[string]*models.TrafficControlData),
-	}
+	snssai := models.Snssai{Sst: request.SliceInfo.Sst, Sd: request.SliceInfo.Sd}
+	decision, problemDetail := buildSmPolicyDecision(ue.Supi, snssai)
 
 	// Check if local config has pre-configured pccrules, sessionrules for the slice(via ROC)
-	sstStr := strconv.Itoa(int(request.SliceInfo.Sst))
-	sliceid := sstStr + request.SliceInfo.Sd
-	self := pcf_context.PCF_Self()
-	imsi := strings.TrimPrefix(ue.Supi, "imsi-")
+	// sstStr := strconv.Itoa(int(request.SliceInfo.Sst))
+	// sliceid := sstStr + request.SliceInfo.Sd
+	// self := pcf_context.PCF_Self()
+	// imsi := strings.TrimPrefix(ue.Supi, "imsi-")
 	if subsPolicyData, ok := self.PcfSubscriberPolicyData[imsi]; ok {
-		logger.SMpolicylog.Infof("Supi[%s] exist in PcfSubscriberPolicyData", imsi)
+		logger.SMpolicylog.Infof("Supi[%s] exists in PcfSubscriberPolicyData", imsi)
 		if PccPolicy, ok1 := subsPolicyData.PccPolicy[sliceid]; ok1 {
 			if sessPolicy, exist := PccPolicy.SessionPolicy[request.Dnn]; exist {
 				for _, sessRule := range sessPolicy.SessionRules {
 					decision.SessRules[sessRule.SessRuleId] = deepcopy.Copy(sessRule).(*models.SessionRule)
 				}
 			} else {
-				logger.SMpolicylog.Infof("requested Dnn[%s] is not exist in local policy", request.Dnn)
+				logger.SMpolicylog.Infof("requested Dnn[%s] does not exist in local policy", request.Dnn)
 				problemDetail := util.GetProblemDetail("Can't find local policy", util.USER_UNKNOWN)
 				return nil, nil, &problemDetail
 			}
@@ -253,6 +251,27 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	logger.SMpolicylog.Infof("SM Policy Decision Sent to SMF: %v", decision)
 
 	return header, &decision, nil
+}
+
+func buildSmPolicyDecision(imsi string, snssai models.Snssai) (response *models.SmPolicyDecision, problemDetails *models.ProblemDetails) {
+	self := pcf_context.PCF_Self()
+	decision := models.SmPolicyDecision{
+		SessRules:     make(map[string]*models.SessionRule),
+		PccRules:      make(map[string]*models.PccRule),
+		QosDecs:       make(map[string]*models.QosData),
+		TraffContDecs: make(map[string]*models.TrafficControlData),
+	}
+
+	if slicePccPolicyData, ok := self.PcfPccPolicyData[snssai]; ok {
+		logger.SMpolicylog.Infof("Pcc Policy data exists in PcfPccPolicyData for Slice %s", snssai)
+		decision.PccRules = deepcopy.Copy(slicePccPolicyData.PccRules).(map[string]*models.PccRule)
+	} else {
+		problemDetail := util.GetProblemDetail("Can't find in local policy", util.USER_UNKNOWN)
+		logger.SMpolicylog.Warnf("can not find Slice %s in local policy", snssai)
+		return nil, &problemDetail
+	}
+
+	return &decision, nil
 }
 
 // SmPoliciessmPolicyIDDeletePost -
