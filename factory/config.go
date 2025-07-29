@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2025 Canonical Ltd.
 // SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
 // Copyright 2019 free5GC.org
 // SPDX-FileCopyrightText: 2024 Canonical Ltd.
@@ -38,17 +39,15 @@ const (
 )
 
 type Configuration struct {
-	PcfName         string    `yaml:"pcfName,omitempty"`
-	Sbi             *Sbi      `yaml:"sbi,omitempty"`
-	TimeFormat      string    `yaml:"timeFormat,omitempty"`
-	DefaultBdtRefId string    `yaml:"defaultBdtRefId,omitempty"`
-	NrfUri          string    `yaml:"nrfUri,omitempty"`
-	WebuiUri        string    `yaml:"webuiUri"`
-	ServiceList     []Service `yaml:"serviceList,omitempty"`
-
-	PlmnList                 []PlmnSupportItem `yaml:"plmnList,omitempty"`
-	EnableNrfCaching         bool              `yaml:"enableNrfCaching"`
-	NrfCacheEvictionInterval int               `yaml:"nrfCacheEvictionInterval,omitempty"`
+	PcfName                  string    `yaml:"pcfName,omitempty"`
+	Sbi                      *Sbi      `yaml:"sbi,omitempty"`
+	TimeFormat               string    `yaml:"timeFormat,omitempty"`
+	DefaultBdtRefId          string    `yaml:"defaultBdtRefId,omitempty"`
+	NrfUri                   string    `yaml:"nrfUri,omitempty"`
+	WebuiUri                 string    `yaml:"webuiUri"`
+	ServiceList              []Service `yaml:"serviceList,omitempty"`
+	EnableNrfCaching         bool      `yaml:"enableNrfCaching"`
+	NrfCacheEvictionInterval int       `yaml:"nrfCacheEvictionInterval,omitempty"`
 }
 
 type Service struct {
@@ -79,4 +78,9 @@ func (c *Config) GetVersion() string {
 		return c.Info.Version
 	}
 	return ""
+}
+
+type NfProfileDynamicConfig struct {
+	Plmns map[models.PlmnId]struct{}
+	Dnns  map[string]struct{}
 }

@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2025 Canonical Ltd.
 // SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
 // Copyright 2019 free5GC.org
 // SPDX-FileCopyrightText: 2024 Canonical Ltd.
@@ -15,15 +16,12 @@ import (
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/Nnrf_NFManagement"
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/openapi/nfConfigApi"
 	pcfContext "github.com/omec-project/pcf/context"
+	"github.com/omec-project/pcf/factory"
 	"github.com/omec-project/pcf/logger"
 )
 
-func getNfProfile(pcfContext *pcfContext.PCFContext, policyControlConfigs []nfConfigApi.PolicyControl) (profile models.NfProfile, err error) {
-	if len(policyControlConfigs) == 0 {
-		return models.NfProfile{}, fmt.Errorf("policy control config is empty")
-	}
+func getNfProfile(pcfContext *pcfContext.PCFContext, nfProfileDynamicConfig factory.NfProfileDynamicConfig) (profile models.NfProfile, err error) {
 	if pcfContext == nil {
 		return profile, fmt.Errorf("pcf context has not been intialized. NF profile cannot be built")
 	}
@@ -37,16 +35,26 @@ func getNfProfile(pcfContext *pcfContext.PCFContext, policyControlConfigs []nfCo
 	}
 	profile.NfServices = &service
 
-	var plmns []models.PlmnId
-	for _, plmnItem := range pcfContext.PlmnList {
-		plmns = append(plmns, plmnItem.PlmnId)
+	if len(nfProfileDynamicConfig.Plmns) > 0 {
+		plmnCopy := make([]models.PlmnId, len(nfProfileDynamicConfig.Plmns))
+		for plmn := range nfProfileDynamicConfig.Plmns {
+			plmnCopy = append(plmnCopy, plmn)
+		}
+		profile.PlmnList = &plmnCopy
 	}
-	if len(plmns) > 0 {
-		profile.PlmnList = &plmns
+
+	var dnnList []string
+	if len(nfProfileDynamicConfig.Dnns) == 0 {
+		logger.ConsumerLog.Warn("DNN list has not been configured")
+	} else {
+		dnnList = make([]string, len(nfProfileDynamicConfig.Dnns))
+		for dnn := range nfProfileDynamicConfig.Dnns {
+			dnnList = append(dnnList, dnn)
+		}
 	}
 
 	profile.PcfInfo = &models.PcfInfo{
-		DnnList: pcfContext.DnnList,
+		DnnList: dnnList,
 		// SupiRanges: &[]models.SupiRange{
 		// 	{
 		// 		//from TS 29.510 6.1.6.2.9 example2
@@ -60,9 +68,9 @@ func getNfProfile(pcfContext *pcfContext.PCFContext, policyControlConfigs []nfCo
 	return profile, err
 }
 
-var SendRegisterNFInstance = func(policyControlConfig []nfConfigApi.PolicyControl) (prof models.NfProfile, resourceNrfUri string, err error) {
+var SendRegisterNFInstance = func(nfProfileDynamicConfig factory.NfProfileDynamicConfig) (prof models.NfProfile, resourceNrfUri string, err error) {
 	self := pcfContext.PCF_Self()
-	nfProfile, err := getNfProfile(self, policyControlConfig)
+	nfProfile, err := getNfProfile(self, nfProfileDynamicConfig)
 	if err != nil {
 		return models.NfProfile{}, "", err
 	}

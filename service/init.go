@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2025 Canonical Ltd.
 // SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
 // Copyright 2019 free5GC.org
 // SPDX-FileCopyrightText: 2024 Canonical Ltd.
@@ -21,7 +22,6 @@ import (
 
 	"github.com/gin-contrib/cors"
 	openapiLogger "github.com/omec-project/openapi/logger"
-	"github.com/omec-project/openapi/nfConfigApi"
 	nrfCache "github.com/omec-project/openapi/nrfcache"
 	"github.com/omec-project/pcf/ampolicy"
 	"github.com/omec-project/pcf/bdtpolicy"
@@ -55,16 +55,6 @@ type (
 		cfg string
 	}
 )
-
-var (
-	ConfigPodTrigger    chan bool
-	KeepAliveTimer      *time.Timer
-	KeepAliveTimerMutex sync.Mutex
-)
-
-func init() {
-	ConfigPodTrigger = make(chan bool)
-}
 
 var config Config
 
@@ -189,7 +179,7 @@ func (pcf *PCF) Start() {
 	}
 
 	self := pcfContext.PCF_Self()
-	util.InitpcfContext(self)
+	util.InitPcfContext(self)
 
 	addr := fmt.Sprintf("%s:%d", self.BindingIPv4, self.SBIPort)
 
@@ -198,17 +188,17 @@ func (pcf *PCF) Start() {
 		nrfCache.InitNrfCaching(self.NrfCacheEvictionInterval*time.Second, consumer.SendNfDiscoveryToNrf)
 	}
 
-	policyControlConfigChan := make(chan []nfConfigApi.PolicyControl, 1)
+	nfProfileConfigChan := make(chan factory.NfProfileDynamicConfig, 10)
 	ctx, cancelServices := context.WithCancel(context.Background())
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		polling.StartPollingService(ctx, factory.PcfConfig.Configuration.WebuiUri, policyControlConfigChan)
+		polling.StartPollingService(ctx, factory.PcfConfig.Configuration.WebuiUri, nfProfileConfigChan)
 	}()
 	go func() {
 		defer wg.Done()
-		nfregistration.StartNfRegistrationService(ctx, policyControlConfigChan)
+		nfregistration.StartNfRegistrationService(ctx, nfProfileConfigChan)
 	}()
 
 	signalChannel := make(chan os.Signal, 1)
