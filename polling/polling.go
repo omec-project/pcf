@@ -17,7 +17,6 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/openapi/nfConfigApi"
-	pcfContext "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/factory"
 	"github.com/omec-project/pcf/logger"
 )
@@ -45,6 +44,7 @@ func StartPollingService(ctx context.Context, webuiUri string, nfProfileConfigCh
 		currentNfProfileConfig: factory.NfProfileDynamicConfig{},
 		client:                 &http.Client{Timeout: initialPollingInterval},
 	}
+	pcfPccPolicies = make(map[models.Snssai]*PccPolicy)
 	interval := initialPollingInterval
 	pollingEndpoint := webuiUri + pollingPath
 	logger.PollConfigLog.Infof("Started polling service on %s every %v", pollingEndpoint, initialPollingInterval)
@@ -54,23 +54,23 @@ func StartPollingService(ctx context.Context, webuiUri string, nfProfileConfigCh
 			logger.PollConfigLog.Infoln("Polling service shutting down")
 			return
 		case <-time.After(interval):
-			newConfig, err := fetchPlmnConfig(&poller, pollingEndpoint)
+			newConfig, err := fetchPolicyControlConfig(&poller, pollingEndpoint)
 			if err != nil {
 				interval = minDuration(interval*time.Duration(pollingBackoffFactor), pollingMaxBackoff)
 				logger.PollConfigLog.Errorf("Polling error. Retrying in %v: %+v", interval, err)
 				continue
 			}
 			interval = initialPollingInterval
-			poller.handlePolledPlmnSnssaiConfig(newConfig)
+			poller.handlePolledPolicyControl(newConfig)
 		}
 	}
 }
 
-var fetchPlmnConfig = func(p *nfConfigPoller, endpoint string) ([]nfConfigApi.PolicyControl, error) {
-	return p.fetchPlmnConfig(endpoint)
+var fetchPolicyControlConfig = func(p *nfConfigPoller, endpoint string) ([]nfConfigApi.PolicyControl, error) {
+	return p.fetchPolicyControlConfig(endpoint)
 }
 
-func (p *nfConfigPoller) fetchPlmnConfig(pollingEndpoint string) ([]nfConfigApi.PolicyControl, error) {
+func (p *nfConfigPoller) fetchPolicyControlConfig(pollingEndpoint string) ([]nfConfigApi.PolicyControl, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), initialPollingInterval)
 	defer cancel()
 
@@ -111,13 +111,11 @@ func (p *nfConfigPoller) fetchPlmnConfig(pollingEndpoint string) ([]nfConfigApi.
 	}
 }
 
-func (p *nfConfigPoller) handlePolledPlmnSnssaiConfig(newPolicyControlConfig []nfConfigApi.PolicyControl) {
+func (p *nfConfigPoller) handlePolledPolicyControl(newPolicyControlConfig []nfConfigApi.PolicyControl) {
 	if reflect.DeepEqual(p.currentPolicyControl, newPolicyControlConfig) {
 		logger.PollConfigLog.Debugf("Policy control config did not change %+v", p.currentPolicyControl)
 		return
 	}
-	// factory.ConfigLock.Lock()
-	// defer factory.ConfigLock.Unlock()
 	p.currentPolicyControl = newPolicyControlConfig
 	logger.PollConfigLog.Infof("Policy control config changed. New Policy control config: %+v", p.currentPolicyControl)
 
@@ -127,7 +125,7 @@ func (p *nfConfigPoller) handlePolledPlmnSnssaiConfig(newPolicyControlConfig []n
 		p.currentNfProfileConfig = newNfProfileDynamicConfig
 		p.nfProfileConfigChan <- p.currentNfProfileConfig
 	}
-	pcfContext.UpdatePolicyControl(p.currentPolicyControl)
+	updatePolicyControl(p.currentPolicyControl)
 }
 
 func extractNfProfileDynamicConfig(policyConfig []nfConfigApi.PolicyControl) factory.NfProfileDynamicConfig {
@@ -141,9 +139,9 @@ func extractNfProfileDynamicConfig(policyConfig []nfConfigApi.PolicyControl) fac
 		}
 		plmnSet[plmn] = struct{}{}
 
-		for _, dnnQos := range policy.DnnQos {
-			dnnSet[dnnQos.DnnName] = struct{}{}
-		}
+		//for _, dnnQos := range policy.DnnQos {
+		//	dnnSet[dnnQos.DnnName] = struct{}{}
+		//}
 	}
 	return factory.NfProfileDynamicConfig{
 		Plmns: plmnSet,

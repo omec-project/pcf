@@ -282,7 +282,7 @@ func TestCreateSubscriptionSuccess(t *testing.T) {
 	}
 	for i := range parameters {
 		t.Run(fmt.Sprintf("CreateSubscription testname %v result %v", parameters[i].testName, parameters[i].result), func(t *testing.T) {
-			_, err := consumer.SendNfDiscoveryToNrf("testNRFUri", "UDR", "PCF", &param)
+			_, err := consumer.SendNfDiscoveryToNrf(context.Background(), "testNRFUri", "UDR", "PCF", &param)
 			val, _ := pcfContext.PCF_Self().NfStatusSubscriptions.Load(parameters[i].nfInstanceId)
 			assert.Equal(t, val, parameters[i].subscriptionId, "Correct Subscription ID is not stored in the PCF context.")
 			assert.Equal(t, parameters[i].expectedError, err, "SendNfDiscoveryToNrf is failed.")
@@ -428,7 +428,7 @@ func TestCreateSubscriptionFail(t *testing.T) {
 				callCountSendCreateSubscription++
 				return parameters[i].nrfSubscriptionData, parameters[i].subscriptionProblem, parameters[i].subscriptionError
 			}
-			_, err := consumer.SendNfDiscoveryToNrf("testNRFUri", "UDR", "PCF", &param)
+			_, err := consumer.SendNfDiscoveryToNrf(context.Background(), "testNRFUri", "UDR", "PCF", &param)
 			val, _ := pcfContext.PCF_Self().NfStatusSubscriptions.Load(udrProfile.NfInstanceId)
 			assert.Equal(t, val, parameters[i].expectedSubscriptionId, "Correct Subscription ID is not stored in the PCF context.")
 			assert.Equal(t, parameters[i].expectedError, err, "SendNfDiscoveryToNrf is failed.")

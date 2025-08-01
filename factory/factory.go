@@ -14,16 +14,12 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"sync"
 
 	"github.com/omec-project/pcf/logger"
 	"gopkg.in/yaml.v2"
 )
 
-var (
-	PcfConfig  Config
-	ConfigLock sync.Mutex
-)
+var PcfConfig Config
 
 // TODO: Support configuration update from REST api
 func InitConfigFactory(f string) error {
