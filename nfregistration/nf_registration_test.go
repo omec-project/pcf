@@ -17,7 +17,6 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/pcf/consumer"
-	"github.com/omec-project/pcf/factory"
 )
 
 func TestNfRegistrationService_WhenEmptyConfig_ThenDeregisterNFAndStopTimer(t *testing.T) {
@@ -57,14 +56,14 @@ func TestNfRegistrationService_WhenEmptyConfig_ThenDeregisterNFAndStopTimer(t *t
 			}()
 
 			consumer.SendDeregisterNFInstance = tc.sendDeregisterNFInstanceMock
-			registerNF = func(registerCtx context.Context, newNfProfileConfig factory.NfProfileDynamicConfig) {
+			registerNF = func(registerCtx context.Context, newNfProfileConfig consumer.NfProfileDynamicConfig) {
 				isRegisterNFCalled = true
 			}
 
-			ch := make(chan factory.NfProfileDynamicConfig, 1)
+			ch := make(chan consumer.NfProfileDynamicConfig, 1)
 			ctx := t.Context()
 			go StartNfRegistrationService(ctx, ch)
-			ch <- factory.NfProfileDynamicConfig{}
+			ch <- consumer.NfProfileDynamicConfig{}
 
 			time.Sleep(100 * time.Millisecond)
 
@@ -84,24 +83,28 @@ func TestNfRegistrationService_WhenEmptyConfig_ThenDeregisterNFAndStopTimer(t *t
 func TestNfRegistrationService_WhenConfigChanged_ThenRegisterNFSuccessAndStartTimer(t *testing.T) {
 	keepAliveTimer = nil
 	originalSendRegisterNFInstance := consumer.SendRegisterNFInstance
+	originalDiscoverUdr := consumer.DiscoverUdr
+	calledDiscoverUdr := false
 	defer func() {
 		consumer.SendRegisterNFInstance = originalSendRegisterNFInstance
+		consumer.DiscoverUdr = originalDiscoverUdr
 		if keepAliveTimer != nil {
 			keepAliveTimer.Stop()
 		}
 	}()
 
-	registrations := []factory.NfProfileDynamicConfig{}
-	consumer.SendRegisterNFInstance = func(nfProfileDynamicConfig factory.NfProfileDynamicConfig) (models.NfProfile, string, error) {
+	registrations := []consumer.NfProfileDynamicConfig{}
+	consumer.SendRegisterNFInstance = func(nfProfileDynamicConfig consumer.NfProfileDynamicConfig) (models.NfProfile, string, error) {
 		profile := models.NfProfile{HeartBeatTimer: 60}
 		registrations = append(registrations, nfProfileDynamicConfig)
 		return profile, "", nil
 	}
+	consumer.DiscoverUdr = func() { calledDiscoverUdr = true }
 
-	ch := make(chan factory.NfProfileDynamicConfig, 1)
+	ch := make(chan consumer.NfProfileDynamicConfig, 1)
 	ctx := t.Context()
 	go StartNfRegistrationService(ctx, ch)
-	newConfig := factory.NfProfileDynamicConfig{
+	newConfig := consumer.NfProfileDynamicConfig{
 		Plmns: map[models.PlmnId]struct{}{
 			{Mcc: "208", Mnc: "93"}: {},
 		},
@@ -113,31 +116,40 @@ func TestNfRegistrationService_WhenConfigChanged_ThenRegisterNFSuccessAndStartTi
 	if keepAliveTimer == nil {
 		t.Error("expected keepAliveTimer to be initialized by startKeepAliveTimer")
 	}
-	if !reflect.DeepEqual(registrations, newConfig) {
+	if !calledDiscoverUdr {
+		t.Errorf("Expected DiscoverUdr to be called, but it was not.")
+	}
+	if len(registrations) != 1 {
+		t.Errorf("Expected PCF to register to the NRF once, but it was called %d", len(registrations))
+	}
+	if !reflect.DeepEqual(registrations[0], newConfig) {
 		t.Errorf("Expected %+v config, received %+v", newConfig, registrations)
 	}
 }
 
 func TestNfRegistrationService_ConfigChanged_RetryIfRegisterNFFails(t *testing.T) {
 	originalSendRegisterNFInstance := consumer.SendRegisterNFInstance
+	originalDiscoverUdr := consumer.DiscoverUdr
 	defer func() {
 		consumer.SendRegisterNFInstance = originalSendRegisterNFInstance
+		consumer.DiscoverUdr = originalDiscoverUdr
 		if keepAliveTimer != nil {
 			keepAliveTimer.Stop()
 		}
 	}()
 
 	called := 0
-	consumer.SendRegisterNFInstance = func(nfProfileDynamicConfig factory.NfProfileDynamicConfig) (models.NfProfile, string, error) {
+	consumer.SendRegisterNFInstance = func(nfProfileDynamicConfig consumer.NfProfileDynamicConfig) (models.NfProfile, string, error) {
 		profile := models.NfProfile{HeartBeatTimer: 60}
 		called++
 		return profile, "", errors.New("mock error")
 	}
+	consumer.DiscoverUdr = func() {}
 
-	ch := make(chan factory.NfProfileDynamicConfig, 1)
+	ch := make(chan consumer.NfProfileDynamicConfig, 1)
 	ctx := t.Context()
 	go StartNfRegistrationService(ctx, ch)
-	ch <- factory.NfProfileDynamicConfig{
+	ch <- consumer.NfProfileDynamicConfig{
 		Plmns: map[models.PlmnId]struct{}{
 			{Mcc: "208", Mnc: "93"}: {},
 		},
@@ -154,8 +166,10 @@ func TestNfRegistrationService_ConfigChanged_RetryIfRegisterNFFails(t *testing.T
 
 func TestNfRegistrationService_WhenConfigChanged_ThenPreviousRegistrationIsCancelled(t *testing.T) {
 	originalRegisterNf := registerNF
+	originalDiscoverUdr := consumer.DiscoverUdr
 	defer func() {
 		registerNF = originalRegisterNf
+		consumer.DiscoverUdr = originalDiscoverUdr
 		if keepAliveTimer != nil {
 			keepAliveTimer.Stop()
 		}
@@ -163,20 +177,21 @@ func TestNfRegistrationService_WhenConfigChanged_ThenPreviousRegistrationIsCance
 
 	var registrations []struct {
 		ctx    context.Context
-		config factory.NfProfileDynamicConfig
+		config consumer.NfProfileDynamicConfig
 	}
-	registerNF = func(registerCtx context.Context, newNfProfileConfig factory.NfProfileDynamicConfig) {
+	registerNF = func(registerCtx context.Context, newNfProfileConfig consumer.NfProfileDynamicConfig) {
 		registrations = append(registrations, struct {
 			ctx    context.Context
-			config factory.NfProfileDynamicConfig
+			config consumer.NfProfileDynamicConfig
 		}{registerCtx, newNfProfileConfig})
 		<-registerCtx.Done() // Wait until registration is cancelled
 	}
+	consumer.DiscoverUdr = func() {}
 
-	ch := make(chan factory.NfProfileDynamicConfig, 1)
+	ch := make(chan consumer.NfProfileDynamicConfig, 1)
 	ctx := t.Context()
 	go StartNfRegistrationService(ctx, ch)
-	firstConfig := factory.NfProfileDynamicConfig{
+	firstConfig := consumer.NfProfileDynamicConfig{
 		Plmns: map[models.PlmnId]struct{}{
 			{Mcc: "001", Mnc: "01"}: {},
 		},
@@ -189,7 +204,7 @@ func TestNfRegistrationService_WhenConfigChanged_ThenPreviousRegistrationIsCance
 		t.Error("expected one registration to the NRF")
 	}
 
-	secondConfig := factory.NfProfileDynamicConfig{
+	secondConfig := consumer.NfProfileDynamicConfig{
 		Plmns: map[models.PlmnId]struct{}{
 			{Mcc: "002", Mnc: "02"}: {},
 		},
@@ -239,12 +254,12 @@ func TestHeartbeatNF_Success(t *testing.T) {
 	consumer.SendUpdateNFInstance = func(patchItem []models.PatchItem) (models.NfProfile, *models.ProblemDetails, error) {
 		return models.NfProfile{}, nil, nil
 	}
-	consumer.SendRegisterNFInstance = func(nfProfileDynamicConfig factory.NfProfileDynamicConfig) (models.NfProfile, string, error) {
+	consumer.SendRegisterNFInstance = func(nfProfileDynamicConfig consumer.NfProfileDynamicConfig) (models.NfProfile, string, error) {
 		calledRegister = true
 		profile := models.NfProfile{HeartBeatTimer: 60}
 		return profile, "", nil
 	}
-	nfProfileConfig := factory.NfProfileDynamicConfig{}
+	nfProfileConfig := consumer.NfProfileDynamicConfig{}
 	heartbeatNF(nfProfileConfig)
 
 	if calledRegister {
@@ -272,13 +287,13 @@ func TestHeartbeatNF_WhenNfUpdateFails_ThenNfRegistersIsCalled(t *testing.T) {
 		return models.NfProfile{}, nil, errors.New("mock error")
 	}
 
-	consumer.SendRegisterNFInstance = func(nfProfileDynamicConfig factory.NfProfileDynamicConfig) (models.NfProfile, string, error) {
+	consumer.SendRegisterNFInstance = func(nfProfileDynamicConfig consumer.NfProfileDynamicConfig) (models.NfProfile, string, error) {
 		profile := models.NfProfile{HeartBeatTimer: 60}
 		calledRegister = true
 		return profile, "", nil
 	}
 
-	nfProfileConfig := factory.NfProfileDynamicConfig{}
+	nfProfileConfig := consumer.NfProfileDynamicConfig{}
 	heartbeatNF(nfProfileConfig)
 
 	if !calledRegister {
@@ -332,7 +347,7 @@ func TestStartKeepAliveTimer_UsesProfileTimerOnlyWhenGreaterThanZero(t *testing.
 			}
 			defer func() { afterFunc = time.AfterFunc }()
 
-			startKeepAliveTimer(tc.profileTime, factory.NfProfileDynamicConfig{})
+			startKeepAliveTimer(tc.profileTime, consumer.NfProfileDynamicConfig{})
 			if tc.expectedDuration != capturedDuration {
 				t.Errorf("Expected %v duration, got %v", tc.expectedDuration, capturedDuration)
 			}

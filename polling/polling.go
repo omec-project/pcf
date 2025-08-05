@@ -17,7 +17,7 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/openapi/nfConfigApi"
-	"github.com/omec-project/pcf/factory"
+	"github.com/omec-project/pcf/consumer"
 	"github.com/omec-project/pcf/logger"
 )
 
@@ -29,19 +29,19 @@ const (
 )
 
 type nfConfigPoller struct {
-	nfProfileConfigChan    chan<- factory.NfProfileDynamicConfig
+	nfProfileConfigChan    chan<- consumer.NfProfileDynamicConfig
 	currentPolicyControl   []nfConfigApi.PolicyControl
-	currentNfProfileConfig factory.NfProfileDynamicConfig
+	currentNfProfileConfig consumer.NfProfileDynamicConfig
 	client                 *http.Client
 }
 
 // StartPollingService initializes the polling service and starts it. The polling service
 // continuously makes a HTTP GET request to the webconsole and updates the network configuration
-func StartPollingService(ctx context.Context, webuiUri string, nfProfileConfigChan chan<- factory.NfProfileDynamicConfig) {
+func StartPollingService(ctx context.Context, webuiUri string, nfProfileConfigChan chan<- consumer.NfProfileDynamicConfig) {
 	poller := nfConfigPoller{
 		nfProfileConfigChan:    nfProfileConfigChan,
 		currentPolicyControl:   []nfConfigApi.PolicyControl{},
-		currentNfProfileConfig: factory.NfProfileDynamicConfig{},
+		currentNfProfileConfig: consumer.NfProfileDynamicConfig{},
 		client:                 &http.Client{Timeout: initialPollingInterval},
 	}
 	pcfPccPolicies = make(map[models.Snssai]*PccPolicy)
@@ -128,7 +128,7 @@ func (p *nfConfigPoller) handlePolledPolicyControl(newPolicyControlConfig []nfCo
 	updatePolicyControl(p.currentPolicyControl)
 }
 
-func extractNfProfileDynamicConfig(policyConfig []nfConfigApi.PolicyControl) factory.NfProfileDynamicConfig {
+func extractNfProfileDynamicConfig(policyConfig []nfConfigApi.PolicyControl) consumer.NfProfileDynamicConfig {
 	plmnSet := make(map[models.PlmnId]struct{})
 	dnnSet := make(map[string]struct{})
 
@@ -143,7 +143,7 @@ func extractNfProfileDynamicConfig(policyConfig []nfConfigApi.PolicyControl) fac
 		//	dnnSet[dnnQos.DnnName] = struct{}{}
 		//}
 	}
-	return factory.NfProfileDynamicConfig{
+	return consumer.NfProfileDynamicConfig{
 		Plmns: plmnSet,
 		Dnns:  dnnSet,
 	}

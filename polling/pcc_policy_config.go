@@ -50,12 +50,12 @@ func updatePolicyControl(policyControlConfig []nfConfigApi.PolicyControl) {
 	configLock.Lock()
 	defer configLock.Unlock()
 	if len(policyControlConfig) == 0 {
-		logger.CtxLog.Warn("received empty Policy Control config. Clearing PCC Policy data")
+		logger.PollConfigLog.Warn("received empty Policy Control config. Clearing PCC Policy data")
 		pcfPccPolicies = make(map[models.Snssai]*PccPolicy, 0)
 		return
 	}
 	for i, pc := range policyControlConfig {
-		logger.CtxLog.Warnf("POLICY CONTROL %d: %+v", i, pc)
+		logger.PollConfigLog.Warnf("POLICY CONTROL %d: %+v", i, pc)
 		createpcfPccPoliciesFunc(pc)
 	}
 }
@@ -80,7 +80,7 @@ func createpcfPccPolicies(policyControlConfig nfConfigApi.PolicyControl) {
 
 	pccPolicy := makePccPolicy(policyControlConfig.PccRules)
 	jsonData, _ := json.MarshalIndent(pccPolicy, "", "  ")
-	logger.CtxLog.Errorf("OBTAINED: %s", string(jsonData))
+	logger.PollConfigLog.Errorf("OBTAINED: %s", string(jsonData))
 	for index, element := range pccPolicy.PccRules {
 		pcfPccPolicies[snssai].PccRules[index] = element
 	}
@@ -109,7 +109,7 @@ func makeSessionPolicies(dnnQos []nfConfigApi.DnnQos) map[string]*SessionPolicy 
 
 		id, err := sessionPolicy.SessionRuleIdGenerator.Allocate()
 		if err != nil {
-			logger.CtxLog.Errorf("SessionRuleIdGenerator allocation failed: %v", err)
+			logger.PollConfigLog.Errorf("SessionRuleIdGenerator allocation failed: %v", err)
 			continue
 		}
 		sessionRule := makeSessionRule(dnnQoS)
@@ -151,7 +151,7 @@ func makePccPolicy(pccRules []nfConfigApi.PccRule) (pccPolicy *PccPolicy) {
 	for _, pccrule := range pccRules {
 		id, err := pccPolicy.IdGenerator.Allocate()
 		if err != nil {
-			logger.CtxLog.Errorf("IdGenerator allocation failed: %v", err)
+			logger.PollConfigLog.Errorf("IdGenerator allocation failed: %v", err)
 			continue
 		}
 
@@ -223,7 +223,7 @@ func makeFlowInfosAndTrafficContDesc(idGenerator *idgenerator.IDGenerator, pccFl
 	for _, pccFlow := range pccFlows {
 		id, err := idGenerator.Allocate()
 		if err != nil {
-			logger.CtxLog.Errorf("IdGenerator allocation failed: %v", err)
+			logger.PollConfigLog.Errorf("IdGenerator allocation failed: %v", err)
 			continue
 		}
 
@@ -282,3 +282,118 @@ func findQosData(qosdecs map[string]*models.QosData, qos models.QosData) (bool, 
 	}
 	return false, nil
 }
+
+/*
+func (subs PcfSubscriberPolicyData) String() string {
+	var s string
+	for slice, val := range subs.PccPolicy {
+		s += fmt.Sprintf("PccPolicy[%v]: %v", slice, val)
+		for rulename, rule := range val.PccRules {
+			s += fmt.Sprintf("\n   PccRules[%v]: ", rulename)
+			s += fmt.Sprintf("RuleId: %v, Precedence: %v, ", rule.PccRuleId, rule.Precedence)
+			for i, flow := range rule.FlowInfos {
+				s += fmt.Sprintf("FlowInfo[%v]: FlowDesc: %v, TrafficClass: %v, FlowDir: %v", i, flow.FlowDescription, flow.TosTrafficClass, flow.FlowDirection)
+			}
+		}
+		for i, qos := range val.QosDecs {
+			s += fmt.Sprintf("\n   QosDecs[%v] ", i)
+			s += fmt.Sprintf("QosId: %v, 5Qi: %v, MaxbrUl: %v, MaxbrDl: %v, GbrUl: %v, GbrUl: %v,PL: %v ", qos.QosId, qos.Var5qi, qos.MaxbrUl, qos.MaxbrDl, qos.GbrDl, qos.GbrUl, qos.PriorityLevel)
+			if qos.Arp != nil {
+				s += fmt.Sprintf("PL: %v, PC: %v, PV: %v", qos.Arp.PriorityLevel, qos.Arp.PreemptCap, qos.Arp.PreemptVuln)
+			}
+		}
+		for i, tr := range val.TraffContDecs {
+			s += fmt.Sprintf("\n   TrafficDecs[%v]: ", i)
+			s += fmt.Sprintf("TcId: %v, FlowStatus: %v", tr.TcId, tr.FlowStatus)
+		}
+	}
+	return s
+}
+
+
+func (pcc PccPolicy) String() string {
+	var s string
+	for name, srule := range pcc.SessionPolicy {
+		s += fmt.Sprintf("\n   SessionPolicy[%v]: %v ", name, srule)
+	}
+	return s
+}
+
+func (sess SessionPolicy) String() string {
+	var s string
+	for name, srule := range sess.SessionRules {
+		s += fmt.Sprintf("\n    SessRule[%v]: SessionRuleId: %v, ", name, srule.SessRuleId)
+		if srule.AuthDefQos != nil {
+			s += fmt.Sprintf("AuthQos: 5Qi: %v, Arp: ", srule.AuthDefQos.Var5qi)
+			if srule.AuthDefQos.Arp != nil {
+				s += fmt.Sprintf("PL: %v, PC: %v, PV: %v", srule.AuthDefQos.Arp.PriorityLevel, srule.AuthDefQos.Arp.PreemptCap, srule.AuthDefQos.Arp.PreemptVuln)
+			}
+		}
+		if srule.AuthSessAmbr != nil {
+			s += fmt.Sprintf("AuthSessAmbr: Uplink: %v, Downlink: %v", srule.AuthSessAmbr.Uplink, srule.AuthSessAmbr.Downlink)
+		}
+	}
+	return s
+}
+
+func (c *PCFContext) DisplayPcfSubscriberPolicyData(imsi string) {
+	logger.PollConfigLog.Infof("pcf subscriber [%v] Policy Details:", imsi)
+	subs, exist := pcfCtx.PcfSubscriberPolicyData[imsi]
+	if !exist {
+		logger.PollConfigLog.Warnf("pcf subscriber [%v] not exist", imsi)
+	} else {
+		for slice, val := range subs.PccPolicy {
+			subs.CtxLog.Infof("   SliceId: %v", slice)
+			for name, srule := range val.SessionPolicy {
+				subs.CtxLog.Infof("   Session-Name/Dnn: %v", name)
+				for _, srules := range srule.SessionRules {
+					subs.CtxLog.Infof("   SessionRuleId: %v", srules.SessRuleId)
+					if srules.AuthSessAmbr != nil {
+						subs.CtxLog.Infof("   AmbrUplink  %v", srules.AuthSessAmbr.Uplink)
+						subs.CtxLog.Infof("   AmbrDownlink  %v", srules.AuthSessAmbr.Downlink)
+					}
+					if srules.AuthDefQos != nil {
+						subs.CtxLog.Infof("    DefQos.5qi: %v", srules.AuthDefQos.Var5qi)
+						if srules.AuthDefQos.Arp != nil {
+							subs.CtxLog.Infof("    DefQos.Arp.PriorityLevel: %v", srules.AuthDefQos.Arp.PriorityLevel)
+							subs.CtxLog.Infof("    DefQos.Arp.PreemptCapability: %v", srules.AuthDefQos.Arp.PreemptCap)
+							subs.CtxLog.Infof("    DefQos.Arp.PreemptVulnerability: %v", srules.AuthDefQos.Arp.PreemptVuln)
+						}
+						subs.CtxLog.Infof("    DefQos.prioritylevel: %v", srules.AuthDefQos.PriorityLevel)
+					}
+				}
+			}
+			for rulename, rule := range val.PccRules {
+				subs.CtxLog.Infof("   PccRule-Name: %v", rulename)
+				subs.CtxLog.Infof("   PccRule-Id: %v", rule.PccRuleId)
+				subs.CtxLog.Infof("   Precedence: %v", rule.Precedence)
+
+				for _, flow := range rule.FlowInfos {
+					subs.CtxLog.Infof("   FlowDescription: %v", flow.FlowDescription)
+					subs.CtxLog.Infof("   TosTrafficClass: %v", flow.TosTrafficClass)
+					subs.CtxLog.Infof("   FlowDirection: %v", flow.FlowDirection)
+				}
+			}
+			subs.CtxLog.Infof("   Qos Details")
+			for _, qos := range val.QosDecs {
+				subs.CtxLog.Infof("     QosId: %v", qos.QosId)
+				subs.CtxLog.Infof("     5qi: %v", qos.Var5qi)
+				subs.CtxLog.Infof("     MaxbrUl: %v", qos.MaxbrUl)
+				subs.CtxLog.Infof("     MaxbrDl: %v", qos.MaxbrDl)
+				subs.CtxLog.Infof("     GbrDl: %v", qos.GbrDl)
+				subs.CtxLog.Infof("     GbrUl: %v", qos.GbrUl)
+				subs.CtxLog.Infof("     PriorityLevel: %v", qos.PriorityLevel)
+				if qos.Arp != nil {
+					subs.CtxLog.Infof("    Arp.PreemptCapability: %v", qos.Arp.PreemptCap)
+					subs.CtxLog.Infof("    Arp.PreemptVulnerability: %v", qos.Arp.PreemptVuln)
+				}
+			}
+
+			subs.CtxLog.Infof("   Traffic Control Details")
+			for _, t := range val.TraffContDecs {
+				subs.CtxLog.Infof("     TcId: %v", t.TcId)
+				subs.CtxLog.Infof("     FlowStatus: %v", t.FlowStatus)
+			}
+		}
+	}
+}*/

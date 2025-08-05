@@ -22,7 +22,7 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/openapi/nfConfigApi"
-	"github.com/omec-project/pcf/factory"
+	"github.com/omec-project/pcf/consumer"
 )
 
 func TestStartPollingService_Success(t *testing.T) {
@@ -45,11 +45,11 @@ func TestStartPollingService_Success(t *testing.T) {
 		return fetchedConfig, nil
 	}
 
-	expectedNfProfile := factory.NfProfileDynamicConfig{
+	expectedNfProfile := consumer.NfProfileDynamicConfig{
 		Plmns: map[models.PlmnId]struct{}{{Mcc: "001", Mnc: "01"}: {}},
 		Dnns:  map[string]struct{}{},
 	}
-	pollingChan := make(chan factory.NfProfileDynamicConfig, 1)
+	pollingChan := make(chan consumer.NfProfileDynamicConfig, 1)
 	go StartPollingService(ctx, "http://dummy", pollingChan)
 	time.Sleep(initialPollingInterval)
 
@@ -82,7 +82,7 @@ func TestStartPollingService_RetryAfterFailure(t *testing.T) {
 		callCount++
 		return nil, errors.New("mock failure")
 	}
-	pollingChan := make(chan factory.NfProfileDynamicConfig, 1)
+	pollingChan := make(chan consumer.NfProfileDynamicConfig, 1)
 	go StartPollingService(ctx, "http://dummy", pollingChan)
 
 	time.Sleep(4 * initialPollingInterval)
@@ -110,7 +110,7 @@ func TestHandlePolledPolicyControl_ExpectChannelNotToBeUpdated(t *testing.T) {
 			PccRules: []nfConfigApi.PccRule{},
 		},
 	}
-	nfProf := factory.NfProfileDynamicConfig{
+	nfProf := consumer.NfProfileDynamicConfig{
 		Plmns: map[models.PlmnId]struct{}{{Mcc: "001", Mnc: "01"}: {}},
 		Dnns:  map[string]struct{}{},
 	}
@@ -118,7 +118,7 @@ func TestHandlePolledPolicyControl_ExpectChannelNotToBeUpdated(t *testing.T) {
 	tests := []struct {
 		name                   string
 		initialPolicyControl   []nfConfigApi.PolicyControl
-		initialNfProfileConfig factory.NfProfileDynamicConfig
+		initialNfProfileConfig consumer.NfProfileDynamicConfig
 		input                  []nfConfigApi.PolicyControl
 	}{
 		{
@@ -130,7 +130,7 @@ func TestHandlePolledPolicyControl_ExpectChannelNotToBeUpdated(t *testing.T) {
 		{
 			name:                   "Initial config is empty, new config empty",
 			initialPolicyControl:   []nfConfigApi.PolicyControl{},
-			initialNfProfileConfig: factory.NfProfileDynamicConfig{},
+			initialNfProfileConfig: consumer.NfProfileDynamicConfig{},
 			input:                  []nfConfigApi.PolicyControl{},
 		},
 		{
@@ -151,7 +151,7 @@ func TestHandlePolledPolicyControl_ExpectChannelNotToBeUpdated(t *testing.T) {
 				pcfPccPolicies = originalPccPolicies
 			}()
 
-			pollingChan := make(chan factory.NfProfileDynamicConfig, 1)
+			pollingChan := make(chan consumer.NfProfileDynamicConfig, 1)
 			poller := nfConfigPoller{
 				currentPolicyControl:   tc.initialPolicyControl,
 				currentNfProfileConfig: tc.initialNfProfileConfig,
@@ -195,7 +195,7 @@ func TestHandlePolledPolicyControl_ExpectChannelUpdate(t *testing.T) {
 			PccRules: []nfConfigApi.PccRule{},
 		},
 	}
-	nfProf := factory.NfProfileDynamicConfig{
+	nfProf := consumer.NfProfileDynamicConfig{
 		Plmns: map[models.PlmnId]struct{}{{Mcc: "001", Mnc: "01"}: {}},
 		Dnns:  map[string]struct{}{},
 	}
@@ -203,15 +203,15 @@ func TestHandlePolledPolicyControl_ExpectChannelUpdate(t *testing.T) {
 	tests := []struct {
 		name                   string
 		initialPolicyControl   []nfConfigApi.PolicyControl
-		initialNfProfileConfig factory.NfProfileDynamicConfig
+		initialNfProfileConfig consumer.NfProfileDynamicConfig
 		input                  []nfConfigApi.PolicyControl
 		expectedPolicyControl  []nfConfigApi.PolicyControl
-		expectedNfProfile      factory.NfProfileDynamicConfig
+		expectedNfProfile      consumer.NfProfileDynamicConfig
 	}{
 		{
 			name:                   "Previous config is empty, new config is not empty",
 			initialPolicyControl:   []nfConfigApi.PolicyControl{},
-			initialNfProfileConfig: factory.NfProfileDynamicConfig{},
+			initialNfProfileConfig: consumer.NfProfileDynamicConfig{},
 			input:                  pc1,
 			expectedPolicyControl:  pc1,
 			expectedNfProfile:      nfProf,
@@ -219,7 +219,7 @@ func TestHandlePolledPolicyControl_ExpectChannelUpdate(t *testing.T) {
 		{
 			name:                   "Plmn config changed",
 			initialPolicyControl:   pc2,
-			initialNfProfileConfig: factory.NfProfileDynamicConfig{},
+			initialNfProfileConfig: consumer.NfProfileDynamicConfig{},
 			input:                  pc1,
 			expectedPolicyControl:  pc1,
 			expectedNfProfile:      nfProf,
@@ -237,7 +237,7 @@ func TestHandlePolledPolicyControl_ExpectChannelUpdate(t *testing.T) {
 				pcfPccPolicies = originalPccPolicies
 			}()
 
-			pollingChan := make(chan factory.NfProfileDynamicConfig, 1)
+			pollingChan := make(chan consumer.NfProfileDynamicConfig, 1)
 			poller := nfConfigPoller{
 				currentPolicyControl:   tc.initialPolicyControl,
 				currentNfProfileConfig: tc.initialNfProfileConfig,
@@ -354,10 +354,10 @@ func TestFetchPlmnConfig(t *testing.T) {
 				}
 			}
 			server := httptest.NewServer(http.HandlerFunc(handler))
-			pollingChan := make(chan factory.NfProfileDynamicConfig, 1)
+			pollingChan := make(chan consumer.NfProfileDynamicConfig, 1)
 			poller := nfConfigPoller{
 				currentPolicyControl:   []nfConfigApi.PolicyControl{},
-				currentNfProfileConfig: factory.NfProfileDynamicConfig{},
+				currentNfProfileConfig: consumer.NfProfileDynamicConfig{},
 				nfProfileConfigChan:    pollingChan,
 				client:                 &http.Client{},
 			}

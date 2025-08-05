@@ -12,7 +12,6 @@
 package factory
 
 import (
-	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/logger"
 )
 
@@ -74,9 +73,4 @@ func (c *Config) GetVersion() string {
 		return c.Info.Version
 	}
 	return ""
-}
-
-type NfProfileDynamicConfig struct {
-	Plmns map[models.PlmnId]struct{}
-	Dnns  map[string]struct{}
 }

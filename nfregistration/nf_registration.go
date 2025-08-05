@@ -15,7 +15,6 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/pcf/consumer"
-	"github.com/omec-project/pcf/factory"
 	"github.com/omec-project/pcf/logger"
 )
 
@@ -34,7 +33,7 @@ const (
 // StartNfRegistrationService starts the registration service. If the new config is empty, the NF
 // deregisters from the NRF. Else, it registers to the NRF. It cancels registerCancel to ensure
 // that only one registration process runs at the time.
-func StartNfRegistrationService(ctx context.Context, nfProfileConfigChan <-chan factory.NfProfileDynamicConfig) {
+func StartNfRegistrationService(ctx context.Context, nfProfileConfigChan <-chan consumer.NfProfileDynamicConfig) {
 	var registerCancel context.CancelFunc
 	var registerCtx context.Context
 	logger.NrfRegistrationLog.Infoln("Started NF registration to NRF service")
@@ -61,13 +60,14 @@ func StartNfRegistrationService(ctx context.Context, nfProfileConfigChan <-chan 
 				registerCtx, registerCancel = context.WithCancel(context.Background())
 				// Create new cancellable context for this registration
 				go registerNF(registerCtx, newNfProfileConfig)
+				consumer.DiscoverUdr()
 			}
 		}
 	}
 }
 
 // registerNF sends a RegisterNFInstance. If it fails, it keeps retrying, until the context is cancelled by StartNfRegistrationService
-var registerNF = func(registerCtx context.Context, newNfProfileConfig factory.NfProfileDynamicConfig) {
+var registerNF = func(registerCtx context.Context, newNfProfileConfig consumer.NfProfileDynamicConfig) {
 	registerCtxMutex.Lock()
 	defer registerCtxMutex.Unlock()
 	interval := 0 * time.Millisecond
@@ -93,7 +93,7 @@ var registerNF = func(registerCtx context.Context, newNfProfileConfig factory.Nf
 // heartbeatNF is the callback function, this is called when keepalivetimer elapsed.
 // It sends a Update NF instance to the NRF. If it fails, it tries to register again.
 // keepAliveTimer is restarted at the end.
-func heartbeatNF(nfProfileConfig factory.NfProfileDynamicConfig) {
+func heartbeatNF(nfProfileConfig consumer.NfProfileDynamicConfig) {
 	keepAliveTimerMutex.Lock()
 	if keepAliveTimer == nil {
 		keepAliveTimerMutex.Unlock()
@@ -149,7 +149,7 @@ var DeregisterNF = func() {
 	logger.NrfRegistrationLog.Infoln("deregister instance from NRF successful")
 }
 
-func startKeepAliveTimer(profileHeartbeatTimer int32, nfProfileConfig factory.NfProfileDynamicConfig) {
+func startKeepAliveTimer(profileHeartbeatTimer int32, nfProfileConfig consumer.NfProfileDynamicConfig) {
 	keepAliveTimerMutex.Lock()
 	defer keepAliveTimerMutex.Unlock()
 	stopKeepAliveTimer()
@@ -170,22 +170,3 @@ func stopKeepAliveTimer() {
 		logger.NrfRegistrationLog.Debugln("stopped heartbeat timer")
 	}
 }
-
-/*func (pcf *PCF) DiscoverUdr() {
-	self := context.PCF_Self()
-	param := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
-		ServiceNames: optional.NewInterface([]models.ServiceName{models.ServiceName_NUDR_DR}),
-	}
-	if resp, err := consumer.SendSearchNFInstances(self.NrfUri, models.NfType_UDR, models.NfType_PCF, &param); err != nil {
-		logger.InitLog.Errorln(err)
-	} else {
-		for _, nfProfile := range resp.NfInstances {
-			udruri := util.SearchNFServiceUri(nfProfile, models.ServiceName_NUDR_DR, models.NfServiceStatus_REGISTERED)
-			if udruri != "" {
-				self.SetDefaultUdrURI(udruri)
-				break
-			}
-		}
-	}
-}
-*/

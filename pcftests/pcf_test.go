@@ -56,7 +56,7 @@ func TestCheckNRFCachingIsEnabled(t *testing.T) {
 	assert.Equal(t, got, true, "NRF Caching is not enabled.")
 }
 
-/*func TestGetUDRUri(t *testing.T) {
+func TestGetUDRUri(t *testing.T) {
 	t.Logf("test cases for Get UDR URI")
 	callCountSearchNFInstances := 0
 	callCountSendNfDiscovery := 0
@@ -189,7 +189,7 @@ func TestCheckNRFCachingIsEnabled(t *testing.T) {
 	for i := range parameters {
 		t.Run(fmt.Sprintf("NRF caching is [%v]", parameters[i].inputEnableNrfCaching), func(t *testing.T) {
 			pcfContext.PCF_Self().EnableNrfCaching = parameters[i].inputEnableNrfCaching
-			PCFTest.DiscoverUdr()
+			consumer.DiscoverUdr()
 			assert.Equal(t, parameters[i].expectedCallCountSearchNFInstances, callCountSearchNFInstances, "NF instance is searched in the cache.")
 			assert.Equal(t, parameters[i].expectedCallCountSendNfDiscovery, callCountSendNfDiscovery, "NF discovery request is sent to NRF.")
 			assert.Equal(t, parameters[i].udrUri, pcfContext.PCF_Self().DefaultUdrURI, "UDR Uri is set.")
@@ -197,7 +197,7 @@ func TestCheckNRFCachingIsEnabled(t *testing.T) {
 			callCountSearchNFInstances = 0
 		})
 	}
-}*/
+}
 
 func TestCreateSubscriptionSuccess(t *testing.T) {
 	t.Logf("test cases for CreateSubscription")

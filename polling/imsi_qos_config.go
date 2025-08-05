@@ -34,7 +34,7 @@ func GetImsiSessionRules(dnn, imsi string) (map[string]*models.SessionRule, erro
 	for _, data := range imsiQos {
 		id, err := idGenerator.Allocate()
 		if err != nil {
-			logger.CtxLog.Errorf("ID generator allocation failed: %v", err)
+			logger.PollConfigLog.Errorf("ID generator allocation failed: %v", err)
 			continue
 		}
 		key := dnn + "-" + strconv.Itoa(int(id))

@@ -17,11 +17,15 @@ import (
 	"github.com/omec-project/openapi/Nnrf_NFManagement"
 	"github.com/omec-project/openapi/models"
 	pcfContext "github.com/omec-project/pcf/context"
-	"github.com/omec-project/pcf/factory"
 	"github.com/omec-project/pcf/logger"
 )
 
-func getNfProfile(pcfContext *pcfContext.PCFContext, nfProfileDynamicConfig factory.NfProfileDynamicConfig) (profile models.NfProfile, err error) {
+type NfProfileDynamicConfig struct {
+	Plmns map[models.PlmnId]struct{}
+	Dnns  map[string]struct{}
+}
+
+func getNfProfile(pcfContext *pcfContext.PCFContext, nfProfileDynamicConfig NfProfileDynamicConfig) (profile models.NfProfile, err error) {
 	if pcfContext == nil {
 		return profile, fmt.Errorf("pcf context has not been intialized. NF profile cannot be built")
 	}
@@ -68,7 +72,7 @@ func getNfProfile(pcfContext *pcfContext.PCFContext, nfProfileDynamicConfig fact
 	return profile, err
 }
 
-var SendRegisterNFInstance = func(nfProfileDynamicConfig factory.NfProfileDynamicConfig) (prof models.NfProfile, resourceNrfUri string, err error) {
+var SendRegisterNFInstance = func(nfProfileDynamicConfig NfProfileDynamicConfig) (prof models.NfProfile, resourceNrfUri string, err error) {
 	self := pcfContext.PCF_Self()
 	nfProfile, err := getNfProfile(self, nfProfileDynamicConfig)
 	if err != nil {
