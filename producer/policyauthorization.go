@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2025 Intel Corporation
 // SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
 // Copyright 2019 free5GC.org
 //
@@ -10,10 +11,10 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 	"time"
 
-	"github.com/cydev/zero"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	pcf_context "github.com/omec-project/pcf/context"
@@ -593,7 +594,7 @@ func ModAppSessionContextProcedure(appSessID string,
 		for compN, medCompRm := range ascUpdateData.MedComponents {
 			medComp := transferMedCompRmToMedComp(&medCompRm)
 			removeMediaComp(appSession, compN)
-			if zero.IsZero(medComp) {
+			if reflect.ValueOf(medComp).IsZero() {
 				// remove MediaComp(media Comp is null)
 				continue
 			}
