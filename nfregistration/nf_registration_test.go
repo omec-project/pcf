@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 /*
- * NRF Registration Unit Testcases
+ * NRF Registration Unit Tests
  *
  */
 package nfregistration

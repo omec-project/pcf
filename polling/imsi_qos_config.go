@@ -24,13 +24,13 @@ import (
 const imsiQosPath = "/nfconfig/qos"
 
 func GetImsiSessionRules(dnn, imsi string) (map[string]*models.SessionRule, error) {
-	idGenerator := idgenerator.NewGenerator(1, math.MaxInt16)
 	sessionPolicies := make(map[string]*models.SessionRule)
 	pollingEndpoint := imsiQosPath + "/" + dnn + "/" + imsi // check imsi format?
 	imsiQos, err := fetchImsiQosFunc(pollingEndpoint)
 	if err != nil {
 		return nil, fmt.Errorf("fetchImsiQos failed for %s: %w", pollingEndpoint, err)
 	}
+	idGenerator := idgenerator.NewGenerator(1, math.MaxInt16)
 	for _, data := range imsiQos {
 		id, err := idGenerator.Allocate()
 		if err != nil {

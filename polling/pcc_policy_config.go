@@ -19,21 +19,19 @@ import (
 )
 
 var (
-	pcfPccPolicies map[models.Snssai]*PccPolicy // Snssai is key
+	pcfPccPolicies map[models.Snssai]*PccPolicy
 	configLock     sync.RWMutex
 )
 
-type SessionPolicy struct {
-	SessionRules           map[string]*models.SessionRule
-	SessionRuleIdGenerator *idgenerator.IDGenerator
-}
+//type SessionPolicy struct {
+//	SessionRules           map[string]*models.SessionRule
+//	SessionRuleIdGenerator *idgenerator.IDGenerator
+//}
 
 type PccPolicy struct {
 	PccRules      map[string]*models.PccRule
 	QosDecs       map[string]*models.QosData
 	TraffContDecs map[string]*models.TrafficControlData
-	SessionPolicy map[string]*SessionPolicy // dnn is key
-	IdGenerator   *idgenerator.IDGenerator
 }
 
 func GetSlicePccPolicy(snssai models.Snssai) *PccPolicy {
@@ -54,109 +52,44 @@ func updatePolicyControl(policyControlConfig []nfConfigApi.PolicyControl) {
 		pcfPccPolicies = make(map[models.Snssai]*PccPolicy, 0)
 		return
 	}
-	for i, pc := range policyControlConfig {
-		logger.PollConfigLog.Warnf("POLICY CONTROL %d: %+v", i, pc)
-		createpcfPccPoliciesFunc(pc)
+	idGenerator := idgenerator.NewGenerator(1, math.MaxInt64)
+	for _, pc := range policyControlConfig {
+		createPccPolicies(idGenerator, pc)
 	}
 }
 
-var createpcfPccPoliciesFunc = createpcfPccPolicies
-
-func createpcfPccPolicies(policyControlConfig nfConfigApi.PolicyControl) {
+var createPccPolicies = func(idGenerator *idgenerator.IDGenerator, policyControlConfig nfConfigApi.PolicyControl) {
+	if len(policyControlConfig.PccRules) == 0 {
+		logger.PollConfigLog.Warn("No PCC rules provided in PolicyControl config")
+		return
+	}
 	snssai := models.Snssai{
 		Sst: policyControlConfig.Snssai.Sst,
 	}
 	if sd, ok := policyControlConfig.Snssai.GetSdOk(); ok {
 		snssai.Sd = *sd
 	}
-	pcfPccPolicies[snssai] = &PccPolicy{
-		PccRules:      make(map[string]*models.PccRule),
-		QosDecs:       make(map[string]*models.QosData),
-		TraffContDecs: make(map[string]*models.TrafficControlData),
-		SessionPolicy: make(map[string]*SessionPolicy),
-		IdGenerator:   nil,
-	}
-	// pcfPccPolicies[snssai].SessionPolicy = makeSessionPolicies(policyControlConfig.DnnQos)
-
-	pccPolicy := makePccPolicy(policyControlConfig.PccRules)
+	pccPolicy := makePccPolicy(idGenerator, policyControlConfig.PccRules)
 	jsonData, _ := json.MarshalIndent(pccPolicy, "", "  ")
 	logger.PollConfigLog.Errorf("OBTAINED: %s", string(jsonData))
-	for index, element := range pccPolicy.PccRules {
-		pcfPccPolicies[snssai].PccRules[index] = element
-	}
-	for index, element := range pccPolicy.QosDecs {
-		pcfPccPolicies[snssai].QosDecs[index] = element
-	}
-	for index, element := range pccPolicy.TraffContDecs {
-		pcfPccPolicies[snssai].TraffContDecs[index] = element
-	}
-	pcfPccPolicies[snssai].IdGenerator = pccPolicy.IdGenerator
+	pcfPccPolicies[snssai] = pccPolicy
 }
 
-/*
-func makeSessionPolicies(dnnQos []nfConfigApi.DnnQos) map[string]*SessionPolicy {
-	sessionPolicies := map[string]*SessionPolicy{}
-	for _, dnnQoS := range dnnQos {
-		dnn := dnnQoS.DnnName
-		sessionPolicy, ok := sessionPolicies[dnn]
-		if !ok {
-			sessionPolicy = &SessionPolicy{
-				SessionRules:           make(map[string]*models.SessionRule),
-				SessionRuleIdGenerator: idgenerator.NewGenerator(1, math.MaxInt16),
-			}
-			sessionPolicies[dnn] = sessionPolicy
-		}
-
-		id, err := sessionPolicy.SessionRuleIdGenerator.Allocate()
-		if err != nil {
-			logger.PollConfigLog.Errorf("SessionRuleIdGenerator allocation failed: %v", err)
-			continue
-		}
-		sessionRule := makeSessionRule(dnnQoS)
-		sessionRule.SessRuleId = dnn + "-" + strconv.Itoa(int(id))
-		sessionPolicies[dnn].SessionRules[sessionRule.SessRuleId] = sessionRule
-	}
-	return sessionPolicies
-}
-
-func makeSessionRule(dnnQoS nfConfigApi.DnnQos) *models.SessionRule {
-	var fiveQi int32
-	var arp *models.Arp
-
-	if dnnQoS.FiveQi != nil {
-		fiveQi = *dnnQoS.FiveQi
-	}
-	if dnnQoS.ArpPriorityLevel != nil {
-		arp = &models.Arp{PriorityLevel: *dnnQoS.ArpPriorityLevel}
-	}
-	return &models.SessionRule{
-		AuthDefQos: &models.AuthorizedDefaultQos{
-			Var5qi: fiveQi,
-			Arp:    arp,
-		},
-		AuthSessAmbr: &models.Ambr{
-			Uplink:   dnnQoS.MbrUplink,
-			Downlink: dnnQoS.MbrDownlink,
-		},
-	}
-}*/
-
-func makePccPolicy(pccRules []nfConfigApi.PccRule) (pccPolicy *PccPolicy) {
+func makePccPolicy(idGenerator *idgenerator.IDGenerator, pccRules []nfConfigApi.PccRule) (pccPolicy *PccPolicy) {
 	pccPolicy = &PccPolicy{
-		IdGenerator:   idgenerator.NewGenerator(1, math.MaxInt64),
 		TraffContDecs: make(map[string]*models.TrafficControlData),
 		QosDecs:       make(map[string]*models.QosData),
 		PccRules:      make(map[string]*models.PccRule),
 	}
 	for _, pccrule := range pccRules {
-		id, err := pccPolicy.IdGenerator.Allocate()
+		id, err := idGenerator.Allocate()
 		if err != nil {
 			logger.PollConfigLog.Errorf("IdGenerator allocation failed: %v", err)
 			continue
 		}
 
-		flowInfos, traffContDecs := makeFlowInfosAndTrafficContDesc(pccPolicy.IdGenerator, pccrule.Flows)
-		refTcData := []string{}
+		flowInfos, traffContDecs := makeFlowInfosAndTrafficContDesc(idGenerator, pccrule.Flows)
+		refTcData := make([]string, 0, len(traffContDecs))
 		for _, tcData := range traffContDecs {
 			refTcData = append(refTcData, tcData.TcId)
 			pccPolicy.TraffContDecs[tcData.TcId] = &tcData
@@ -166,17 +99,14 @@ func makePccPolicy(pccRules []nfConfigApi.PccRule) (pccPolicy *PccPolicy) {
 		if hasDefaultQosFlow(flowInfos) {
 			qos.DefQosFlowIndication = true
 		}
-		refQosData := []string{}
-		if ok, _ := findQosData(pccPolicy.QosDecs, qos); !ok {
-			refQosData = append(refQosData, qos.QosId)
-			pccPolicy.QosDecs[qos.QosId] = &qos
-		}
+		pccPolicy.QosDecs[qos.QosId] = &qos
+
 		rule := models.PccRule{
 			PccRuleId:  strconv.FormatInt(id, 10),
 			Precedence: pccrule.Precedence,
 			FlowInfos:  flowInfos,
 			RefTcData:  refTcData,
-			RefQosData: refQosData,
+			RefQosData: []string{qos.QosId},
 		}
 		pccPolicy.PccRules[pccrule.RuleId] = &rule
 	}
@@ -254,6 +184,12 @@ func makeFlowInfosAndTrafficContDesc(idGenerator *idgenerator.IDGenerator, pccFl
 			status = models.FlowStatus_ENABLED
 		case nfConfigApi.STATUS_DISABLED:
 			status = models.FlowStatus_DISABLED
+		case nfConfigApi.STATUS_ENABLED_UPLINK:
+			status = models.FlowStatus_ENABLED_UPLINK
+		case nfConfigApi.STATUS_ENABLED_DOWNLINK:
+			status = models.FlowStatus_ENABLED_DOWNLINK
+		case nfConfigApi.STATUS_REMOVED:
+			status = models.FlowStatus_REMOVED
 		}
 
 		// traffic control info set based on flow at present
@@ -264,23 +200,6 @@ func makeFlowInfosAndTrafficContDesc(idGenerator *idgenerator.IDGenerator, pccFl
 		parsedTrafficControl = append(parsedTrafficControl, tcData)
 	}
 	return parsedFlows, parsedTrafficControl
-}
-
-func findQosData(qosdecs map[string]*models.QosData, qos models.QosData) (bool, *models.QosData) {
-	for _, q := range qosdecs {
-		if q.Var5qi == qos.Var5qi && q.MaxbrUl == qos.MaxbrUl && q.MaxbrDl == qos.MaxbrDl &&
-			q.GbrUl == qos.GbrUl && q.GbrDl == qos.GbrDl && q.Qnc == qos.Qnc &&
-			q.PriorityLevel == qos.PriorityLevel && q.AverWindow == qos.AverWindow &&
-			q.MaxDataBurstVol == qos.MaxDataBurstVol && q.ReflectiveQos == qos.ReflectiveQos &&
-			q.SharingKeyDl == qos.SharingKeyDl && q.SharingKeyUl == qos.SharingKeyUl &&
-			q.MaxPacketLossRateDl == qos.MaxPacketLossRateDl && q.MaxPacketLossRateUl == qos.MaxPacketLossRateUl &&
-			q.DefQosFlowIndication == qos.DefQosFlowIndication {
-			if q.Arp != nil && qos.Arp != nil && *q.Arp == *qos.Arp {
-				return true, q
-			}
-		}
-	}
-	return false, nil
 }
 
 /*
