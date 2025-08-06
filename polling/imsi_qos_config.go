@@ -12,6 +12,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -23,10 +24,18 @@ import (
 
 const imsiQosPath = "/nfconfig/qos"
 
-func GetImsiSessionRules(dnn, imsi string) (map[string]*models.SessionRule, error) {
+var imsiRegex = regexp.MustCompile(`^imsi-\d{15,16}$`)
+
+var GetImsiSessionRules = func(dnn, imsi string) (map[string]*models.SessionRule, error) {
+	if dnn == "" {
+		return nil, fmt.Errorf("invalid DNN. DNN must not be empty string")
+	}
+	if !imsiRegex.MatchString(imsi) {
+		return nil, fmt.Errorf("invalid IMSI format %s", imsi)
+	}
 	sessionPolicies := make(map[string]*models.SessionRule)
-	pollingEndpoint := imsiQosPath + "/" + dnn + "/" + imsi // check imsi format?
-	imsiQos, err := fetchImsiQosFunc(pollingEndpoint)
+	pollingEndpoint := imsiQosPath + "/" + dnn + "/" + imsi
+	imsiQos, err := fetchImsiQos(pollingEndpoint)
 	if err != nil {
 		return nil, fmt.Errorf("fetchImsiQos failed for %s: %w", pollingEndpoint, err)
 	}
@@ -38,14 +47,12 @@ func GetImsiSessionRules(dnn, imsi string) (map[string]*models.SessionRule, erro
 			continue
 		}
 		key := dnn + "-" + strconv.Itoa(int(id))
-		sessionPolicies[key] = makeSessionRule(data)
+		sessionPolicies[key] = makeSessionRule(key, data)
 	}
 	return sessionPolicies, nil
 }
 
-var fetchImsiQosFunc = fetchImsiQos
-
-func fetchImsiQos(pollingEndpoint string) ([]nfConfigApi.ImsiQos, error) {
+var fetchImsiQos = func(pollingEndpoint string) ([]nfConfigApi.ImsiQos, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), initialPollingInterval)
 	defer cancel()
 
@@ -87,8 +94,9 @@ func fetchImsiQos(pollingEndpoint string) ([]nfConfigApi.ImsiQos, error) {
 	}
 }
 
-func makeSessionRule(dnnQoS nfConfigApi.ImsiQos) *models.SessionRule {
+func makeSessionRule(id string, dnnQoS nfConfigApi.ImsiQos) *models.SessionRule {
 	return &models.SessionRule{
+		SessRuleId: id,
 		AuthDefQos: &models.AuthorizedDefaultQos{
 			Var5qi: dnnQoS.FiveQi,
 			Arp:    &models.Arp{PriorityLevel: dnnQoS.ArpPriorityLevel},

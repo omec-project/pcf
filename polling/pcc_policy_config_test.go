@@ -19,24 +19,10 @@ import (
 )
 
 func TestGetSlicePccPolicy_Found(t *testing.T) {
-	originalPccPolicies := pcfPccPolicies
-	defer func() { pcfPccPolicies = originalPccPolicies }()
-	pcfPccPolicies = make(map[models.Snssai]*PccPolicy)
+	originalPccPolicies := pccPolicies
+	defer func() { pccPolicies = originalPccPolicies }()
+	pccPolicies = make(map[models.Snssai]*PccPolicy)
 	snssai := models.Snssai{Sst: 1, Sd: "010203"}
-
-	//sessionRule := &models.SessionRule{
-	//	SessRuleId: "sess-001",
-	//	AuthDefQos: &models.AuthorizedDefaultQos{
-	//		Var5qi: 5,
-	//		Arp: &models.Arp{
-	//			PriorityLevel: 8,
-	//		},
-	//	},
-	//	AuthSessAmbr: &models.Ambr{
-	//		Uplink:   "1Gbps",
-	//		Downlink: "500Mbps",
-	//	},
-	//}
 
 	testPolicy := &PccPolicy{
 		PccRules: map[string]*models.PccRule{
@@ -48,18 +34,9 @@ func TestGetSlicePccPolicy_Found(t *testing.T) {
 		TraffContDecs: map[string]*models.TrafficControlData{
 			"tc1": {TcId: "tc1"},
 		},
-		//SessionPolicy: map[string]*SessionPolicy{
-		//	"internet": {
-		//		SessionRules: map[string]*models.SessionRule{
-		//			"sr-1": sessionRule,
-		//		},
-		//		SessionRuleIdGenerator: idgenerator.NewGenerator(1, 1000),
-		//	},
-		//},
-		//IdGenerator: idgenerator.NewGenerator(1, 1000),
 	}
 
-	pcfPccPolicies[snssai] = testPolicy
+	pccPolicies[snssai] = testPolicy
 
 	result := GetSlicePccPolicy(snssai)
 	if !reflect.DeepEqual(testPolicy, result) {
@@ -68,9 +45,9 @@ func TestGetSlicePccPolicy_Found(t *testing.T) {
 }
 
 func TestGetSlicePccPolicy_NotFound(t *testing.T) {
-	originalPccPolicies := pcfPccPolicies
-	defer func() { pcfPccPolicies = originalPccPolicies }()
-	pcfPccPolicies = make(map[models.Snssai]*PccPolicy)
+	originalPccPolicies := pccPolicies
+	defer func() { pccPolicies = originalPccPolicies }()
+	pccPolicies = make(map[models.Snssai]*PccPolicy)
 	snssai := models.Snssai{Sst: 2, Sd: "040506"}
 
 	result := GetSlicePccPolicy(snssai)
@@ -81,132 +58,158 @@ func TestGetSlicePccPolicy_NotFound(t *testing.T) {
 }
 
 func TestUpdatePolicyControl_EmptyInputClearsPolicies(t *testing.T) {
-	originalPccPolicies := pcfPccPolicies
+	originalPccPolicies := pccPolicies
 
-	defer func() { pcfPccPolicies = originalPccPolicies }()
-	pcfPccPolicies = make(map[models.Snssai]*PccPolicy)
+	defer func() { pccPolicies = originalPccPolicies }()
+	pccPolicies = make(map[models.Snssai]*PccPolicy)
 
 	snssai := models.Snssai{Sst: 1, Sd: "010203"}
-	configLock.Lock()
-	pcfPccPolicies[snssai] = &PccPolicy{}
-	configLock.Unlock()
+	pccPolicies[snssai] = &PccPolicy{}
 
 	updatePolicyControl([]nfConfigApi.PolicyControl{})
 
-	if len(pcfPccPolicies) != 0 {
-		t.Errorf("expected pcfPccPolicies to be empty, got %d entries", len(pcfPccPolicies))
+	if len(pccPolicies) != 0 {
+		t.Errorf("expected pccPolicies to be empty, got %d entries", len(pccPolicies))
 	}
 }
 
 func TestUpdatePolicyControl_CreatesPolicies(t *testing.T) {
 	originalCreate := createPccPolicies
-	originalPccPolicies := pcfPccPolicies
+	originalPccPolicies := pccPolicies
 	defer func() {
 		createPccPolicies = originalCreate
-		pcfPccPolicies = originalPccPolicies
+		pccPolicies = originalPccPolicies
 	}()
-	pcfPccPolicies = make(map[models.Snssai]*PccPolicy)
+	pccPolicies = make(map[models.Snssai]*PccPolicy)
 	createPccPolicies = func(idGenerator *idgenerator.IDGenerator, pc nfConfigApi.PolicyControl) {
-		configLock.Lock()
-		defer configLock.Unlock()
 		snssai := models.Snssai{Sst: 1, Sd: "abc123"}
-		pcfPccPolicies[snssai] = &PccPolicy{}
+		pccPolicies[snssai] = &PccPolicy{}
 	}
 
 	updatePolicyControl([]nfConfigApi.PolicyControl{{}})
 
-	if len(pcfPccPolicies) != 1 {
-		t.Errorf("expected 1 entry in pcfPccPolicies, got %d", len(pcfPccPolicies))
+	if len(pccPolicies) != 1 {
+		t.Errorf("expected 1 entry in pccPolicies, got %d", len(pccPolicies))
 	}
 }
 
 func TestCreatePccPolicies_OnePolicyControlElement(t *testing.T) {
-	originalPccPolicies := pcfPccPolicies
-	defer func() { pcfPccPolicies = originalPccPolicies }()
-	pcfPccPolicies = make(map[models.Snssai]*PccPolicy)
+	originalPccPolicies := pccPolicies
+	defer func() { pccPolicies = originalPccPolicies }()
+	pccPolicies = make(map[models.Snssai]*PccPolicy)
 
-	sd := "112233"
-	input := nfConfigApi.PolicyControl{
-		Snssai: nfConfigApi.Snssai{
-			Sst: 1,
-			Sd:  &sd,
+	testCases := []struct {
+		name               string
+		initialPccPolicies map[models.Snssai]*PccPolicy
+	}{
+		{
+			name:               "empty initial pcc policies",
+			initialPccPolicies: map[models.Snssai]*PccPolicy{},
 		},
-		PccRules: []nfConfigApi.PccRule{
-			{
-				RuleId:     "rule1",
-				Precedence: 255,
-				Qos: nfConfigApi.PccQos{
-					FiveQi:  9,
-					MaxBrUl: "500Mbps",
-					MaxBrDl: "1Gbps",
-					Arp: nfConfigApi.Arp{
-						PriorityLevel: 5,
-						PreemptCap:    nfConfigApi.PREEMPTCAP_MAY_PREEMPT,
-						PreemptVuln:   nfConfigApi.PREEMPTVULN_PREEMPTABLE,
+		{
+			name: "not empty initial pcc policies",
+			initialPccPolicies: map[models.Snssai]*PccPolicy{
+				{Sst: 1, Sd: "22"}: {
+					PccRules: map[string]*models.PccRule{
+						"rule1": {PccRuleId: "rule1"},
+					},
+					QosDecs: map[string]*models.QosData{
+						"qos1": {QosId: "qos1"},
+					},
+					TraffContDecs: map[string]*models.TrafficControlData{
+						"tc1": {TcId: "tc1"},
 					},
 				},
-				Flows: []nfConfigApi.PccFlow{
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			sd := "112233"
+			input := nfConfigApi.PolicyControl{
+				Snssai: nfConfigApi.Snssai{
+					Sst: 1,
+					Sd:  &sd,
+				},
+				PccRules: []nfConfigApi.PccRule{
 					{
-						Description: "permit out ip from any to any",
-						Direction:   nfConfigApi.DIRECTION_BIDIRECTIONAL,
-						Status:      nfConfigApi.STATUS_ENABLED,
+						RuleId:     "rule1",
+						Precedence: 255,
+						Qos: nfConfigApi.PccQos{
+							FiveQi:  9,
+							MaxBrUl: "500Mbps",
+							MaxBrDl: "1Gbps",
+							Arp: nfConfigApi.Arp{
+								PriorityLevel: 5,
+								PreemptCap:    nfConfigApi.PREEMPTCAP_MAY_PREEMPT,
+								PreemptVuln:   nfConfigApi.PREEMPTVULN_PREEMPTABLE,
+							},
+						},
+						Flows: []nfConfigApi.PccFlow{
+							{
+								Description: "permit out ip from any to any",
+								Direction:   nfConfigApi.DIRECTION_BIDIRECTIONAL,
+								Status:      nfConfigApi.STATUS_ENABLED,
+							},
+						},
 					},
 				},
-			},
-		},
-	}
-	idGenerator := idgenerator.NewGenerator(1, math.MaxInt64)
-	createPccPolicies(idGenerator, input)
+			}
+			idGenerator := idgenerator.NewGenerator(1, math.MaxInt64)
+			createPccPolicies(idGenerator, input)
 
-	snssai := models.Snssai{Sst: 1, Sd: sd}
-	expectedPccPolicies := map[models.Snssai]*PccPolicy{
-		snssai: {
-			PccRules: map[string]*models.PccRule{
-				"rule1": {
-					PccRuleId:  "1",
-					Precedence: 255,
-					RefQosData: []string{"1"},
-					RefTcData:  []string{"TcId-2"},
-					FlowInfos: []models.FlowInformation{{
-						FlowDescription: "permit out ip from any to any",
-						PackFiltId:      "2",
-						FlowDirection:   models.FlowDirectionRm_BIDIRECTIONAL,
-					}},
-				},
-			},
-			QosDecs: map[string]*models.QosData{
-				"1": {
-					QosId:   "1",
-					Var5qi:  9,
-					MaxbrUl: "500Mbps",
-					MaxbrDl: "1Gbps",
-					Arp: &models.Arp{
-						PriorityLevel: 5,
-						PreemptCap:    models.PreemptionCapability_MAY_PREEMPT,
-						PreemptVuln:   models.PreemptionVulnerability_PREEMPTABLE,
+			snssai := models.Snssai{Sst: 1, Sd: sd}
+			expectedPccPolicies := map[models.Snssai]*PccPolicy{
+				snssai: {
+					PccRules: map[string]*models.PccRule{
+						"rule1": {
+							PccRuleId:  "1",
+							Precedence: 255,
+							RefQosData: []string{"1"},
+							RefTcData:  []string{"TcId-2"},
+							FlowInfos: []models.FlowInformation{{
+								FlowDescription: "permit out ip from any to any",
+								PackFiltId:      "2",
+								FlowDirection:   models.FlowDirectionRm_BIDIRECTIONAL,
+							}},
+						},
+					},
+					QosDecs: map[string]*models.QosData{
+						"1": {
+							QosId:   "1",
+							Var5qi:  9,
+							MaxbrUl: "500Mbps",
+							MaxbrDl: "1Gbps",
+							Arp: &models.Arp{
+								PriorityLevel: 5,
+								PreemptCap:    models.PreemptionCapability_MAY_PREEMPT,
+								PreemptVuln:   models.PreemptionVulnerability_PREEMPTABLE,
+							},
+						},
+					},
+					TraffContDecs: map[string]*models.TrafficControlData{
+						"TcId-2": {
+							TcId:       "TcId-2",
+							FlowStatus: models.FlowStatus_ENABLED,
+						},
 					},
 				},
-			},
-			TraffContDecs: map[string]*models.TrafficControlData{
-				"TcId-2": {
-					TcId:       "TcId-2",
-					FlowStatus: models.FlowStatus_ENABLED,
-				},
-			},
-		},
-	}
+			}
 
-	if !reflect.DeepEqual(pcfPccPolicies, expectedPccPolicies) {
-		t.Errorf("expected %+v got %+v", expectedPccPolicies, pcfPccPolicies)
+			if !reflect.DeepEqual(pccPolicies, expectedPccPolicies) {
+				t.Errorf("expected %+v got %+v", expectedPccPolicies, pccPolicies)
+			}
+		})
 	}
 }
 
 func TestCreatePccPolicies_MultiplePolicyControlElement(t *testing.T) {
-	originalPccPolicies := pcfPccPolicies
+	originalPccPolicies := pccPolicies
 	defer func() {
-		pcfPccPolicies = originalPccPolicies
+		pccPolicies = originalPccPolicies
 	}()
-	pcfPccPolicies = make(map[models.Snssai]*PccPolicy)
+	pccPolicies = make(map[models.Snssai]*PccPolicy)
 
 	sd1 := "112233"
 	sd2 := "445566"
@@ -229,7 +232,7 @@ func TestCreatePccPolicies_MultiplePolicyControlElement(t *testing.T) {
 					},
 					Flows: []nfConfigApi.PccFlow{
 						{Description: "flow-A1", Direction: nfConfigApi.DIRECTION_UPLINK, Status: nfConfigApi.STATUS_ENABLED},
-						{Description: "flow-A2", Direction: nfConfigApi.DIRECTION_DOWNLINK, Status: nfConfigApi.STATUS_DISABLED},
+						{Description: "permit out ip from any to assigned", Direction: nfConfigApi.DIRECTION_DOWNLINK, Status: nfConfigApi.STATUS_DISABLED},
 					},
 				},
 			},
@@ -260,8 +263,8 @@ func TestCreatePccPolicies_MultiplePolicyControlElement(t *testing.T) {
 
 	updatePolicyControl(input)
 
-	if len(pcfPccPolicies) != 2 {
-		t.Errorf("expected two pcc policies, got %d", len(pcfPccPolicies))
+	if len(pccPolicies) != 2 {
+		t.Errorf("expected two pcc policies, got %d", len(pccPolicies))
 	}
 
 	snssai1 := models.Snssai{Sst: 1, Sd: sd1}
@@ -282,7 +285,7 @@ func TestCreatePccPolicies_MultiplePolicyControlElement(t *testing.T) {
 							FlowDirection:   models.FlowDirectionRm_UPLINK,
 						},
 						{
-							FlowDescription: "flow-A2",
+							FlowDescription: "permit out ip from any to assigned",
 							PackFiltId:      "3",
 							FlowDirection:   models.FlowDirectionRm_DOWNLINK,
 						},
@@ -291,10 +294,11 @@ func TestCreatePccPolicies_MultiplePolicyControlElement(t *testing.T) {
 			},
 			QosDecs: map[string]*models.QosData{
 				"1": {
-					QosId:   "1",
-					Var5qi:  5,
-					MaxbrUl: "200Mbps",
-					MaxbrDl: "300Mbps",
+					QosId:                "1",
+					DefQosFlowIndication: true,
+					Var5qi:               5,
+					MaxbrUl:              "200Mbps",
+					MaxbrDl:              "300Mbps",
 					Arp: &models.Arp{
 						PriorityLevel: 88,
 						PreemptCap:    models.PreemptionCapability_NOT_PREEMPT,
@@ -329,10 +333,11 @@ func TestCreatePccPolicies_MultiplePolicyControlElement(t *testing.T) {
 			},
 			QosDecs: map[string]*models.QosData{
 				"4": {
-					QosId:   "4",
-					Var5qi:  7,
-					MaxbrUl: "100Mbps",
-					MaxbrDl: "150Mbps",
+					QosId:                "4",
+					DefQosFlowIndication: false,
+					Var5qi:               7,
+					MaxbrUl:              "100Mbps",
+					MaxbrDl:              "150Mbps",
 					Arp: &models.Arp{
 						PriorityLevel: 3,
 						PreemptCap:    models.PreemptionCapability_MAY_PREEMPT,
@@ -349,10 +354,7 @@ func TestCreatePccPolicies_MultiplePolicyControlElement(t *testing.T) {
 		},
 	}
 
-	if !reflect.DeepEqual(pcfPccPolicies, expectedPccPolicies) {
-		t.Errorf("expected %+v got %+v", expectedPccPolicies, pcfPccPolicies)
+	if !reflect.DeepEqual(pccPolicies, expectedPccPolicies) {
+		t.Errorf("expected %+v got %+v", expectedPccPolicies, pccPolicies)
 	}
 }
-
-// default qos parameter true
-// overwrite existing one

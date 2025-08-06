@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: 2025 Canonical Ltd.
 // SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
 // Copyright 2019 free5GC.org
-// SPDX-FileCopyrightText: 2024 Canonical Ltd.
 // SPDX-FileCopyrightText: 2024 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -240,7 +239,7 @@ func (pcf *PCF) Exec(c *cli.Command) error {
 	logger.InitLog.Debugln("args:", c.String("cfg"))
 	args := pcf.FilterCli(c)
 	logger.InitLog.Debugln("filter:", args)
-	command := exec.Command("pcf", args...)
+	command := exec.CommandContext(context.Background(), "pcf", args...)
 
 	stdout, err := command.StdoutPipe()
 	if err != nil {
@@ -284,7 +283,7 @@ func (pcf *PCF) Exec(c *cli.Command) error {
 }
 
 func (pcf *PCF) Terminate(cancelServices context.CancelFunc, wg *sync.WaitGroup) {
-	logger.InitLog.Infof("terminating CPF")
+	logger.InitLog.Infof("terminating PCF")
 	cancelServices()
 	nfregistration.DeregisterNF()
 	wg.Wait()

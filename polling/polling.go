@@ -44,7 +44,7 @@ func StartPollingService(ctx context.Context, webuiUri string, nfProfileConfigCh
 		currentNfProfileConfig: consumer.NfProfileDynamicConfig{},
 		client:                 &http.Client{Timeout: initialPollingInterval},
 	}
-	pcfPccPolicies = make(map[models.Snssai]*PccPolicy)
+	pccPolicies = make(map[models.Snssai]*PccPolicy)
 	interval := initialPollingInterval
 	pollingEndpoint := webuiUri + pollingPath
 	logger.PollConfigLog.Infof("Started polling service on %s every %v", pollingEndpoint, initialPollingInterval)

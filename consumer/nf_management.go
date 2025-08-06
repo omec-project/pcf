@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: 2025 Canonical Ltd.
 // SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
 // Copyright 2019 free5GC.org
-// SPDX-FileCopyrightText: 2024 Canonical Ltd.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -49,7 +48,7 @@ func getNfProfile(pcfContext *pcfContext.PCFContext, nfProfileDynamicConfig NfPr
 
 	var dnnList []string
 	if len(nfProfileDynamicConfig.Dnns) == 0 {
-		logger.ConsumerLog.Warn("DNN list has not been configured")
+		logger.ConsumerLog.Warnln("DNN list has not been configured")
 	} else {
 		dnnList = make([]string, len(nfProfileDynamicConfig.Dnns))
 		for dnn := range nfProfileDynamicConfig.Dnns {

@@ -28,12 +28,12 @@ import (
 func TestStartPollingService_Success(t *testing.T) {
 	ctx := t.Context()
 	originalFetchPolicyControlConfig := fetchPolicyControlConfig
-	originalPccPolicies := pcfPccPolicies
+	originalPccPolicies := pccPolicies
 	defer func() {
 		fetchPolicyControlConfig = originalFetchPolicyControlConfig
-		pcfPccPolicies = originalPccPolicies
+		pccPolicies = originalPccPolicies
 	}()
-	pcfPccPolicies = make(map[models.Snssai]*PccPolicy)
+	pccPolicies = make(map[models.Snssai]*PccPolicy)
 	fetchedConfig := []nfConfigApi.PolicyControl{
 		{
 			PlmnId:   nfConfigApi.PlmnId{Mcc: "001", Mnc: "01"},
@@ -62,19 +62,19 @@ func TestStartPollingService_Success(t *testing.T) {
 		t.Errorf("Timeout waiting for PLMN config")
 	}
 
-	if len(pcfPccPolicies) == 0 {
-		t.Errorf("expected pcfPccPolicies to be updated")
+	if len(pccPolicies) == 0 {
+		t.Errorf("expected pccPolicies to be updated")
 	}
 }
 
 func TestStartPollingService_RetryAfterFailure(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	originalFetchPolicyControlConfig := fetchPolicyControlConfig
-	originalPccPolicies := pcfPccPolicies
+	originalPccPolicies := pccPolicies
 
 	defer func() {
 		fetchPolicyControlConfig = originalFetchPolicyControlConfig
-		pcfPccPolicies = originalPccPolicies
+		pccPolicies = originalPccPolicies
 	}()
 
 	callCount := 0
@@ -144,11 +144,11 @@ func TestHandlePolledPolicyControl_ExpectChannelNotToBeUpdated(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			originalFetchPolicyControlConfig := fetchPolicyControlConfig
-			originalPccPolicies := pcfPccPolicies
-			pcfPccPolicies = make(map[models.Snssai]*PccPolicy)
+			originalPccPolicies := pccPolicies
+			pccPolicies = make(map[models.Snssai]*PccPolicy)
 			defer func() {
 				fetchPolicyControlConfig = originalFetchPolicyControlConfig
-				pcfPccPolicies = originalPccPolicies
+				pccPolicies = originalPccPolicies
 			}()
 
 			pollingChan := make(chan consumer.NfProfileDynamicConfig, 1)
@@ -230,11 +230,11 @@ func TestHandlePolledPolicyControl_ExpectChannelUpdate(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			originalFetchPolicyControlConfig := fetchPolicyControlConfig
-			originalPccPolicies := pcfPccPolicies
-			pcfPccPolicies = make(map[models.Snssai]*PccPolicy)
+			originalPccPolicies := pccPolicies
+			pccPolicies = make(map[models.Snssai]*PccPolicy)
 			defer func() {
 				fetchPolicyControlConfig = originalFetchPolicyControlConfig
-				pcfPccPolicies = originalPccPolicies
+				pccPolicies = originalPccPolicies
 			}()
 
 			pollingChan := make(chan consumer.NfProfileDynamicConfig, 1)
@@ -336,11 +336,11 @@ func TestFetchPlmnConfig(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			originalPccPolicies := pcfPccPolicies
+			originalPccPolicies := pccPolicies
 			defer func() {
-				pcfPccPolicies = originalPccPolicies
+				pccPolicies = originalPccPolicies
 			}()
-			pcfPccPolicies = make(map[models.Snssai]*PccPolicy)
+			pccPolicies = make(map[models.Snssai]*PccPolicy)
 			handler := func(w http.ResponseWriter, r *http.Request) {
 				accept := r.Header.Get("Accept")
 				if accept != "application/json" {

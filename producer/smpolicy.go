@@ -122,7 +122,10 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	smPolicyData = ue.NewUeSmPolicyData(smPolicyID, request, &smData)
 
 	// Policy Decision
-	snssai := models.Snssai{Sst: request.SliceInfo.Sst, Sd: request.SliceInfo.Sd}
+	snssai := models.Snssai{
+		Sst: request.SliceInfo.Sst,
+		Sd:  request.SliceInfo.Sd,
+	}
 	decision, problemDetail := buildSmPolicyDecision(ue.Supi, snssai, request.Dnn, request.SubsSessAmbr, request.SubsDefQos)
 	if problemDetail != nil {
 		return nil, nil, problemDetail
@@ -192,7 +195,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 				logger.SMpolicylog.Debugf("SM Policy Dnn[%s] Data Aggregate UL GBR[%.2f Kbps]", request.Dnn, gbrUL)
 			}
 		}
-	} else { ///////////////////// fail ?
+	} else {
 		logger.SMpolicylog.Warnf(
 			"Policy Subscription Info: SMPolicyDnnData is null for dnn[%s] in UE[%s]", request.Dnn, ue.Supi)
 		decision.Online = request.Online
@@ -221,87 +224,83 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 }
 
 func buildSmPolicyDecision(imsi string, snssai models.Snssai, dnn string, subscribedSessionAmbr *models.Ambr, subscribedQos *models.SubscribedDefaultQos) (response *models.SmPolicyDecision, problemDetails *models.ProblemDetails) {
+	pccPolicy := polling.GetSlicePccPolicy(snssai)
+	if pccPolicy == nil {
+		problemDetail := util.GetProblemDetail("Can't find in local policy", util.USER_UNKNOWN)
+		logger.SMpolicylog.Warnf("can not find Slice %s in local policy", snssai)
+		return nil, &problemDetail
+	}
+	logger.SMpolicylog.Debugf("pcc Policy data exists in PcfPccPolicyData for Slice %+v", snssai)
+
+	decision := initSmPolicyDecisionFromPccPolicy(pccPolicy)
+	sessionRules, err := polling.GetImsiSessionRules(dnn, imsi)
+	if err != nil {
+		logger.SMpolicylog.Warnf("failed to get the session rules from the webconsole, using default values for %s", imsi)
+		decision.SessRules = buildDefaultSessionPolicy(dnn, subscribedSessionAmbr, subscribedQos)
+		return &decision, nil
+	}
+
+	if len(sessionRules) == 0 {
+		logger.SMpolicylog.Warnf("no session rules found for %s in DNN", imsi, dnn)
+		problemDetail := util.GetProblemDetail("Can't find local policy", util.USER_UNKNOWN)
+		return nil, &problemDetail
+	}
+	for _, sessRule := range sessionRules {
+		decision.SessRules[sessRule.SessRuleId] = deepcopy.Copy(sessRule).(*models.SessionRule)
+	}
+	return &decision, nil
+}
+
+func initSmPolicyDecisionFromPccPolicy(pccPolicy *polling.PccPolicy) models.SmPolicyDecision {
 	decision := models.SmPolicyDecision{
 		SessRules:     make(map[string]*models.SessionRule),
 		PccRules:      make(map[string]*models.PccRule),
 		QosDecs:       make(map[string]*models.QosData),
 		TraffContDecs: make(map[string]*models.TrafficControlData),
 	}
-
-	slicePccPolicyData := polling.GetSlicePccPolicy(snssai)
-	if slicePccPolicyData == nil {
-		problemDetail := util.GetProblemDetail("Can't find in local policy", util.USER_UNKNOWN)
-		logger.SMpolicylog.Warnf("can not find Slice %s in local policy", snssai)
-		return nil, &problemDetail
+	for id, rule := range pccPolicy.PccRules {
+		decision.PccRules[id] = deepcopy.Copy(rule).(*models.PccRule)
 	}
-	logger.SMpolicylog.Infof("Pcc Policy data exists in PcfPccPolicyData for Slice %s", snssai)
-	decision.PccRules = deepcopy.Copy(slicePccPolicyData.PccRules).(map[string]*models.PccRule)
-
-	/*if sessPolicy, exist := slicePccPolicyData.SessionPolicy[dnn]; exist {
-		if len(sessPolicy.SessionRules) == 1 {
-			for _, sessRule := range sessPolicy.SessionRules {
-				decision.SessRules[sessRule.SessRuleId] = deepcopy.Copy(sessRule).(*models.SessionRule)
-			}
-		} else {
-			// query webconsole
-		}
-	} else {
-		logger.SMpolicylog.Infof("requested Dnn[%s] does not exist in local policy", dnn)
-		problemDetail := util.GetProblemDetail("Can't find local policy", util.USER_UNKNOWN)
-		return nil, &problemDetail
-	}*/
-
-	sessionRules, err := polling.GetImsiSessionRules(dnn, imsi)
-	if err == nil {
-		if len(sessionRules) == 0 {
-			logger.SMpolicylog.Infof("requested Dnn[%s] does not exist in local policy", dnn)
-			problemDetail := util.GetProblemDetail("Can't find local policy", util.USER_UNKNOWN)
-			return nil, &problemDetail
-		}
-		for _, sessRule := range sessionRules {
-			decision.SessRules[sessRule.SessRuleId] = deepcopy.Copy(sessRule).(*models.SessionRule)
-		}
-	} else {
-		logger.SMpolicylog.Infof("failed to get the session rules from the webconsole, using default values for %s", imsi)
-		decision.SessRules = getDefaultSessionPolicy(dnn, subscribedSessionAmbr, subscribedQos)
+	for id, qos := range pccPolicy.QosDecs {
+		decision.QosDecs[id] = deepcopy.Copy(qos).(*models.QosData)
 	}
-	for key, qosData := range slicePccPolicyData.QosDecs {
-		decision.QosDecs[key] = deepcopy.Copy(qosData).(*models.QosData)
+	for id, tc := range pccPolicy.TraffContDecs {
+		decision.TraffContDecs[id] = deepcopy.Copy(tc).(*models.TrafficControlData)
 	}
-	for key, trafficData := range slicePccPolicyData.TraffContDecs {
-		decision.TraffContDecs[key] = deepcopy.Copy(trafficData).(*models.TrafficControlData)
-	}
-	return &decision, nil
+	return decision
 }
 
-func getDefaultSessionPolicy(dnn string, subscribedSessionAmbr *models.Ambr, subscribedQos *models.SubscribedDefaultQos) map[string]*models.SessionRule {
+func buildDefaultSessionPolicy(dnn string, ambr *models.Ambr, qos *models.SubscribedDefaultQos) map[string]*models.SessionRule {
 	idGenerator := idgenerator.NewGenerator(1, math.MaxInt16)
-	sessionPolicies := make(map[string]*models.SessionRule)
 	id, err := idGenerator.Allocate()
 	if err != nil {
 		logger.CtxLog.Errorf("ID generator allocation failed: %v", err)
 		return nil
 	}
-	key := dnn + "-" + strconv.Itoa(int(id))
-	sessionPolicies[key] = getDefaultSessionRule(subscribedSessionAmbr, subscribedQos)
-	return sessionPolicies
+	key := fmt.Sprintf("%s-%d", dnn, id)
+	return map[string]*models.SessionRule{
+		key: buildDefaultSessionRule(key, ambr, qos),
+	}
 }
 
-func getDefaultSessionRule(subscribedSessionAmbr *models.Ambr, subscribedQos *models.SubscribedDefaultQos) *models.SessionRule {
-	if subscribedSessionAmbr != nil && subscribedQos != nil {
+func buildDefaultSessionRule(key string, ambr *models.Ambr, qos *models.SubscribedDefaultQos) *models.SessionRule {
+	if ambr != nil && qos != nil {
 		return &models.SessionRule{
+			SessRuleId: key,
 			AuthDefQos: &models.AuthorizedDefaultQos{
-				Var5qi:        subscribedQos.Var5qi,
-				Arp:           subscribedQos.Arp,
-				PriorityLevel: subscribedQos.PriorityLevel,
+				Var5qi:        qos.Var5qi,
+				Arp:           qos.Arp,
+				PriorityLevel: qos.PriorityLevel,
 			},
-			AuthSessAmbr: subscribedSessionAmbr,
+			AuthSessAmbr: ambr,
 		}
 	}
 	return &models.SessionRule{
+		SessRuleId: key,
 		AuthDefQos: &models.AuthorizedDefaultQos{
-			Var5qi: 5,
-			Arp:    &models.Arp{PriorityLevel: 1},
+			Var5qi:        5,
+			Arp:           &models.Arp{PriorityLevel: 1},
+			PriorityLevel: 1,
 		},
 		AuthSessAmbr: &models.Ambr{
 			Downlink: "1000 Kbps",

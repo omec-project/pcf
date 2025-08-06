@@ -10,17 +10,23 @@ package polling
 
 import (
 	"errors"
-	"strings"
+	"reflect"
 	"testing"
 
+	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/openapi/nfConfigApi"
 )
 
-func TestGetImsiSessionRules_Success(t *testing.T) {
-	originalFetch := fetchImsiQosFunc
-	defer func() { fetchImsiQosFunc = originalFetch }()
+const (
+	testValidImsi = "imsi-001010123456789"
+	testValidDnn  = "internet"
+)
 
-	fetchImsiQosFunc = func(pollingEndpoint string) ([]nfConfigApi.ImsiQos, error) {
+func TestGetImsiSessionRules_Success(t *testing.T) {
+	originalFetch := fetchImsiQos
+	defer func() { fetchImsiQos = originalFetch }()
+
+	fetchImsiQos = func(pollingEndpoint string) ([]nfConfigApi.ImsiQos, error) {
 		return []nfConfigApi.ImsiQos{
 			{
 				FiveQi:           9,
@@ -31,56 +37,38 @@ func TestGetImsiSessionRules_Success(t *testing.T) {
 		}, nil
 	}
 
-	dnn := "internet"
-	imsi := "imsi-001010123456789"
-	result, err := GetImsiSessionRules(dnn, imsi)
+	result, err := GetImsiSessionRules(testValidDnn, testValidImsi)
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
-	if len(result) != 1 {
-		t.Errorf("expected one session rule, got %d", len(result))
+	expectedSessionRules := map[string]*models.SessionRule{
+		"internet-1": {
+			SessRuleId: "internet-1",
+			AuthSessAmbr: &models.Ambr{
+				Uplink:   "1Gbps",
+				Downlink: "500Mbps",
+			},
+			AuthDefQos: &models.AuthorizedDefaultQos{
+				Var5qi: 9,
+				Arp:    &models.Arp{PriorityLevel: 7},
+			},
+		},
 	}
 
-	for key, rule := range result {
-		if !strings.HasPrefix(key, dnn+"-") {
-			t.Errorf("expected key to start with %s, got %s", dnn+"-", key)
-		}
-		if rule.AuthDefQos == nil {
-			t.Errorf("expected AuthDefQos to be non-nil")
-		} else {
-			if rule.AuthDefQos.Var5qi != 9 {
-				t.Errorf("expected Var5qi to be %d, got %d", 9, rule.AuthDefQos.Var5qi)
-			}
-			if rule.AuthDefQos.Arp == nil {
-				t.Errorf("expected ARP to be non-nil")
-			} else if rule.AuthDefQos.Arp.PriorityLevel != 7 {
-				t.Errorf("expected ARP PriorityLevel to be %d, got %d", 7, rule.AuthDefQos.Arp.PriorityLevel)
-			}
-		}
-		if rule.AuthSessAmbr == nil {
-			t.Errorf("expected AuthSessAmbr to be non-nil")
-		} else {
-			if rule.AuthSessAmbr.Uplink != "1Gbps" {
-				t.Errorf("expected Uplink to be '%s', got %q", "1Gbps", rule.AuthSessAmbr.Uplink)
-			}
-			if rule.AuthSessAmbr.Downlink != "500Mbps" {
-				t.Errorf("expected Downlink to be '%s', got %q", "500Mbps", rule.AuthSessAmbr.Downlink)
-			}
-		}
+	if !reflect.DeepEqual(result, expectedSessionRules) {
+		t.Errorf("expected %+v, got %+v", expectedSessionRules, result)
 	}
 }
 
 func TestGetImsiSessionRules_FetchFails(t *testing.T) {
-	originalFetch := fetchImsiQosFunc
-	defer func() { fetchImsiQosFunc = originalFetch }()
+	originalFetch := fetchImsiQos
+	defer func() { fetchImsiQos = originalFetch }()
 
-	fetchImsiQosFunc = func(pollingEndpoint string) ([]nfConfigApi.ImsiQos, error) {
+	fetchImsiQos = func(pollingEndpoint string) ([]nfConfigApi.ImsiQos, error) {
 		return nil, errors.New("mock error")
 	}
 
-	dnn := "internet"
-	imsi := "001010123456789"
-	result, err := GetImsiSessionRules(dnn, imsi)
+	result, err := GetImsiSessionRules(testValidDnn, testValidImsi)
 
 	if err == nil {
 		t.Errorf("expected error, got nil")
@@ -91,20 +79,66 @@ func TestGetImsiSessionRules_FetchFails(t *testing.T) {
 }
 
 func TestGetImsiSessionRules_EmptyQoS(t *testing.T) {
-	originalFetch := fetchImsiQosFunc
-	defer func() { fetchImsiQosFunc = originalFetch }()
+	originalFetch := fetchImsiQos
+	defer func() { fetchImsiQos = originalFetch }()
 
-	fetchImsiQosFunc = func(pollingEndpoint string) ([]nfConfigApi.ImsiQos, error) {
+	fetchImsiQos = func(pollingEndpoint string) ([]nfConfigApi.ImsiQos, error) {
 		return []nfConfigApi.ImsiQos{}, nil
 	}
 
-	dnn := "internet"
-	imsi := "001010123456789"
-	result, err := GetImsiSessionRules(dnn, imsi)
+	result, err := GetImsiSessionRules(testValidDnn, testValidImsi)
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
 	if len(result) != 0 {
 		t.Errorf("expected empty session rule, got %d", len(result))
+	}
+}
+
+func TestGetImsiSessionRules_InvalidInput(t *testing.T) {
+	originalFetch := fetchImsiQos
+	defer func() { fetchImsiQos = originalFetch }()
+
+	fetchImsiQos = func(pollingEndpoint string) ([]nfConfigApi.ImsiQos, error) {
+		return []nfConfigApi.ImsiQos{}, nil
+	}
+
+	testCases := []struct {
+		name      string
+		inputDnn  string
+		inputImsi string
+	}{
+		{
+			name:      "invalid dnn",
+			inputDnn:  "",
+			inputImsi: testValidImsi,
+		},
+		{
+			name:      "imsi too long",
+			inputDnn:  testValidDnn,
+			inputImsi: "imsi-00101012345678918",
+		},
+		{
+			name:      "imsi too short",
+			inputDnn:  testValidDnn,
+			inputImsi: "imsi-00101012345678",
+		},
+		{
+			name:      "imsi with a prefix",
+			inputDnn:  testValidDnn,
+			inputImsi: "001010123456789",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := GetImsiSessionRules(tc.inputDnn, tc.inputImsi)
+			if err == nil {
+				t.Error("expected error, got nil")
+			}
+			if result != nil {
+				t.Errorf("expected no result, got %+v", result)
+			}
+		})
 	}
 }
