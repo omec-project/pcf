@@ -227,7 +227,7 @@ func buildSmPolicyDecision(imsi string, snssai models.Snssai, dnn string, subscr
 	pccPolicy := polling.GetSlicePccPolicy(snssai)
 	if pccPolicy == nil {
 		problemDetail := util.GetProblemDetail("Can't find in local policy", util.USER_UNKNOWN)
-		logger.SMpolicylog.Warnf("can not find Slice %s in local policy", snssai)
+		logger.SMpolicylog.Warnf("can not find Slice %+v in local policy", snssai)
 		return nil, &problemDetail
 	}
 	logger.SMpolicylog.Debugf("pcc Policy data exists in PcfPccPolicyData for Slice %+v", snssai)

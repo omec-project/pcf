@@ -139,9 +139,9 @@ func extractNfProfileDynamicConfig(policyConfig []nfConfigApi.PolicyControl) con
 		}
 		plmnSet[plmn] = struct{}{}
 
-		//for _, dnnQos := range policy.DnnQos {
-		//	dnnSet[dnnQos.DnnName] = struct{}{}
-		//}
+		for _, dnn := range policy.Dnns {
+			dnnSet[dnn] = struct{}{}
+		}
 	}
 	return consumer.NfProfileDynamicConfig{
 		Plmns: plmnSet,

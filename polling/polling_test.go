@@ -38,7 +38,7 @@ func TestStartPollingService_Success(t *testing.T) {
 		{
 			PlmnId:   nfConfigApi.PlmnId{Mcc: "001", Mnc: "01"},
 			Snssai:   nfConfigApi.Snssai{Sst: 1},
-			PccRules: []nfConfigApi.PccRule{},
+			PccRules: []nfConfigApi.PccRule{{RuleId: "something"}},
 		},
 	}
 	fetchPolicyControlConfig = func(p *nfConfigPoller, endpoint string) ([]nfConfigApi.PolicyControl, error) {
@@ -180,24 +180,43 @@ func TestHandlePolledPolicyControl_ExpectChannelNotToBeUpdated(t *testing.T) {
 	}
 }
 
-func TestHandlePolledPolicyControl_ExpectChannelUpdate(t *testing.T) {
+func TestHandlePolledPolicyControl_ExpectNFRegistrationChannelUpdate(t *testing.T) {
 	pc1 := []nfConfigApi.PolicyControl{
 		{
 			PlmnId:   nfConfigApi.PlmnId{Mcc: "001", Mnc: "01"},
 			Snssai:   nfConfigApi.Snssai{Sst: 1},
+			Dnns:     []string{"dnn1"},
 			PccRules: []nfConfigApi.PccRule{},
 		},
 	}
-	pc2 := []nfConfigApi.PolicyControl{
+	newPlmnPc := []nfConfigApi.PolicyControl{
+		{
+			PlmnId:   nfConfigApi.PlmnId{Mcc: "002", Mnc: "01"},
+			Snssai:   nfConfigApi.Snssai{Sst: 5},
+			Dnns:     []string{"dnn1"},
+			PccRules: []nfConfigApi.PccRule{},
+		},
+	}
+	newDnnPc := []nfConfigApi.PolicyControl{
 		{
 			PlmnId:   nfConfigApi.PlmnId{Mcc: "001", Mnc: "01"},
-			Snssai:   nfConfigApi.Snssai{Sst: 5},
+			Snssai:   nfConfigApi.Snssai{Sst: 1},
+			Dnns:     []string{"dnn2"},
 			PccRules: []nfConfigApi.PccRule{},
 		},
 	}
-	nfProf := consumer.NfProfileDynamicConfig{
+	nfProf1 := consumer.NfProfileDynamicConfig{
 		Plmns: map[models.PlmnId]struct{}{{Mcc: "001", Mnc: "01"}: {}},
-		Dnns:  map[string]struct{}{},
+		Dnns:  map[string]struct{}{"dnn1": {}},
+	}
+
+	newPlmnNfProfile := consumer.NfProfileDynamicConfig{
+		Plmns: map[models.PlmnId]struct{}{{Mcc: "002", Mnc: "01"}: {}},
+		Dnns:  map[string]struct{}{"dnn1": {}},
+	}
+	newDnnNfProfile := consumer.NfProfileDynamicConfig{
+		Plmns: map[models.PlmnId]struct{}{{Mcc: "001", Mnc: "01"}: {}},
+		Dnns:  map[string]struct{}{"dnn2": {}},
 	}
 
 	tests := []struct {
@@ -214,17 +233,24 @@ func TestHandlePolledPolicyControl_ExpectChannelUpdate(t *testing.T) {
 			initialNfProfileConfig: consumer.NfProfileDynamicConfig{},
 			input:                  pc1,
 			expectedPolicyControl:  pc1,
-			expectedNfProfile:      nfProf,
+			expectedNfProfile:      nfProf1,
 		},
 		{
 			name:                   "Plmn config changed",
-			initialPolicyControl:   pc2,
-			initialNfProfileConfig: consumer.NfProfileDynamicConfig{},
-			input:                  pc1,
-			expectedPolicyControl:  pc1,
-			expectedNfProfile:      nfProf,
+			initialPolicyControl:   pc1,
+			initialNfProfileConfig: nfProf1,
+			input:                  newPlmnPc,
+			expectedPolicyControl:  newPlmnPc,
+			expectedNfProfile:      newPlmnNfProfile,
 		},
-		// ADD TEST WITH CHANGE IN DNN *********************************************************************************
+		{
+			name:                   "DNN config changed",
+			initialPolicyControl:   pc1,
+			initialNfProfileConfig: nfProf1,
+			input:                  newDnnPc,
+			expectedPolicyControl:  newDnnPc,
+			expectedNfProfile:      newDnnNfProfile,
+		},
 	}
 
 	for _, tc := range tests {

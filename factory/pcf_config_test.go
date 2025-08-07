@@ -15,19 +15,19 @@ import (
 // Webui URL is not set then default Webui URL value is returned
 func TestGetDefaultWebuiUrl(t *testing.T) {
 	if err := InitConfigFactory("pcfcfg.yaml"); err != nil {
-		t.Logf("error in InitConfigFactory: %v", err)
+		t.Fatalf("error in InitConfigFactory: %v", err)
 	}
 	got := PcfConfig.Configuration.WebuiUri
-	want := "webui:9876"
+	want := "http://webui:5001"
 	assert.Equal(t, got, want, "The webui URL is not correct.")
 }
 
 // Webui URL is set to a custom value then custom Webui URL is returned
 func TestGetCustomWebuiUrl(t *testing.T) {
 	if err := InitConfigFactory("pcfcfg_with_custom_webui_url.yaml"); err != nil {
-		t.Logf("error in InitConfigFactory: %v", err)
+		t.Fatalf("error in InitConfigFactory: %v", err)
 	}
 	got := PcfConfig.Configuration.WebuiUri
-	want := "myspecialwebui:9872"
+	want := "https://myspecialwebui:9872"
 	assert.Equal(t, got, want, "The webui URL is not correct.")
 }
