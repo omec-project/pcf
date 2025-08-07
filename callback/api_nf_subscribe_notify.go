@@ -68,7 +68,8 @@ func HTTPNfSubscriptionStatusNotify(c *gin.Context) {
 			return
 		}
 		nfID := nfSubscriptionStatusNotification.NfProfile.NfInstanceId
-		value, found := pcfContext.PCF_Self().NfStatusSubscriptions.Load(nfID)
+		pcfSelf := pcfContext.PCF_Self()
+		value, found := pcfSelf.NfStatusSubscriptions.Load(nfID)
 		if !found {
 			logger.ConsumerLog.Warnf("no subscriptionId found for NF instance %s", nfID)
 			return
@@ -83,6 +84,6 @@ func HTTPNfSubscriptionStatusNotify(c *gin.Context) {
 			logger.ConsumerLog.Warnf("NRF responded with problem while removing %s: %+v", subID, problem)
 			return
 		}
-		pcfContext.PCF_Self().NfStatusSubscriptions.Delete(nfID)
+		pcfSelf.NfStatusSubscriptions.Delete(nfID)
 	}
 }
