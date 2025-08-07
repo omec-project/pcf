@@ -227,10 +227,10 @@ func buildSmPolicyDecision(imsi string, snssai models.Snssai, dnn string, subscr
 	pccPolicy := polling.GetSlicePccPolicy(snssai)
 	if pccPolicy == nil {
 		problemDetail := util.GetProblemDetail("Can't find in local policy", util.USER_UNKNOWN)
-		logger.SMpolicylog.Warnf("can not find Slice %+v in local policy", snssai)
+		logger.SMpolicylog.Warnf("can not find slice %+v in local policy", snssai)
 		return nil, &problemDetail
 	}
-	logger.SMpolicylog.Debugf("pcc Policy data exists in PcfPccPolicyData for Slice %+v", snssai)
+	logger.SMpolicylog.Debugf("pcc Policy data exists in PcfPccPolicyData for slice %+v", snssai)
 
 	decision := initSmPolicyDecisionFromPccPolicy(pccPolicy)
 	sessionRules, err := polling.GetImsiSessionRules(dnn, imsi)
@@ -288,9 +288,8 @@ func buildDefaultSessionRule(key string, ambr *models.Ambr, qos *models.Subscrib
 		return &models.SessionRule{
 			SessRuleId: key,
 			AuthDefQos: &models.AuthorizedDefaultQos{
-				Var5qi:        qos.Var5qi,
-				Arp:           qos.Arp,
-				PriorityLevel: qos.PriorityLevel,
+				Var5qi: qos.Var5qi,
+				Arp:    qos.Arp,
 			},
 			AuthSessAmbr: ambr,
 		}
@@ -298,13 +297,12 @@ func buildDefaultSessionRule(key string, ambr *models.Ambr, qos *models.Subscrib
 	return &models.SessionRule{
 		SessRuleId: key,
 		AuthDefQos: &models.AuthorizedDefaultQos{
-			Var5qi:        5,
-			Arp:           &models.Arp{PriorityLevel: 1},
-			PriorityLevel: 1,
+			Var5qi: 5,
+			Arp:    &models.Arp{PriorityLevel: 1},
 		},
 		AuthSessAmbr: &models.Ambr{
-			Downlink: "1000 Kbps",
-			Uplink:   "1000 Kbps",
+			Downlink: "1 Mbps",
+			Uplink:   "1 Mbps",
 		},
 	}
 }

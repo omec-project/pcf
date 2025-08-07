@@ -103,7 +103,7 @@ func TestHandlePolledPolicyControl_ExpectChannelNotToBeUpdated(t *testing.T) {
 			PccRules: []nfConfigApi.PccRule{},
 		},
 	}
-	pc2 := []nfConfigApi.PolicyControl{
+	newSnssaiPc := []nfConfigApi.PolicyControl{
 		{
 			PlmnId:   nfConfigApi.PlmnId{Mcc: "001", Mnc: "01"},
 			Snssai:   nfConfigApi.Snssai{Sst: 5},
@@ -137,7 +137,7 @@ func TestHandlePolledPolicyControl_ExpectChannelNotToBeUpdated(t *testing.T) {
 			name:                   "New config has different snssai",
 			initialPolicyControl:   pc1,
 			initialNfProfileConfig: nfProf,
-			input:                  pc2,
+			input:                  newSnssaiPc,
 		},
 	}
 
@@ -289,6 +289,174 @@ func TestHandlePolledPolicyControl_ExpectNFRegistrationChannelUpdate(t *testing.
 			if !reflect.DeepEqual(poller.currentPolicyControl, tc.expectedPolicyControl) {
 				t.Errorf("Expected current policy control config: %+v, got: %+v",
 					tc.expectedPolicyControl, poller.currentPolicyControl)
+			}
+		})
+	}
+}
+
+func TestHandlePolledPolicyControl_ExpectPccConfigNotToBeUpdated(t *testing.T) {
+	pc1 := []nfConfigApi.PolicyControl{
+		{
+			PlmnId:   nfConfigApi.PlmnId{Mcc: "001", Mnc: "01"},
+			Snssai:   nfConfigApi.Snssai{Sst: 1},
+			Dnns:     []string{"dnn1"},
+			PccRules: []nfConfigApi.PccRule{},
+		},
+	}
+	newPlmnPc := []nfConfigApi.PolicyControl{
+		{
+			PlmnId:   nfConfigApi.PlmnId{Mcc: "001", Mnc: "02"},
+			Snssai:   nfConfigApi.Snssai{Sst: 1},
+			Dnns:     []string{"dnn1"},
+			PccRules: []nfConfigApi.PccRule{},
+		},
+	}
+
+	newDnnPc := []nfConfigApi.PolicyControl{
+		{
+			PlmnId:   nfConfigApi.PlmnId{Mcc: "001", Mnc: "01"},
+			Snssai:   nfConfigApi.Snssai{Sst: 1},
+			Dnns:     []string{"dnn2"},
+			PccRules: []nfConfigApi.PccRule{},
+		},
+	}
+
+	tests := []struct {
+		name                 string
+		initialPolicyControl []nfConfigApi.PolicyControl
+		input                []nfConfigApi.PolicyControl
+	}{
+		{
+			name:                 "Same policy control, nf registration is not updated",
+			initialPolicyControl: pc1,
+			input:                pc1,
+		},
+		{
+			name:                 "Initial config is empty, new config empty",
+			initialPolicyControl: []nfConfigApi.PolicyControl{},
+			input:                []nfConfigApi.PolicyControl{},
+		},
+		{
+			name:                 "New config has different plmn",
+			initialPolicyControl: pc1,
+			input:                newPlmnPc,
+		},
+		{
+			name:                 "New config has different dnns",
+			initialPolicyControl: pc1,
+			input:                newDnnPc,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			originalFetchPolicyControlConfig := fetchPolicyControlConfig
+			originalPccPolicies := pccPolicies
+			originalUpdatePolicyControl := updatePccPolicy
+			pccPolicies = make(map[models.Snssai]*PccPolicy)
+			defer func() {
+				fetchPolicyControlConfig = originalFetchPolicyControlConfig
+				pccPolicies = originalPccPolicies
+				updatePccPolicy = originalUpdatePolicyControl
+			}()
+			called := false
+			updatePccPolicy = func(policyControlConfig []nfConfigApi.PolicyControl) {
+				called = true
+			}
+
+			pollingChan := make(chan consumer.NfProfileDynamicConfig, 1)
+			poller := nfConfigPoller{
+				currentPolicyControl: tc.initialPolicyControl,
+				nfProfileConfigChan:  pollingChan,
+			}
+
+			poller.handlePolledPolicyControl(tc.input)
+
+			if !reflect.DeepEqual(poller.currentPolicyControl, tc.input) {
+				t.Errorf("Expected current policy control config: %+v, got: %+v",
+					tc.input, poller.currentPolicyControl)
+			}
+			if called {
+				t.Error("Expected PCC policy not to be updated, but it was")
+			}
+		})
+	}
+}
+
+func TestHandlePolledPolicyControl_ExpectPccConfigToBeUpdated(t *testing.T) {
+	pc1 := []nfConfigApi.PolicyControl{
+		{
+			PlmnId:   nfConfigApi.PlmnId{Mcc: "001", Mnc: "01"},
+			Snssai:   nfConfigApi.Snssai{Sst: 1},
+			Dnns:     []string{"dnn1"},
+			PccRules: []nfConfigApi.PccRule{{RuleId: "id1"}},
+		},
+	}
+	newSnssaiPc := []nfConfigApi.PolicyControl{
+		{
+			PlmnId:   nfConfigApi.PlmnId{Mcc: "001", Mnc: "01"},
+			Snssai:   nfConfigApi.Snssai{Sst: 2},
+			Dnns:     []string{"dnn1"},
+			PccRules: []nfConfigApi.PccRule{{RuleId: "id1"}},
+		},
+	}
+
+	newPccRules := []nfConfigApi.PolicyControl{
+		{
+			PlmnId:   nfConfigApi.PlmnId{Mcc: "001", Mnc: "01"},
+			Snssai:   nfConfigApi.Snssai{Sst: 1},
+			Dnns:     []string{"dnn1"},
+			PccRules: []nfConfigApi.PccRule{{RuleId: "id2"}},
+		},
+	}
+
+	tests := []struct {
+		name                 string
+		initialPolicyControl []nfConfigApi.PolicyControl
+		input                []nfConfigApi.PolicyControl
+	}{
+		{
+			name:                 "New config has different snssai",
+			initialPolicyControl: pc1,
+			input:                newSnssaiPc,
+		},
+		{
+			name:                 "New config has different pcc rules",
+			initialPolicyControl: pc1,
+			input:                newPccRules,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			originalFetchPolicyControlConfig := fetchPolicyControlConfig
+			originalPccPolicies := pccPolicies
+			originalUpdatePolicyControl := updatePccPolicy
+			pccPolicies = make(map[models.Snssai]*PccPolicy)
+			defer func() {
+				fetchPolicyControlConfig = originalFetchPolicyControlConfig
+				pccPolicies = originalPccPolicies
+				updatePccPolicy = originalUpdatePolicyControl
+			}()
+			called := false
+			updatePccPolicy = func(policyControlConfig []nfConfigApi.PolicyControl) {
+				called = true
+			}
+
+			pollingChan := make(chan consumer.NfProfileDynamicConfig, 1)
+			poller := nfConfigPoller{
+				currentPolicyControl: tc.initialPolicyControl,
+				nfProfileConfigChan:  pollingChan,
+			}
+
+			poller.handlePolledPolicyControl(tc.input)
+
+			if !reflect.DeepEqual(poller.currentPolicyControl, tc.input) {
+				t.Errorf("Expected current policy control config: %+v, got: %+v",
+					tc.input, poller.currentPolicyControl)
+			}
+			if !called {
+				t.Error("Expected PCC policy to be updated, but it was not")
 			}
 		})
 	}

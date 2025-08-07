@@ -116,16 +116,17 @@ func (p *nfConfigPoller) handlePolledPolicyControl(newPolicyControlConfig []nfCo
 		logger.PollConfigLog.Debugf("Policy control config did not change %+v", p.currentPolicyControl)
 		return
 	}
-	p.currentPolicyControl = newPolicyControlConfig
-	logger.PollConfigLog.Infof("Policy control config changed. New Policy control config: %+v", p.currentPolicyControl)
-
-	newNfProfileDynamicConfig := extractNfProfileDynamicConfig(p.currentPolicyControl)
+	newNfProfileDynamicConfig := extractNfProfileDynamicConfig(newPolicyControlConfig)
 	if !reflect.DeepEqual(p.currentNfProfileConfig, newNfProfileDynamicConfig) {
 		logger.PollConfigLog.Debugf("NF profile config changed %+v. Updating NF registration", newNfProfileDynamicConfig)
 		p.currentNfProfileConfig = newNfProfileDynamicConfig
 		p.nfProfileConfigChan <- p.currentNfProfileConfig
 	}
-	updatePolicyControl(p.currentPolicyControl)
+	if havePccRulesChanged(p.currentPolicyControl, newPolicyControlConfig) {
+		updatePccPolicy(newPolicyControlConfig)
+	}
+	p.currentPolicyControl = newPolicyControlConfig
+	logger.PollConfigLog.Infof("Policy control config changed. New Policy control config: %+v", p.currentPolicyControl)
 }
 
 func extractNfProfileDynamicConfig(policyConfig []nfConfigApi.PolicyControl) consumer.NfProfileDynamicConfig {
@@ -147,6 +148,19 @@ func extractNfProfileDynamicConfig(policyConfig []nfConfigApi.PolicyControl) con
 		Plmns: plmnSet,
 		Dnns:  dnnSet,
 	}
+}
+
+func havePccRulesChanged(prev, curr []nfConfigApi.PolicyControl) bool {
+	if len(prev) != len(curr) {
+		return true
+	}
+	for i := range curr {
+		if !reflect.DeepEqual(prev[i].Snssai, curr[i].Snssai) ||
+			!reflect.DeepEqual(prev[i].PccRules, curr[i].PccRules) {
+			return true
+		}
+	}
+	return false
 }
 
 func minDuration(a, b time.Duration) time.Duration {

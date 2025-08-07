@@ -66,7 +66,7 @@ func TestUpdatePolicyControl_EmptyInputClearsPolicies(t *testing.T) {
 	snssai := models.Snssai{Sst: 1, Sd: "010203"}
 	pccPolicies[snssai] = &PccPolicy{}
 
-	updatePolicyControl([]nfConfigApi.PolicyControl{})
+	updatePccPolicy([]nfConfigApi.PolicyControl{})
 
 	if len(pccPolicies) != 0 {
 		t.Errorf("expected pccPolicies to be empty, got %d entries", len(pccPolicies))
@@ -86,7 +86,7 @@ func TestUpdatePolicyControl_CreatesPolicies(t *testing.T) {
 		pccPolicies[snssai] = &PccPolicy{}
 	}
 
-	updatePolicyControl([]nfConfigApi.PolicyControl{{}})
+	updatePccPolicy([]nfConfigApi.PolicyControl{{}})
 
 	if len(pccPolicies) != 1 {
 		t.Errorf("expected 1 entry in pccPolicies, got %d", len(pccPolicies))
@@ -261,7 +261,7 @@ func TestCreatePccPolicies_MultiplePolicyControlElement(t *testing.T) {
 		},
 	}
 
-	updatePolicyControl(input)
+	updatePccPolicy(input)
 
 	if len(pccPolicies) != 2 {
 		t.Errorf("expected two pcc policies, got %d", len(pccPolicies))

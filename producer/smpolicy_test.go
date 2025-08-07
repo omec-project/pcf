@@ -201,7 +201,6 @@ func TestBuildSmPolicyDecision_FallbackToDefault(t *testing.T) {
 				Arp: &models.Arp{
 					PriorityLevel: 10,
 				},
-				PriorityLevel: 8,
 			},
 			expectedAmbr: &models.Ambr{
 				Downlink: "500 Mbps",
@@ -217,11 +216,10 @@ func TestBuildSmPolicyDecision_FallbackToDefault(t *testing.T) {
 				Arp: &models.Arp{
 					PriorityLevel: 1,
 				},
-				PriorityLevel: 1,
 			},
 			expectedAmbr: &models.Ambr{
-				Downlink: "1000 Kbps",
-				Uplink:   "1000 Kbps",
+				Downlink: "1 Mbps",
+				Uplink:   "1 Mbps",
 			},
 		},
 		{
@@ -233,11 +231,10 @@ func TestBuildSmPolicyDecision_FallbackToDefault(t *testing.T) {
 				Arp: &models.Arp{
 					PriorityLevel: 1,
 				},
-				PriorityLevel: 1,
 			},
 			expectedAmbr: &models.Ambr{
-				Downlink: "1000 Kbps",
-				Uplink:   "1000 Kbps",
+				Downlink: "1 Mbps",
+				Uplink:   "1 Mbps",
 			},
 		},
 		{
@@ -249,11 +246,10 @@ func TestBuildSmPolicyDecision_FallbackToDefault(t *testing.T) {
 				Arp: &models.Arp{
 					PriorityLevel: 1,
 				},
-				PriorityLevel: 1, ////////////////// may be not set
 			},
 			expectedAmbr: &models.Ambr{
-				Downlink: "1000 Kbps",
-				Uplink:   "1000 Kbps",
+				Downlink: "1 Mbps",
+				Uplink:   "1 Mbps",
 			},
 		},
 	}

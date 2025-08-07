@@ -39,11 +39,11 @@ var GetSlicePccPolicy = func(snssai models.Snssai) *PccPolicy {
 	return nil
 }
 
-func updatePolicyControl(policyControlConfig []nfConfigApi.PolicyControl) {
+var updatePccPolicy = func(policyControlConfig []nfConfigApi.PolicyControl) {
 	configLock.Lock()
 	defer configLock.Unlock()
 	if len(policyControlConfig) == 0 {
-		logger.PollConfigLog.Warn("received empty Policy Control config. Clearing PCC Policy data")
+		logger.PollConfigLog.Warnln("received empty Policy Control config. Clearing PCC Policy data")
 		pccPolicies = make(map[models.Snssai]*PccPolicy, 0)
 		return
 	}
@@ -56,7 +56,7 @@ func updatePolicyControl(policyControlConfig []nfConfigApi.PolicyControl) {
 
 var createPccPolicies = func(idGenerator *idgenerator.IDGenerator, policyControlConfig nfConfigApi.PolicyControl) {
 	if len(policyControlConfig.PccRules) == 0 {
-		logger.PollConfigLog.Warn("No PCC rules provided in PolicyControl config")
+		logger.PollConfigLog.Warnln("No PCC rules provided in PolicyControl config")
 		return
 	}
 	snssai := models.Snssai{
