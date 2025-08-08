@@ -30,60 +30,127 @@ func TestGetImsiSessionRules_Success(t *testing.T) {
 	originalPcfConfig := factory.PcfConfig
 	defer func() { factory.PcfConfig = originalPcfConfig }()
 
-	handler := func(w http.ResponseWriter, r *http.Request) {
-		accept := r.Header.Get("Accept")
-		if accept != applicationJson {
-			t.Fail()
-		}
-		w.Header().Set("Content-Type", applicationJson)
-		w.WriteHeader(http.StatusOK)
-		retrievedSessionRules := []nfConfigApi.ImsiQos{{
-			MbrUplink:        "1 Gbps",
-			MbrDownlink:      "500 Mbps",
-			FiveQi:           9,
-			ArpPriorityLevel: 2,
-		}}
-		jsonData, err := json.Marshal(retrievedSessionRules)
-		if err != nil {
-			log.Println("Error serializing data:", err)
-			t.Fail()
-			return
-		}
-		_, err = w.Write(jsonData)
-		if err != nil {
-			log.Println("Error writing data:", err)
-			t.Fail()
-		}
-	}
-	server := httptest.NewServer(http.HandlerFunc(handler))
-	defer server.Close()
-
-	factory.PcfConfig = factory.Config{
-		Configuration: &factory.Configuration{
-			WebuiUri: server.URL,
+	testCases := []struct {
+		name                 string
+		input                []nfConfigApi.ImsiQos
+		expectedSessionRules map[string]*models.SessionRule
+	}{
+		{
+			name: "single imsi qos",
+			input: []nfConfigApi.ImsiQos{{
+				MbrUplink:        "1 Gbps",
+				MbrDownlink:      "500 Mbps",
+				FiveQi:           9,
+				ArpPriorityLevel: 2,
+			}},
+			expectedSessionRules: map[string]*models.SessionRule{
+				"internet-1": {
+					SessRuleId: "internet-1",
+					AuthSessAmbr: &models.Ambr{
+						Uplink:   "1 Gbps",
+						Downlink: "500 Mbps",
+					},
+					AuthDefQos: &models.AuthorizedDefaultQos{
+						Var5qi: 9,
+						Arp:    &models.Arp{PriorityLevel: 2},
+					},
+				},
+			},
+		},
+		{
+			name: "multiple imsi qos",
+			input: []nfConfigApi.ImsiQos{{
+				MbrUplink:        "1 Gbps",
+				MbrDownlink:      "500 Mbps",
+				FiveQi:           9,
+				ArpPriorityLevel: 2,
+			}, {
+				MbrUplink:        "2 Mbps",
+				MbrDownlink:      "12 Kbps",
+				FiveQi:           8,
+				ArpPriorityLevel: 1,
+			}, {
+				MbrUplink:        "17 Gbps",
+				MbrDownlink:      "90 Mbps",
+				FiveQi:           2,
+				ArpPriorityLevel: 7,
+			}},
+			expectedSessionRules: map[string]*models.SessionRule{
+				"internet-1": {
+					SessRuleId: "internet-1",
+					AuthSessAmbr: &models.Ambr{
+						Uplink:   "1 Gbps",
+						Downlink: "500 Mbps",
+					},
+					AuthDefQos: &models.AuthorizedDefaultQos{
+						Var5qi: 9,
+						Arp:    &models.Arp{PriorityLevel: 2},
+					},
+				},
+				"internet-2": {
+					SessRuleId: "internet-2",
+					AuthSessAmbr: &models.Ambr{
+						Uplink:   "2 Mbps",
+						Downlink: "12 Kbps",
+					},
+					AuthDefQos: &models.AuthorizedDefaultQos{
+						Var5qi: 8,
+						Arp:    &models.Arp{PriorityLevel: 1},
+					},
+				},
+				"internet-3": {
+					SessRuleId: "internet-3",
+					AuthSessAmbr: &models.Ambr{
+						Uplink:   "17 Gbps",
+						Downlink: "90 Mbps",
+					},
+					AuthDefQos: &models.AuthorizedDefaultQos{
+						Var5qi: 2,
+						Arp:    &models.Arp{PriorityLevel: 7},
+					},
+				},
+			},
 		},
 	}
 
-	result, err := GetImsiSessionRules(testValidDnn, testValidImsi)
-	if err != nil {
-		t.Errorf("expected no error, got %v", err)
-	}
-	expectedSessionRules := map[string]*models.SessionRule{
-		"internet-1": {
-			SessRuleId: "internet-1",
-			AuthSessAmbr: &models.Ambr{
-				Uplink:   "1 Gbps",
-				Downlink: "500 Mbps",
-			},
-			AuthDefQos: &models.AuthorizedDefaultQos{
-				Var5qi: 9,
-				Arp:    &models.Arp{PriorityLevel: 2},
-			},
-		},
-	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			handler := func(w http.ResponseWriter, r *http.Request) {
+				accept := r.Header.Get("Accept")
+				if accept != applicationJson {
+					t.Fail()
+				}
+				w.Header().Set("Content-Type", applicationJson)
+				w.WriteHeader(http.StatusOK)
+				jsonData, err := json.Marshal(tc.input)
+				if err != nil {
+					log.Println("Error serializing data:", err)
+					t.Fail()
+					return
+				}
+				_, err = w.Write(jsonData)
+				if err != nil {
+					log.Println("Error writing data:", err)
+					t.Fail()
+				}
+			}
+			server := httptest.NewServer(http.HandlerFunc(handler))
+			defer server.Close()
 
-	if !reflect.DeepEqual(result, expectedSessionRules) {
-		t.Errorf("expected %+v, got %+v", expectedSessionRules, result)
+			factory.PcfConfig = factory.Config{
+				Configuration: &factory.Configuration{
+					WebuiUri: server.URL,
+				},
+			}
+
+			result, err := GetImsiSessionRules(testValidDnn, testValidImsi)
+			if err != nil {
+				t.Errorf("expected no error, got %v", err)
+			}
+			if !reflect.DeepEqual(result, tc.expectedSessionRules) {
+				t.Errorf("expected %+v, got %+v", tc.expectedSessionRules, result)
+			}
+		})
 	}
 }
 

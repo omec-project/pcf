@@ -187,7 +187,7 @@ func (pcf *PCF) Start() {
 		nrfCache.InitNrfCaching(self.NrfCacheEvictionInterval*time.Second, consumer.SendNfDiscoveryToNrf)
 	}
 
-	nfProfileConfigChan := make(chan consumer.NfProfileDynamicConfig, 10)
+	nfProfileConfigChan := make(chan consumer.NfProfileDynamicConfig, 100)
 	ctx, cancelServices := context.WithCancel(context.Background())
 	var wg sync.WaitGroup
 	wg.Add(2)
