@@ -18,8 +18,8 @@ import (
 	"github.com/omec-project/pcf/logger"
 )
 
-// InitpcfContext Init PCF Context from config file
-func InitpcfContext(context *context.PCFContext) {
+// InitPcfContext Init PCF Context from config file
+func InitPcfContext(context *context.PCFContext) {
 	config := factory.PcfConfig
 	logger.UtilLog.Infof("pcfconfig Info: Version[%s] Description[%s]", config.Info.Version, config.Info.Description)
 	configuration := config.Configuration
@@ -77,7 +77,6 @@ func InitpcfContext(context *context.PCFContext) {
 		}
 	}
 	serviceList := configuration.ServiceList
-	context.PlmnList = configuration.PlmnList
 	context.InitNFService(serviceList, config.Info.Version)
 	context.TimeFormat = configuration.TimeFormat
 	context.DefaultBdtRefId = configuration.DefaultBdtRefId

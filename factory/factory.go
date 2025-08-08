@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2025 Canonical Ltd.
 // Copyright 2019 free5GC.org
 //
 // SPDX-License-Identifier: Apache-2.0
@@ -11,6 +12,7 @@ package factory
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 
 	"github.com/omec-project/pcf/logger"
@@ -21,20 +23,23 @@ var PcfConfig Config
 
 // TODO: Support configuration update from REST api
 func InitConfigFactory(f string) error {
-	if content, err := os.ReadFile(f); err != nil {
+	content, err := os.ReadFile(f)
+	if err != nil {
 		return err
-	} else {
-		PcfConfig = Config{}
+	}
+	PcfConfig = Config{}
 
-		if yamlErr := yaml.Unmarshal(content, &PcfConfig); yamlErr != nil {
-			return yamlErr
-		}
-		if PcfConfig.Configuration.WebuiUri == "" {
-			PcfConfig.Configuration.WebuiUri = "webui:9876"
-		}
+	if err = yaml.Unmarshal(content, &PcfConfig); err != nil {
+		return err
 	}
 
-	return nil
+	if PcfConfig.Configuration.WebuiUri == "" {
+		PcfConfig.Configuration.WebuiUri = "http://webui:5001"
+		logger.CfgLog.Infof("webuiUri not set in configuration file. Using %v", PcfConfig.Configuration.WebuiUri)
+		return nil
+	}
+	err = validateWebuiUri(PcfConfig.Configuration.WebuiUri)
+	return err
 }
 
 func CheckConfigVersion() error {
@@ -47,5 +52,19 @@ func CheckConfigVersion() error {
 
 	logger.CfgLog.Infof("config version [%s]", currentVersion)
 
+	return nil
+}
+
+func validateWebuiUri(uri string) error {
+	parsedUrl, err := url.ParseRequestURI(uri)
+	if err != nil {
+		return err
+	}
+	if parsedUrl.Scheme != "http" && parsedUrl.Scheme != "https" {
+		return fmt.Errorf("unsupported scheme for webuiUri: %s", parsedUrl.Scheme)
+	}
+	if parsedUrl.Hostname() == "" {
+		return fmt.Errorf("missing host in webuiUri")
+	}
 	return nil
 }

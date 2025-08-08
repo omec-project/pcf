@@ -28,9 +28,10 @@ var (
 	CtxLog                 *zap.SugaredLogger
 	ConsumerLog            *zap.SugaredLogger
 	GinLog                 *zap.SugaredLogger
-	GrpcLog                *zap.SugaredLogger
 	NotifyEventLog         *zap.SugaredLogger
 	ProducerLog            *zap.SugaredLogger
+	PollConfigLog          *zap.SugaredLogger
+	NrfRegistrationLog     *zap.SugaredLogger
 	atomicLevel            zap.AtomicLevel
 )
 
@@ -79,9 +80,10 @@ func init() {
 	CtxLog = log.Sugar().With("component", "PCF", "category", "Context")
 	ConsumerLog = log.Sugar().With("component", "PCF", "category", "Consumer")
 	GinLog = log.Sugar().With("component", "PCF", "category", "GIN")
-	GrpcLog = log.Sugar().With("component", "PCF", "category", "GRPC")
 	NotifyEventLog = log.Sugar().With("component", "PCF", "category", "NotifyEvent")
 	ProducerLog = log.Sugar().With("component", "PCF", "category", "Producer")
+	PollConfigLog = log.Sugar().With("component", "PCF", "category", "PollConfig")
+	NrfRegistrationLog = log.Sugar().With("component", "PCF", "category", "NrfRegistration")
 }
 
 func GetLogger() *zap.Logger {
