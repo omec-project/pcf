@@ -18,6 +18,7 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/openapi/nfConfigApi"
+	"github.com/omec-project/pcf/factory"
 	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/util/idgenerator"
 )
@@ -33,8 +34,9 @@ var GetImsiSessionRules = func(dnn, imsi string) (map[string]*models.SessionRule
 	if !imsiRegex.MatchString(imsi) {
 		return nil, fmt.Errorf("invalid IMSI format %s", imsi)
 	}
+
 	sessionPolicies := make(map[string]*models.SessionRule)
-	pollingEndpoint := imsiQosPath + "/" + dnn + "/" + imsi
+	pollingEndpoint := factory.PcfConfig.Configuration.WebuiUri + imsiQosPath + "/" + dnn + "/" + imsi
 	imsiQos, err := fetchImsiQos(pollingEndpoint)
 	if err != nil {
 		return nil, fmt.Errorf("fetchImsiQos failed for %s: %w", pollingEndpoint, err)
@@ -52,7 +54,7 @@ var GetImsiSessionRules = func(dnn, imsi string) (map[string]*models.SessionRule
 	return sessionPolicies, nil
 }
 
-var fetchImsiQos = func(pollingEndpoint string) ([]nfConfigApi.ImsiQos, error) {
+func fetchImsiQos(pollingEndpoint string) ([]nfConfigApi.ImsiQos, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), initialPollingInterval)
 	defer cancel()
 

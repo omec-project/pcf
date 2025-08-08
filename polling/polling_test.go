@@ -25,6 +25,8 @@ import (
 	"github.com/omec-project/pcf/consumer"
 )
 
+const applicationJson = "application/json"
+
 func TestStartPollingService_Success(t *testing.T) {
 	ctx := t.Context()
 	originalFetchPolicyControlConfig := fetchPolicyControlConfig
@@ -352,16 +354,20 @@ func TestHandlePolledPolicyControl_ExpectPccConfigNotToBeUpdated(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			originalFetchPolicyControlConfig := fetchPolicyControlConfig
 			originalPccPolicies := pccPolicies
-			originalUpdatePolicyControl := updatePccPolicy
-			pccPolicies = make(map[models.Snssai]*PccPolicy)
 			defer func() {
 				fetchPolicyControlConfig = originalFetchPolicyControlConfig
 				pccPolicies = originalPccPolicies
-				updatePccPolicy = originalUpdatePolicyControl
 			}()
-			called := false
-			updatePccPolicy = func(policyControlConfig []nfConfigApi.PolicyControl) {
-				called = true
+
+			initialPccPolicies := map[models.Snssai]*PccPolicy{
+				{Sst: 1}: {PccRules: map[string]*models.PccRule{
+					"id1": {},
+				}},
+			}
+			pccPolicies = map[models.Snssai]*PccPolicy{
+				{Sst: 1}: {PccRules: map[string]*models.PccRule{
+					"id1": {},
+				}},
 			}
 
 			pollingChan := make(chan consumer.NfProfileDynamicConfig, 1)
@@ -373,17 +379,24 @@ func TestHandlePolledPolicyControl_ExpectPccConfigNotToBeUpdated(t *testing.T) {
 			poller.handlePolledPolicyControl(tc.input)
 
 			if !reflect.DeepEqual(poller.currentPolicyControl, tc.input) {
-				t.Errorf("Expected current policy control config: %+v, got: %+v",
+				t.Errorf("expected current policy control config: %+v, got: %+v",
 					tc.input, poller.currentPolicyControl)
 			}
-			if called {
-				t.Error("Expected PCC policy not to be updated, but it was")
+			if !reflect.DeepEqual(pccPolicies, initialPccPolicies) {
+				t.Errorf("expected pcc policies: %+v, got: %+v",
+					initialPccPolicies, pccPolicies)
 			}
 		})
 	}
 }
 
 func TestHandlePolledPolicyControl_ExpectPccConfigToBeUpdated(t *testing.T) {
+	originalFetchPolicyControlConfig := fetchPolicyControlConfig
+	originalPccPolicies := pccPolicies
+	defer func() {
+		fetchPolicyControlConfig = originalFetchPolicyControlConfig
+		pccPolicies = originalPccPolicies
+	}()
 	pc1 := []nfConfigApi.PolicyControl{
 		{
 			PlmnId:   nfConfigApi.PlmnId{Mcc: "001", Mnc: "01"},
@@ -413,36 +426,63 @@ func TestHandlePolledPolicyControl_ExpectPccConfigToBeUpdated(t *testing.T) {
 	tests := []struct {
 		name                 string
 		initialPolicyControl []nfConfigApi.PolicyControl
+		initialPccPolicies   map[models.Snssai]*PccPolicy
 		input                []nfConfigApi.PolicyControl
+		expectedPccPolicies  map[models.Snssai]*PccPolicy
 	}{
 		{
 			name:                 "New config has different snssai",
 			initialPolicyControl: pc1,
-			input:                newSnssaiPc,
+			initialPccPolicies: map[models.Snssai]*PccPolicy{
+				{Sst: 1}: {PccRules: map[string]*models.PccRule{
+					"id1": {},
+				}},
+			},
+			input: newSnssaiPc,
+			expectedPccPolicies: map[models.Snssai]*PccPolicy{
+				{Sst: 2}: {
+					PccRules: map[string]*models.PccRule{
+						"id1": {
+							PccRuleId:  "1",
+							RefQosData: []string{"1"},
+							FlowInfos:  make([]models.FlowInformation, 0),
+							RefTcData:  make([]string, 0),
+						},
+					},
+					TraffContDecs: make(map[string]*models.TrafficControlData),
+					QosDecs:       map[string]*models.QosData{"1": {QosId: "1", Arp: &models.Arp{PriorityLevel: 0}}},
+				},
+			},
 		},
 		{
-			name:                 "New config has different pcc rules",
+			name:                 "New config has different pcc Rules",
 			initialPolicyControl: pc1,
-			input:                newPccRules,
+			initialPccPolicies: map[models.Snssai]*PccPolicy{
+				{Sst: 1}: {PccRules: map[string]*models.PccRule{
+					"id1": {},
+				}},
+			},
+			input: newPccRules,
+			expectedPccPolicies: map[models.Snssai]*PccPolicy{
+				{Sst: 1}: {
+					PccRules: map[string]*models.PccRule{
+						"id2": {
+							PccRuleId:  "1",
+							RefQosData: []string{"1"},
+							FlowInfos:  make([]models.FlowInformation, 0),
+							RefTcData:  make([]string, 0),
+						},
+					},
+					TraffContDecs: make(map[string]*models.TrafficControlData),
+					QosDecs:       map[string]*models.QosData{"1": {QosId: "1", Arp: &models.Arp{PriorityLevel: 0}}},
+				},
+			},
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			originalFetchPolicyControlConfig := fetchPolicyControlConfig
-			originalPccPolicies := pccPolicies
-			originalUpdatePolicyControl := updatePccPolicy
-			pccPolicies = make(map[models.Snssai]*PccPolicy)
-			defer func() {
-				fetchPolicyControlConfig = originalFetchPolicyControlConfig
-				pccPolicies = originalPccPolicies
-				updatePccPolicy = originalUpdatePolicyControl
-			}()
-			called := false
-			updatePccPolicy = func(policyControlConfig []nfConfigApi.PolicyControl) {
-				called = true
-			}
-
+			pccPolicies = tc.initialPccPolicies
 			pollingChan := make(chan consumer.NfProfileDynamicConfig, 1)
 			poller := nfConfigPoller{
 				currentPolicyControl: tc.initialPolicyControl,
@@ -452,11 +492,12 @@ func TestHandlePolledPolicyControl_ExpectPccConfigToBeUpdated(t *testing.T) {
 			poller.handlePolledPolicyControl(tc.input)
 
 			if !reflect.DeepEqual(poller.currentPolicyControl, tc.input) {
-				t.Errorf("Expected current policy control config: %+v, got: %+v",
+				t.Errorf("expected current policy control config: %+v, got: %+v",
 					tc.input, poller.currentPolicyControl)
 			}
-			if !called {
-				t.Error("Expected PCC policy to be updated, but it was not")
+			if !reflect.DeepEqual(pccPolicies, tc.expectedPccPolicies) {
+				t.Errorf("expected pcc policies config: %+v, got: %+v",
+					tc.expectedPccPolicies, pccPolicies)
 			}
 		})
 	}
@@ -486,7 +527,7 @@ func TestFetchPlmnConfig(t *testing.T) {
 		{
 			name:           "200 OK with valid JSON",
 			statusCode:     http.StatusOK,
-			contentType:    "application/json",
+			contentType:    applicationJson,
 			responseBody:   string(validJson),
 			expectedError:  "",
 			expectedResult: validPolicyControl,
@@ -501,28 +542,28 @@ func TestFetchPlmnConfig(t *testing.T) {
 		{
 			name:          "400 Bad Request",
 			statusCode:    http.StatusBadRequest,
-			contentType:   "application/json",
+			contentType:   applicationJson,
 			responseBody:  "",
 			expectedError: "server returned 400 error code",
 		},
 		{
 			name:          "500 Internal Server Error",
 			statusCode:    http.StatusInternalServerError,
-			contentType:   "application/json",
+			contentType:   applicationJson,
 			responseBody:  "",
 			expectedError: "server returned 500 error code",
 		},
 		{
 			name:          "Unexpected Status Code 418",
 			statusCode:    http.StatusTeapot,
-			contentType:   "application/json",
+			contentType:   applicationJson,
 			responseBody:  "",
 			expectedError: "unexpected status code: 418",
 		},
 		{
 			name:          "200 OK with invalid JSON",
 			statusCode:    http.StatusOK,
-			contentType:   "application/json",
+			contentType:   applicationJson,
 			responseBody:  "{invalid-json}",
 			expectedError: "failed to parse JSON response:",
 		},
@@ -537,7 +578,7 @@ func TestFetchPlmnConfig(t *testing.T) {
 			pccPolicies = make(map[models.Snssai]*PccPolicy)
 			handler := func(w http.ResponseWriter, r *http.Request) {
 				accept := r.Header.Get("Accept")
-				if accept != "application/json" {
+				if accept != applicationJson {
 					t.Fail()
 				}
 				w.Header().Set("Content-Type", tc.contentType)

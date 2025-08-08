@@ -10,11 +10,16 @@
 package producer
 
 import (
-	"fmt"
+	"encoding/json"
+	"log"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"testing"
 
 	"github.com/omec-project/openapi/models"
+	"github.com/omec-project/openapi/nfConfigApi"
+	"github.com/omec-project/pcf/factory"
 	"github.com/omec-project/pcf/polling"
 )
 
@@ -40,15 +45,17 @@ var testQos = &models.SubscribedDefaultQos{
 	},
 }
 
+const applicationJson = "application/json"
+
 func TestBuildSmPolicyDecision_FoundInLocalPolicy(t *testing.T) {
-	originalGetSlicePccPolicy := polling.GetSlicePccPolicy
-	originalGetImsiSessionRules := polling.GetImsiSessionRules
+	originalGetSlicePccPolicy := getSlicePccPolicy
+	originalPcfConfig := factory.PcfConfig
 	defer func() {
-		polling.GetSlicePccPolicy = originalGetSlicePccPolicy
-		polling.GetImsiSessionRules = originalGetImsiSessionRules
+		getSlicePccPolicy = originalGetSlicePccPolicy
+		factory.PcfConfig = originalPcfConfig
 	}()
 
-	polling.GetSlicePccPolicy = func(snssai models.Snssai) *polling.PccPolicy {
+	getSlicePccPolicy = func(snssai models.Snssai) *polling.PccPolicy {
 		return &polling.PccPolicy{
 			PccRules: map[string]*models.PccRule{
 				"rule1": {
@@ -68,16 +75,38 @@ func TestBuildSmPolicyDecision_FoundInLocalPolicy(t *testing.T) {
 		}
 	}
 
-	polling.GetImsiSessionRules = func(dnn, imsi string) (map[string]*models.SessionRule, error) {
-		return map[string]*models.SessionRule{
-			"sess1": {
-				SessRuleId: "sess1",
-				AuthSessAmbr: &models.Ambr{
-					Uplink:   "55 mpb",
-					Downlink: "55 mpb",
-				},
-			},
-		}, nil
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		accept := r.Header.Get("Accept")
+		if accept != applicationJson {
+			t.Fail()
+		}
+		w.Header().Set("Content-Type", applicationJson)
+		w.WriteHeader(http.StatusOK)
+		retrievedSessionRules := []nfConfigApi.ImsiQos{{
+			MbrUplink:        "55 Mbps",
+			MbrDownlink:      "515 Mbps",
+			FiveQi:           7,
+			ArpPriorityLevel: 9,
+		}}
+		jsonData, err := json.Marshal(retrievedSessionRules)
+		if err != nil {
+			log.Println("Error serializing data:", err)
+			t.Fail()
+			return
+		}
+		_, err = w.Write(jsonData)
+		if err != nil {
+			log.Println("Error writing data:", err)
+			t.Fail()
+		}
+	}
+	server := httptest.NewServer(http.HandlerFunc(handler))
+	defer server.Close()
+
+	factory.PcfConfig = factory.Config{
+		Configuration: &factory.Configuration{
+			WebuiUri: server.URL,
+		},
 	}
 	decision, problem := buildSmPolicyDecision(testImsi, testSnssai, testDnn, testAmbr, testQos)
 
@@ -105,11 +134,15 @@ func TestBuildSmPolicyDecision_FoundInLocalPolicy(t *testing.T) {
 			},
 		},
 		SessRules: map[string]*models.SessionRule{
-			"sess1": {
-				SessRuleId: "sess1",
+			"internet-1": {
+				SessRuleId: "internet-1",
 				AuthSessAmbr: &models.Ambr{
-					Uplink:   "55 mpb",
-					Downlink: "55 mpb",
+					Uplink:   "55 Mbps",
+					Downlink: "515 Mbps",
+				},
+				AuthDefQos: &models.AuthorizedDefaultQos{
+					Var5qi: 7,
+					Arp:    &models.Arp{PriorityLevel: 9},
 				},
 			},
 		},
@@ -121,14 +154,10 @@ func TestBuildSmPolicyDecision_FoundInLocalPolicy(t *testing.T) {
 }
 
 func TestBuildSmPolicyDecision_SlicePolicyNotFound(t *testing.T) {
-	originalGetSlicePccPolicy := polling.GetSlicePccPolicy
-	originalGetImsiSessionRules := polling.GetImsiSessionRules
-	defer func() {
-		polling.GetSlicePccPolicy = originalGetSlicePccPolicy
-		polling.GetImsiSessionRules = originalGetImsiSessionRules
-	}()
+	originalGetSlicePccPolicy := getSlicePccPolicy
+	defer func() { getSlicePccPolicy = originalGetSlicePccPolicy }()
 
-	polling.GetSlicePccPolicy = func(snssai models.Snssai) *polling.PccPolicy {
+	getSlicePccPolicy = func(snssai models.Snssai) *polling.PccPolicy {
 		return nil
 	}
 
@@ -146,22 +175,48 @@ func TestBuildSmPolicyDecision_SlicePolicyNotFound(t *testing.T) {
 }
 
 func TestBuildSmPolicyDecision_SessionRulesEmpty(t *testing.T) {
-	originalGetSlicePccPolicy := polling.GetSlicePccPolicy
-	originalGetImsiSessionRules := polling.GetImsiSessionRules
+	originalGetSlicePccPolicy := getSlicePccPolicy
+	originalPcfConfig := factory.PcfConfig
 	defer func() {
-		polling.GetSlicePccPolicy = originalGetSlicePccPolicy
-		polling.GetImsiSessionRules = originalGetImsiSessionRules
+		getSlicePccPolicy = originalGetSlicePccPolicy
+		factory.PcfConfig = originalPcfConfig
 	}()
 
-	polling.GetSlicePccPolicy = func(snssai models.Snssai) *polling.PccPolicy {
+	getSlicePccPolicy = func(snssai models.Snssai) *polling.PccPolicy {
 		return &polling.PccPolicy{
 			PccRules:      map[string]*models.PccRule{},
 			QosDecs:       map[string]*models.QosData{},
 			TraffContDecs: map[string]*models.TrafficControlData{},
 		}
 	}
-	polling.GetImsiSessionRules = func(dnn, imsi string) (map[string]*models.SessionRule, error) {
-		return map[string]*models.SessionRule{}, nil
+
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		accept := r.Header.Get("Accept")
+		if accept != applicationJson {
+			t.Fail()
+		}
+		w.Header().Set("Content-Type", applicationJson)
+		w.WriteHeader(http.StatusOK)
+		retrievedSessionRules := []nfConfigApi.ImsiQos{}
+		jsonData, err := json.Marshal(retrievedSessionRules)
+		if err != nil {
+			log.Println("Error serializing data:", err)
+			t.Fail()
+			return
+		}
+		_, err = w.Write(jsonData)
+		if err != nil {
+			log.Println("Error writing data:", err)
+			t.Fail()
+		}
+	}
+	server := httptest.NewServer(http.HandlerFunc(handler))
+	defer server.Close()
+
+	factory.PcfConfig = factory.Config{
+		Configuration: &factory.Configuration{
+			WebuiUri: server.URL,
+		},
 	}
 
 	decision, problem := buildSmPolicyDecision(testImsi, testSnssai, testDnn, testAmbr, testQos)
@@ -178,11 +233,11 @@ func TestBuildSmPolicyDecision_SessionRulesEmpty(t *testing.T) {
 }
 
 func TestBuildSmPolicyDecision_FallbackToDefault(t *testing.T) {
-	originalGetSlicePccPolicy := polling.GetSlicePccPolicy
-	originalGetImsiSessionRules := polling.GetImsiSessionRules
+	originalGetSlicePccPolicy := getSlicePccPolicy
+	originalPcfConfig := factory.PcfConfig
 	defer func() {
-		polling.GetSlicePccPolicy = originalGetSlicePccPolicy
-		polling.GetImsiSessionRules = originalGetImsiSessionRules
+		getSlicePccPolicy = originalGetSlicePccPolicy
+		factory.PcfConfig = originalPcfConfig
 	}()
 
 	testCases := []struct {
@@ -254,7 +309,7 @@ func TestBuildSmPolicyDecision_FallbackToDefault(t *testing.T) {
 		},
 	}
 
-	polling.GetSlicePccPolicy = func(snssai models.Snssai) *polling.PccPolicy {
+	getSlicePccPolicy = func(snssai models.Snssai) *polling.PccPolicy {
 		return &polling.PccPolicy{
 			PccRules: map[string]*models.PccRule{
 				"rule1": {PccRuleId: "rule1"},
@@ -270,8 +325,21 @@ func TestBuildSmPolicyDecision_FallbackToDefault(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			polling.GetImsiSessionRules = func(dnn, imsi string) (map[string]*models.SessionRule, error) {
-				return nil, fmt.Errorf("mock error")
+			handler := func(w http.ResponseWriter, r *http.Request) {
+				accept := r.Header.Get("Accept")
+				if accept != applicationJson {
+					t.Fail()
+				}
+				w.Header().Set("Content-Type", applicationJson)
+				w.WriteHeader(http.StatusBadRequest)
+			}
+			server := httptest.NewServer(http.HandlerFunc(handler))
+			defer server.Close()
+
+			factory.PcfConfig = factory.Config{
+				Configuration: &factory.Configuration{
+					WebuiUri: server.URL,
+				},
 			}
 
 			decision, problem := buildSmPolicyDecision(testImsi, testSnssai, testDnn, tc.inputAmbr, tc.inputQos)

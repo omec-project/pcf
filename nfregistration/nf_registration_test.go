@@ -117,13 +117,13 @@ func TestNfRegistrationService_WhenConfigChanged_ThenRegisterNFSuccessAndStartTi
 		t.Error("expected keepAliveTimer to be initialized by startKeepAliveTimer")
 	}
 	if !calledDiscoverUdr {
-		t.Errorf("Expected DiscoverUdr to be called, but it was not.")
+		t.Errorf("expected DiscoverUdr to be called, but it was not.")
 	}
 	if len(registrations) != 1 {
-		t.Errorf("Expected PCF to register to the NRF once, but it was called %d", len(registrations))
+		t.Errorf("expected PCF to register to the NRF once, but it was called %d", len(registrations))
 	}
 	if !reflect.DeepEqual(registrations[0], newConfig) {
-		t.Errorf("Expected %+v config, received %+v", newConfig, registrations)
+		t.Errorf("expected %+v config, received %+v", newConfig, registrations)
 	}
 }
 
@@ -159,7 +159,7 @@ func TestNfRegistrationService_ConfigChanged_RetryIfRegisterNFFails(t *testing.T
 	time.Sleep(2 * retryTime)
 
 	if called < 2 {
-		t.Error("Expected to retry register to NRF")
+		t.Error("expected to retry register to NRF")
 	}
 	t.Logf("Tried %v times", called)
 }
@@ -231,10 +231,10 @@ func TestNfRegistrationService_WhenConfigChanged_ThenPreviousRegistrationIsCance
 	}
 
 	if !reflect.DeepEqual(registrations[0].config, firstConfig) {
-		t.Errorf("Expected %+v config, received %+v", firstConfig, registrations)
+		t.Errorf("expected %+v config, received %+v", firstConfig, registrations)
 	}
 	if !reflect.DeepEqual(registrations[1].config, secondConfig) {
-		t.Errorf("Expected %+v config, received %+v", secondConfig, registrations)
+		t.Errorf("expected %+v config, received %+v", secondConfig, registrations)
 	}
 }
 

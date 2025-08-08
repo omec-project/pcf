@@ -9,12 +9,16 @@
 package polling
 
 import (
-	"errors"
+	"encoding/json"
+	"log"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"testing"
 
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/openapi/nfConfigApi"
+	"github.com/omec-project/pcf/factory"
 )
 
 const (
@@ -23,18 +27,41 @@ const (
 )
 
 func TestGetImsiSessionRules_Success(t *testing.T) {
-	originalFetch := fetchImsiQos
-	defer func() { fetchImsiQos = originalFetch }()
+	originalPcfConfig := factory.PcfConfig
+	defer func() { factory.PcfConfig = originalPcfConfig }()
 
-	fetchImsiQos = func(pollingEndpoint string) ([]nfConfigApi.ImsiQos, error) {
-		return []nfConfigApi.ImsiQos{
-			{
-				FiveQi:           9,
-				ArpPriorityLevel: 7,
-				MbrUplink:        "1Gbps",
-				MbrDownlink:      "500Mbps",
-			},
-		}, nil
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		accept := r.Header.Get("Accept")
+		if accept != applicationJson {
+			t.Fail()
+		}
+		w.Header().Set("Content-Type", applicationJson)
+		w.WriteHeader(http.StatusOK)
+		retrievedSessionRules := []nfConfigApi.ImsiQos{{
+			MbrUplink:        "1 Gbps",
+			MbrDownlink:      "500 Mbps",
+			FiveQi:           9,
+			ArpPriorityLevel: 2,
+		}}
+		jsonData, err := json.Marshal(retrievedSessionRules)
+		if err != nil {
+			log.Println("Error serializing data:", err)
+			t.Fail()
+			return
+		}
+		_, err = w.Write(jsonData)
+		if err != nil {
+			log.Println("Error writing data:", err)
+			t.Fail()
+		}
+	}
+	server := httptest.NewServer(http.HandlerFunc(handler))
+	defer server.Close()
+
+	factory.PcfConfig = factory.Config{
+		Configuration: &factory.Configuration{
+			WebuiUri: server.URL,
+		},
 	}
 
 	result, err := GetImsiSessionRules(testValidDnn, testValidImsi)
@@ -45,12 +72,12 @@ func TestGetImsiSessionRules_Success(t *testing.T) {
 		"internet-1": {
 			SessRuleId: "internet-1",
 			AuthSessAmbr: &models.Ambr{
-				Uplink:   "1Gbps",
-				Downlink: "500Mbps",
+				Uplink:   "1 Gbps",
+				Downlink: "500 Mbps",
 			},
 			AuthDefQos: &models.AuthorizedDefaultQos{
 				Var5qi: 9,
-				Arp:    &models.Arp{PriorityLevel: 7},
+				Arp:    &models.Arp{PriorityLevel: 2},
 			},
 		},
 	}
@@ -60,12 +87,73 @@ func TestGetImsiSessionRules_Success(t *testing.T) {
 	}
 }
 
-func TestGetImsiSessionRules_FetchFails(t *testing.T) {
-	originalFetch := fetchImsiQos
-	defer func() { fetchImsiQos = originalFetch }()
+func TestGetImsiSessionRules_FetchFailsDueToUnreachableWebconsole(t *testing.T) {
+	originalPcfConfig := factory.PcfConfig
+	defer func() { factory.PcfConfig = originalPcfConfig }()
 
-	fetchImsiQos = func(pollingEndpoint string) ([]nfConfigApi.ImsiQos, error) {
-		return nil, errors.New("mock error")
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		accept := r.Header.Get("Accept")
+		if accept != applicationJson {
+			t.Fail()
+		}
+		w.Header().Set("Content-Type", applicationJson)
+		w.WriteHeader(http.StatusOK)
+		retrievedSessionRules := []nfConfigApi.ImsiQos{{
+			MbrUplink:        "1 Gbps",
+			MbrDownlink:      "500 Mbps",
+			FiveQi:           9,
+			ArpPriorityLevel: 2,
+		}}
+		jsonData, err := json.Marshal(retrievedSessionRules)
+		if err != nil {
+			log.Println("Error serializing data:", err)
+			t.Fail()
+			return
+		}
+		_, err = w.Write(jsonData)
+		if err != nil {
+			log.Println("Error writing data:", err)
+			t.Fail()
+		}
+	}
+	server := httptest.NewServer(http.HandlerFunc(handler))
+	defer server.Close()
+
+	factory.PcfConfig = factory.Config{
+		Configuration: &factory.Configuration{
+			WebuiUri: "some-wrong-address",
+		},
+	}
+
+	result, err := GetImsiSessionRules(testValidDnn, testValidImsi)
+
+	if err == nil {
+		t.Errorf("expected error, got nil")
+	}
+	if result != nil {
+		t.Errorf("expected no result, got %v", result)
+	}
+}
+
+func TestGetImsiSessionRules_FetchFailsDueToIncorrectStatusCode(t *testing.T) {
+	originalPcfConfig := factory.PcfConfig
+	defer func() { factory.PcfConfig = originalPcfConfig }()
+
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		accept := r.Header.Get("Accept")
+		if accept != applicationJson {
+			t.Fail()
+		}
+		w.Header().Set("Content-Type", applicationJson)
+		w.WriteHeader(http.StatusBadRequest)
+	}
+	server := httptest.NewServer(http.HandlerFunc(handler))
+	defer server.Close()
+
+	factory.PcfConfig = factory.Config{
+		Configuration: &factory.Configuration{
+			WebuiUri: server.URL,
+		},
 	}
 
 	result, err := GetImsiSessionRules(testValidDnn, testValidImsi)
@@ -79,11 +167,36 @@ func TestGetImsiSessionRules_FetchFails(t *testing.T) {
 }
 
 func TestGetImsiSessionRules_EmptyQoS(t *testing.T) {
-	originalFetch := fetchImsiQos
-	defer func() { fetchImsiQos = originalFetch }()
+	originalPcfConfig := factory.PcfConfig
+	defer func() { factory.PcfConfig = originalPcfConfig }()
 
-	fetchImsiQos = func(pollingEndpoint string) ([]nfConfigApi.ImsiQos, error) {
-		return []nfConfigApi.ImsiQos{}, nil
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		accept := r.Header.Get("Accept")
+		if accept != applicationJson {
+			t.Fail()
+		}
+		w.Header().Set("Content-Type", applicationJson)
+		w.WriteHeader(http.StatusOK)
+		retrievedSessionRules := []nfConfigApi.ImsiQos{}
+		jsonData, err := json.Marshal(retrievedSessionRules)
+		if err != nil {
+			log.Println("Error serializing data:", err)
+			t.Fail()
+			return
+		}
+		_, err = w.Write(jsonData)
+		if err != nil {
+			log.Println("Error writing data:", err)
+			t.Fail()
+		}
+	}
+	server := httptest.NewServer(http.HandlerFunc(handler))
+	defer server.Close()
+
+	factory.PcfConfig = factory.Config{
+		Configuration: &factory.Configuration{
+			WebuiUri: server.URL,
+		},
 	}
 
 	result, err := GetImsiSessionRules(testValidDnn, testValidImsi)
@@ -96,13 +209,6 @@ func TestGetImsiSessionRules_EmptyQoS(t *testing.T) {
 }
 
 func TestGetImsiSessionRules_InvalidInput(t *testing.T) {
-	originalFetch := fetchImsiQos
-	defer func() { fetchImsiQos = originalFetch }()
-
-	fetchImsiQos = func(pollingEndpoint string) ([]nfConfigApi.ImsiQos, error) {
-		return []nfConfigApi.ImsiQos{}, nil
-	}
-
 	testCases := []struct {
 		name      string
 		inputDnn  string

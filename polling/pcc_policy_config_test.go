@@ -40,7 +40,7 @@ func TestGetSlicePccPolicy_Found(t *testing.T) {
 
 	result := GetSlicePccPolicy(snssai)
 	if !reflect.DeepEqual(testPolicy, result) {
-		t.Errorf("Expected %+v config, received %+v", testPolicy, result)
+		t.Errorf("expected %+v config, received %+v", testPolicy, result)
 	}
 }
 

@@ -44,20 +44,19 @@ func StartPollingService(ctx context.Context, webuiUri string, nfProfileConfigCh
 		currentNfProfileConfig: consumer.NfProfileDynamicConfig{},
 		client:                 &http.Client{Timeout: initialPollingInterval},
 	}
-	pccPolicies = make(map[models.Snssai]*PccPolicy)
 	interval := initialPollingInterval
 	pollingEndpoint := webuiUri + pollingPath
-	logger.PollConfigLog.Infof("Started polling service on %s every %v", pollingEndpoint, initialPollingInterval)
+	logger.PollConfigLog.Infof("started polling service on %s every %v", pollingEndpoint, initialPollingInterval)
 	for {
 		select {
 		case <-ctx.Done():
-			logger.PollConfigLog.Infoln("Polling service shutting down")
+			logger.PollConfigLog.Infoln("polling service shutting down")
 			return
 		case <-time.After(interval):
 			newConfig, err := fetchPolicyControlConfig(&poller, pollingEndpoint)
 			if err != nil {
 				interval = minDuration(interval*time.Duration(pollingBackoffFactor), pollingMaxBackoff)
-				logger.PollConfigLog.Errorf("Polling error. Retrying in %v: %+v", interval, err)
+				logger.PollConfigLog.Errorf("polling error. Retrying in %v: %+v", interval, err)
 				continue
 			}
 			interval = initialPollingInterval
@@ -113,7 +112,7 @@ func (p *nfConfigPoller) fetchPolicyControlConfig(pollingEndpoint string) ([]nfC
 
 func (p *nfConfigPoller) handlePolledPolicyControl(newPolicyControlConfig []nfConfigApi.PolicyControl) {
 	if reflect.DeepEqual(p.currentPolicyControl, newPolicyControlConfig) {
-		logger.PollConfigLog.Debugf("Policy control config did not change %+v", p.currentPolicyControl)
+		logger.PollConfigLog.Debugf("policy control config did not change %+v", p.currentPolicyControl)
 		return
 	}
 	newNfProfileDynamicConfig := extractNfProfileDynamicConfig(newPolicyControlConfig)
@@ -126,7 +125,7 @@ func (p *nfConfigPoller) handlePolledPolicyControl(newPolicyControlConfig []nfCo
 		updatePccPolicy(newPolicyControlConfig)
 	}
 	p.currentPolicyControl = newPolicyControlConfig
-	logger.PollConfigLog.Infof("Policy control config changed. New Policy control config: %+v", p.currentPolicyControl)
+	logger.PollConfigLog.Infof("policy control config changed. New Policy control config: %+v", p.currentPolicyControl)
 }
 
 func extractNfProfileDynamicConfig(policyConfig []nfConfigApi.PolicyControl) consumer.NfProfileDynamicConfig {

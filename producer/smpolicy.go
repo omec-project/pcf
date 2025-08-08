@@ -29,6 +29,8 @@ import (
 	"github.com/omec-project/util/idgenerator"
 )
 
+var getSlicePccPolicy = polling.GetSlicePccPolicy
+
 // SmPoliciesPost -
 func HandleCreateSmPolicyRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.SMpolicylog.Infoln("handle CreateSmPolicy")
@@ -224,7 +226,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 }
 
 func buildSmPolicyDecision(imsi string, snssai models.Snssai, dnn string, subscribedSessionAmbr *models.Ambr, subscribedQos *models.SubscribedDefaultQos) (response *models.SmPolicyDecision, problemDetails *models.ProblemDetails) {
-	pccPolicy := polling.GetSlicePccPolicy(snssai)
+	pccPolicy := getSlicePccPolicy(snssai)
 	if pccPolicy == nil {
 		problemDetail := util.GetProblemDetail("Can't find in local policy", util.USER_UNKNOWN)
 		logger.SMpolicylog.Warnf("can not find slice %+v in local policy", snssai)
@@ -235,13 +237,13 @@ func buildSmPolicyDecision(imsi string, snssai models.Snssai, dnn string, subscr
 	decision := initSmPolicyDecisionFromPccPolicy(pccPolicy)
 	sessionRules, err := polling.GetImsiSessionRules(dnn, imsi)
 	if err != nil {
-		logger.SMpolicylog.Warnf("failed to get the session rules from the webconsole, using default values for %s", imsi)
+		logger.SMpolicylog.Warnf("failed to get the session rules from the webconsole, using default values for %s, %v", imsi, err)
 		decision.SessRules = buildDefaultSessionPolicy(dnn, subscribedSessionAmbr, subscribedQos)
 		return &decision, nil
 	}
 
 	if len(sessionRules) == 0 {
-		logger.SMpolicylog.Warnf("no session rules found for %s in DNN", imsi, dnn)
+		logger.SMpolicylog.Warnf("no session rules found for %s in DNN %s", imsi, dnn)
 		problemDetail := util.GetProblemDetail("Can't find local policy", util.USER_UNKNOWN)
 		return nil, &problemDetail
 	}
@@ -330,7 +332,8 @@ func HandleDeleteSmPolicyContextRequest(request *httpwrapper.Request) *httpwrapp
 func deleteSmPolicyContextProcedure(smPolicyID string) *models.ProblemDetails {
 	logger.AMpolicylog.Debugln("handle SM Policy Delete")
 
-	ue := pcfContext.PCF_Self().PCFUeFindByPolicyId(smPolicyID)
+	pcfSelf := pcfContext.PCF_Self()
+	ue := pcfSelf.PCFUeFindByPolicyId(smPolicyID)
 	logger.SMpolicylog.Infof("smPolicyID: %v, ue: %v", smPolicyID, ue)
 	if ue == nil || ue.SmPolicyData[smPolicyID] == nil {
 		problemDetail := util.GetProblemDetail("smPolicyID not found in PCF", util.CONTEXT_NOT_FOUND)
@@ -338,7 +341,6 @@ func deleteSmPolicyContextProcedure(smPolicyID string) *models.ProblemDetails {
 		return &problemDetail
 	}
 
-	pcfSelf := pcfContext.PCF_Self()
 	smPolicy := ue.SmPolicyData[smPolicyID]
 
 	// Unsubscrice UDR

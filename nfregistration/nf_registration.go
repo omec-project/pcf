@@ -36,7 +36,7 @@ const (
 func StartNfRegistrationService(ctx context.Context, nfProfileConfigChan <-chan consumer.NfProfileDynamicConfig) {
 	var registerCancel context.CancelFunc
 	var registerCtx context.Context
-	logger.NrfRegistrationLog.Infoln("Started NF registration to NRF service")
+	logger.NrfRegistrationLog.Infoln("started NF registration to NRF service")
 	for {
 		select {
 		case <-ctx.Done():

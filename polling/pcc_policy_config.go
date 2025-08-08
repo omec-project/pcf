@@ -29,7 +29,7 @@ type PccPolicy struct {
 	TraffContDecs map[string]*models.TrafficControlData
 }
 
-var GetSlicePccPolicy = func(snssai models.Snssai) *PccPolicy {
+func GetSlicePccPolicy(snssai models.Snssai) *PccPolicy {
 	configLock.RLock()
 	defer configLock.RUnlock()
 	slicePccPolicyData, ok := pccPolicies[snssai]
@@ -39,7 +39,7 @@ var GetSlicePccPolicy = func(snssai models.Snssai) *PccPolicy {
 	return nil
 }
 
-var updatePccPolicy = func(policyControlConfig []nfConfigApi.PolicyControl) {
+func updatePccPolicy(policyControlConfig []nfConfigApi.PolicyControl) {
 	configLock.Lock()
 	defer configLock.Unlock()
 	if len(policyControlConfig) == 0 {
@@ -48,15 +48,16 @@ var updatePccPolicy = func(policyControlConfig []nfConfigApi.PolicyControl) {
 		return
 	}
 	idGenerator := idgenerator.NewGenerator(1, math.MaxInt64)
+	pccPolicies = make(map[models.Snssai]*PccPolicy)
 	for _, pc := range policyControlConfig {
 		createPccPolicies(idGenerator, pc)
 	}
-	logger.PollConfigLog.Debugf("New PCC Policies: %+v", pccPolicies)
+	logger.PollConfigLog.Debugf("new PCC Policies: %+v", pccPolicies)
 }
 
 var createPccPolicies = func(idGenerator *idgenerator.IDGenerator, policyControlConfig nfConfigApi.PolicyControl) {
 	if len(policyControlConfig.PccRules) == 0 {
-		logger.PollConfigLog.Warnln("No PCC rules provided in PolicyControl config")
+		logger.PollConfigLog.Warnln("no PCC rules provided in PolicyControl config")
 		return
 	}
 	snssai := models.Snssai{
@@ -78,7 +79,7 @@ func makePccPolicy(idGenerator *idgenerator.IDGenerator, pccRules []nfConfigApi.
 	for _, pccrule := range pccRules {
 		id, err := idGenerator.Allocate()
 		if err != nil {
-			logger.PollConfigLog.Errorf("IdGenerator allocation failed: %v", err)
+			logger.PollConfigLog.Errorf("idGenerator allocation failed: %v", err)
 			continue
 		}
 
@@ -147,7 +148,7 @@ func makeFlowInfosAndTrafficContDesc(idGenerator *idgenerator.IDGenerator, pccFl
 	for _, pccFlow := range pccFlows {
 		id, err := idGenerator.Allocate()
 		if err != nil {
-			logger.PollConfigLog.Errorf("IdGenerator allocation failed: %v", err)
+			logger.PollConfigLog.Errorf("idGenerator allocation failed: %v", err)
 			continue
 		}
 
@@ -202,6 +203,12 @@ func (p PccPolicy) String() string {
 	s += "PccRules:\n"
 	for name, rule := range p.PccRules {
 		s += fmt.Sprintf("  PccRule[%v]: RuleId: %v, Precedence: %v\n", name, rule.PccRuleId, rule.Precedence)
+		for i, refQos := range rule.RefQosData {
+			s += fmt.Sprintf("    RefQosData[%v]: %s\n", i, refQos)
+		}
+		for i, refTc := range rule.RefTcData {
+			s += fmt.Sprintf("    RefTcData[%v]: %s\n", i, refTc)
+		}
 		for i, flow := range rule.FlowInfos {
 			s += fmt.Sprintf("    FlowInfo[%v]: FlowDesc: %v, TrafficClass: %v, FlowDir: %v\n", i, flow.FlowDescription, flow.TosTrafficClass, flow.FlowDirection)
 		}
