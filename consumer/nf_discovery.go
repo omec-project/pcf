@@ -98,7 +98,7 @@ func SendNFInstancesUDR(nrfUri, id string) string {
 		return ""
 	}
 	for _, profile := range result.NfInstances {
-		if uri := util.SearchNFServiceUri(profile, models.ServiceName_NUDR_DR, models.NfServiceStatus_REGISTERED); uri != "" {
+		if uri := SearchNFServiceUri(profile, models.ServiceName_NUDR_DR, models.NfServiceStatus_REGISTERED); uri != "" {
 			return uri
 		}
 	}
@@ -127,7 +127,25 @@ func SendNFInstancesAMF(nrfUri string, guami models.Guami, serviceName models.Se
 		return ""
 	}
 	for _, profile := range result.NfInstances {
-		return util.SearchNFServiceUri(profile, serviceName, models.NfServiceStatus_REGISTERED)
+		return SearchNFServiceUri(profile, serviceName, models.NfServiceStatus_REGISTERED)
 	}
 	return ""
+}
+
+var DiscoverUdr = func() {
+	self := pcfContext.PCF_Self()
+	param := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
+		ServiceNames: optional.NewInterface([]models.ServiceName{models.ServiceName_NUDR_DR}),
+	}
+	if resp, err := SendSearchNFInstances(self.NrfUri, models.NfType_UDR, models.NfType_PCF, &param); err != nil {
+		logger.ConsumerLog.Errorln(err)
+	} else {
+		for _, nfProfile := range resp.NfInstances {
+			udruri := SearchNFServiceUri(nfProfile, models.ServiceName_NUDR_DR, models.NfServiceStatus_REGISTERED)
+			if udruri != "" {
+				self.SetDefaultUdrURI(udruri)
+				break
+			}
+		}
+	}
 }

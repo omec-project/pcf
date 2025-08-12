@@ -262,7 +262,7 @@ func getDefaultUdrUri(context *pcf_context.PCFContext) string {
 		return ""
 	}
 	for _, nfProfile := range resp.NfInstances {
-		udruri := util.SearchNFServiceUri(nfProfile, models.ServiceName_NUDR_DR, models.NfServiceStatus_REGISTERED)
+		udruri := consumer.SearchNFServiceUri(nfProfile, models.ServiceName_NUDR_DR, models.NfServiceStatus_REGISTERED)
 		if udruri != "" {
 			return udruri
 		}

@@ -4,7 +4,7 @@
 configuration:
   defaultBdtRefId: BdtPolicyId-
   nrfUri: https://nrf:443
-  webuiUri: myspecialwebui:9872 # a valid URI of Webui
+  webuiUri: https://myspecialwebui:9872 # a valid URI of Webui
   pcfName: PCF
 info:
   description: PCF initial local configuration

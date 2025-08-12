@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2025 Canonical Ltd
 // SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
 // Copyright 2019 free5GC.org
 //
@@ -9,6 +10,7 @@ package producer
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -18,12 +20,16 @@ import (
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/Nudr_DataRepository"
 	"github.com/omec-project/openapi/models"
-	pcf_context "github.com/omec-project/pcf/context"
+	pcfContext "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/logger"
 	stats "github.com/omec-project/pcf/metrics"
+	"github.com/omec-project/pcf/polling"
 	"github.com/omec-project/pcf/util"
 	"github.com/omec-project/util/httpwrapper"
+	"github.com/omec-project/util/idgenerator"
 )
+
+var getSlicePccPolicy = polling.GetSlicePccPolicy
 
 // SmPoliciesPost -
 func HandleCreateSmPolicyRequest(request *httpwrapper.Request) *httpwrapper.Response {
@@ -55,10 +61,10 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 		return nil, nil, &problemDetail
 	}
 
-	pcfSelf := pcf_context.PCF_Self()
-	var ue *pcf_context.UeContext
+	pcfSelf := pcfContext.PCF_Self()
+	var ue *pcfContext.UeContext
 	if val, exist := pcfSelf.UePool.Load(request.Supi); exist {
-		ue = val.(*pcf_context.UeContext)
+		ue = val.(*pcfContext.UeContext)
 	}
 
 	if ue == nil {
@@ -116,52 +122,15 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 		delete(ue.SmPolicyData, smPolicyID)
 	}
 	smPolicyData = ue.NewUeSmPolicyData(smPolicyID, request, &smData)
+
 	// Policy Decision
-	decision := models.SmPolicyDecision{
-		SessRules:     make(map[string]*models.SessionRule),
-		PccRules:      make(map[string]*models.PccRule),
-		QosDecs:       make(map[string]*models.QosData),
-		TraffContDecs: make(map[string]*models.TrafficControlData),
+	snssai := models.Snssai{
+		Sst: request.SliceInfo.Sst,
+		Sd:  request.SliceInfo.Sd,
 	}
-
-	// Check if local config has pre-configured pccrules, sessionrules for the slice(via ROC)
-	sstStr := strconv.Itoa(int(request.SliceInfo.Sst))
-	sliceid := sstStr + request.SliceInfo.Sd
-	self := pcf_context.PCF_Self()
-	imsi := strings.TrimPrefix(ue.Supi, "imsi-")
-	if subsPolicyData, ok := self.PcfSubscriberPolicyData[imsi]; ok {
-		logger.SMpolicylog.Infof("Supi[%s] exist in PcfSubscriberPolicyData", imsi)
-		if PccPolicy, ok1 := subsPolicyData.PccPolicy[sliceid]; ok1 {
-			if sessPolicy, exist := PccPolicy.SessionPolicy[request.Dnn]; exist {
-				for _, sessRule := range sessPolicy.SessionRules {
-					decision.SessRules[sessRule.SessRuleId] = deepcopy.Copy(sessRule).(*models.SessionRule)
-				}
-			} else {
-				logger.SMpolicylog.Infof("requested Dnn[%s] is not exist in local policy", request.Dnn)
-				problemDetail := util.GetProblemDetail("Can't find local policy", util.USER_UNKNOWN)
-				return nil, nil, &problemDetail
-			}
-
-			for key, pccRule := range PccPolicy.PccRules {
-				decision.PccRules[key] = deepcopy.Copy(pccRule).(*models.PccRule)
-			}
-
-			for key, qosData := range PccPolicy.QosDecs {
-				decision.QosDecs[key] = deepcopy.Copy(qosData).(*models.QosData)
-			}
-			for key, trafficData := range PccPolicy.TraffContDecs {
-				decision.TraffContDecs[key] = deepcopy.Copy(trafficData).(*models.TrafficControlData)
-			}
-			logger.SMpolicylog.Infof("PccPolicy in SM Policy Decision[%v]: %v", sliceid, PccPolicy)
-		} else {
-			logger.SMpolicylog.Warnf("Slice[%v] not configured for subscriber", sliceid)
-			problemDetail := util.GetProblemDetail("Can't find local policy", util.USER_UNKNOWN)
-			return nil, nil, &problemDetail
-		}
-	} else {
-		problemDetail := util.GetProblemDetail("Can't find in local policy", util.USER_UNKNOWN)
-		logger.SMpolicylog.Warnf("can not find UE[%s] in local policy", ue.Supi)
-		return nil, nil, &problemDetail
+	decision, problemDetail := buildSmPolicyDecision(ue.Supi, snssai, request.Dnn, request.SubsSessAmbr, request.SubsDefQos)
+	if problemDetail != nil {
+		return nil, nil, problemDetail
 	}
 	/*var ambr *models.Ambr
 	//sstStr := strconv.Itoa(int(request.SliceInfo.Sst))
@@ -210,7 +179,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 		// Set Aggregate GBR if exist
 		if dnnData.GbrDl != "" {
 			var gbrDL float64
-			gbrDL, err = pcf_context.ConvertBitRateToKbps(dnnData.GbrDl)
+			gbrDL, err = pcfContext.ConvertBitRateToKbps(dnnData.GbrDl)
 			if err != nil {
 				logger.SMpolicylog.Warnln(err.Error())
 			} else {
@@ -220,7 +189,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 		}
 		if dnnData.GbrUl != "" {
 			var gbrUL float64
-			gbrUL, err = pcf_context.ConvertBitRateToKbps(dnnData.GbrUl)
+			gbrUL, err = pcfContext.ConvertBitRateToKbps(dnnData.GbrUl)
 			if err != nil {
 				logger.SMpolicylog.Warnln(err.Error())
 			} else {
@@ -243,7 +212,8 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	decision.QosFlowUsage = request.QosFlowUsage
 	// TODO: Trigger about UMC, ADC, NetLoc,...
 	decision.PolicyCtrlReqTriggers = util.PolicyControlReqTrigToArray(0x40780f)
-	smPolicyData.PolicyDecision = &decision
+
+	smPolicyData.PolicyDecision = decision
 	// TODO: PCC rule, PraInfo ...
 	locationHeader := util.GetResourceUri(models.ServiceName_NPCF_SMPOLICYCONTROL, smPolicyID)
 	header = http.Header{
@@ -252,7 +222,91 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	logger.SMpolicylog.Debugf("SMPolicy PduSessionId[%d] Create", request.PduSessionId)
 	logger.SMpolicylog.Infof("SM Policy Decision Sent to SMF: %v", decision)
 
-	return header, &decision, nil
+	return header, decision, nil
+}
+
+func buildSmPolicyDecision(imsi string, snssai models.Snssai, dnn string, subscribedSessionAmbr *models.Ambr, subscribedQos *models.SubscribedDefaultQos) (response *models.SmPolicyDecision, problemDetails *models.ProblemDetails) {
+	pccPolicy := getSlicePccPolicy(snssai)
+	if pccPolicy == nil {
+		problemDetail := util.GetProblemDetail("Can't find in local policy", util.USER_UNKNOWN)
+		logger.SMpolicylog.Warnf("can not find slice %+v in local policy", snssai)
+		return nil, &problemDetail
+	}
+	logger.SMpolicylog.Debugf("pcc Policy data exists in PcfPccPolicyData for slice %+v", snssai)
+
+	decision := initSmPolicyDecisionFromPccPolicy(pccPolicy)
+	sessionRules, err := polling.GetImsiSessionRules(dnn, imsi)
+	if err != nil {
+		logger.SMpolicylog.Warnf("failed to get the session rules from the webconsole, using default values for %s, %v", imsi, err)
+		decision.SessRules = buildDefaultSessionPolicy(dnn, subscribedSessionAmbr, subscribedQos)
+		return &decision, nil
+	}
+
+	if len(sessionRules) == 0 {
+		logger.SMpolicylog.Warnf("no session rules found for %s in DNN %s", imsi, dnn)
+		problemDetail := util.GetProblemDetail("Can't find local policy", util.USER_UNKNOWN)
+		return nil, &problemDetail
+	}
+	for _, sessRule := range sessionRules {
+		decision.SessRules[sessRule.SessRuleId] = deepcopy.Copy(sessRule).(*models.SessionRule)
+	}
+	return &decision, nil
+}
+
+func initSmPolicyDecisionFromPccPolicy(pccPolicy *polling.PccPolicy) models.SmPolicyDecision {
+	decision := models.SmPolicyDecision{
+		SessRules:     make(map[string]*models.SessionRule),
+		PccRules:      make(map[string]*models.PccRule),
+		QosDecs:       make(map[string]*models.QosData),
+		TraffContDecs: make(map[string]*models.TrafficControlData),
+	}
+	for id, rule := range pccPolicy.PccRules {
+		decision.PccRules[id] = deepcopy.Copy(rule).(*models.PccRule)
+	}
+	for id, qos := range pccPolicy.QosDecs {
+		decision.QosDecs[id] = deepcopy.Copy(qos).(*models.QosData)
+	}
+	for id, tc := range pccPolicy.TraffContDecs {
+		decision.TraffContDecs[id] = deepcopy.Copy(tc).(*models.TrafficControlData)
+	}
+	return decision
+}
+
+func buildDefaultSessionPolicy(dnn string, ambr *models.Ambr, qos *models.SubscribedDefaultQos) map[string]*models.SessionRule {
+	idGenerator := idgenerator.NewGenerator(1, math.MaxInt16)
+	id, err := idGenerator.Allocate()
+	if err != nil {
+		logger.CtxLog.Errorf("ID generator allocation failed: %v", err)
+		return nil
+	}
+	key := fmt.Sprintf("%s-%d", dnn, id)
+	return map[string]*models.SessionRule{
+		key: buildDefaultSessionRule(key, ambr, qos),
+	}
+}
+
+func buildDefaultSessionRule(key string, ambr *models.Ambr, qos *models.SubscribedDefaultQos) *models.SessionRule {
+	if ambr != nil && qos != nil {
+		return &models.SessionRule{
+			SessRuleId: key,
+			AuthDefQos: &models.AuthorizedDefaultQos{
+				Var5qi: qos.Var5qi,
+				Arp:    qos.Arp,
+			},
+			AuthSessAmbr: ambr,
+		}
+	}
+	return &models.SessionRule{
+		SessRuleId: key,
+		AuthDefQos: &models.AuthorizedDefaultQos{
+			Var5qi: 5,
+			Arp:    &models.Arp{PriorityLevel: 1},
+		},
+		AuthSessAmbr: &models.Ambr{
+			Downlink: "1 Mbps",
+			Uplink:   "1 Mbps",
+		},
+	}
 }
 
 // SmPoliciessmPolicyIDDeletePost -
@@ -278,7 +332,8 @@ func HandleDeleteSmPolicyContextRequest(request *httpwrapper.Request) *httpwrapp
 func deleteSmPolicyContextProcedure(smPolicyID string) *models.ProblemDetails {
 	logger.AMpolicylog.Debugln("handle SM Policy Delete")
 
-	ue := pcf_context.PCF_Self().PCFUeFindByPolicyId(smPolicyID)
+	pcfSelf := pcfContext.PCF_Self()
+	ue := pcfSelf.PCFUeFindByPolicyId(smPolicyID)
 	logger.SMpolicylog.Infof("smPolicyID: %v, ue: %v", smPolicyID, ue)
 	if ue == nil || ue.SmPolicyData[smPolicyID] == nil {
 		problemDetail := util.GetProblemDetail("smPolicyID not found in PCF", util.CONTEXT_NOT_FOUND)
@@ -286,7 +341,6 @@ func deleteSmPolicyContextProcedure(smPolicyID string) *models.ProblemDetails {
 		return &problemDetail
 	}
 
-	pcfSelf := pcf_context.PCF_Self()
 	smPolicy := ue.SmPolicyData[smPolicyID]
 
 	// Unsubscrice UDR
@@ -299,7 +353,7 @@ func deleteSmPolicyContextProcedure(smPolicyID string) *models.ProblemDetails {
 	}
 	for appSessionID := range smPolicy.AppSessions {
 		if val, exist := pcfSelf.AppSessionPool.Load(appSessionID); exist {
-			appSession := val.(*pcf_context.AppSessionData)
+			appSession := val.(*pcfContext.AppSessionData)
 			SendAppSessionTermination(appSession, terminationInfo)
 			pcfSelf.AppSessionPool.Delete(appSessionID)
 			logger.SMpolicylog.Debugf("SMPolicy[%s] DELETE Related AppSession[%s]", smPolicyID, appSessionID)
@@ -334,7 +388,7 @@ func getSmPolicyContextProcedure(smPolicyID string) (
 ) {
 	logger.SMpolicylog.Debugln("handle GET SM Policy Request")
 
-	ue := pcf_context.PCF_Self().PCFUeFindByPolicyId(smPolicyID)
+	ue := pcfContext.PCF_Self().PCFUeFindByPolicyId(smPolicyID)
 	if ue == nil || ue.SmPolicyData[smPolicyID] == nil {
 		problemDetail := util.GetProblemDetail("smPolicyID not found in PCF", util.CONTEXT_NOT_FOUND)
 		logger.SMpolicylog.Warnln(problemDetail.Detail)
@@ -381,7 +435,7 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 ) {
 	logger.SMpolicylog.Debugln("handle updateSmPolicyContext")
 
-	ue := pcf_context.PCF_Self().PCFUeFindByPolicyId(smPolicyID)
+	ue := pcfContext.PCF_Self().PCFUeFindByPolicyId(smPolicyID)
 	if ue == nil || ue.SmPolicyData[smPolicyID] == nil {
 		problemDetail := util.GetProblemDetail("smPolicyID not found in PCF", util.CONTEXT_NOT_FOUND)
 		logger.SMpolicylog.Warnln(problemDetail.Detail)
@@ -676,8 +730,8 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 		case models.PolicyControlRequestTrigger_RE_TIMEOUT: // Revalidation TimeOut (subsclause 4.2.4.13 in TS29512)
 			// formatTimeStr := time.Now()
 			// formatTimeStr = formatTimeStr.Add(time.Second * 60)
-			// formatTimeStrAdd := formatTimeStr.Format(pcf_context.GetTimeformat())
-			// formatTime, err := time.Parse(pcf_context.GetTimeformat(), formatTimeStrAdd)
+			// formatTimeStrAdd := formatTimeStr.Format(pcfContext.GetTimeformat())
+			// formatTime, err := time.Parse(pcfContext.GetTimeformat(), formatTimeStrAdd)
 			// if err == nil {
 			// 	smPolicyDecision.RevalidationTime = &formatTime
 			// }
@@ -749,13 +803,13 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 	return smPolicyDecision, nil
 }
 
-func sendSmPolicyRelatedAppSessionNotification(smPolicy *pcf_context.UeSmPolicyData,
+func sendSmPolicyRelatedAppSessionNotification(smPolicy *pcfContext.UeSmPolicyData,
 	notification models.EventsNotification, usageReports []models.AccuUsageReport,
 	successRules, failRules []models.RuleReport,
 ) {
 	for appSessionId := range smPolicy.AppSessions {
-		if val, exist := pcf_context.PCF_Self().AppSessionPool.Load(appSessionId); exist {
-			appSession := val.(*pcf_context.AppSessionData)
+		if val, exist := pcfContext.PCF_Self().AppSessionPool.Load(appSessionId); exist {
+			appSession := val.(*pcfContext.AppSessionData)
 			if len(appSession.Events) == 0 {
 				continue
 			}

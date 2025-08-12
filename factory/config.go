@@ -1,6 +1,6 @@
+// SPDX-FileCopyrightText: 2025 Canonical Ltd.
 // SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
 // Copyright 2019 free5GC.org
-// SPDX-FileCopyrightText: 2024 Canonical Ltd.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -11,7 +11,6 @@
 package factory
 
 import (
-	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/logger"
 )
 
@@ -38,21 +37,15 @@ const (
 )
 
 type Configuration struct {
-	PcfName         string    `yaml:"pcfName,omitempty"`
-	Sbi             *Sbi      `yaml:"sbi,omitempty"`
-	TimeFormat      string    `yaml:"timeFormat,omitempty"`
-	DefaultBdtRefId string    `yaml:"defaultBdtRefId,omitempty"`
-	NrfUri          string    `yaml:"nrfUri,omitempty"`
-	WebuiUri        string    `yaml:"webuiUri"`
-	ServiceList     []Service `yaml:"serviceList,omitempty"`
-
-	// config received from RoC
-	DnnList   map[string][]string // sst+sd os key
-	SlicePlmn map[string]PlmnSupportItem
-
-	PlmnList                 []PlmnSupportItem `yaml:"plmnList,omitempty"`
-	EnableNrfCaching         bool              `yaml:"enableNrfCaching"`
-	NrfCacheEvictionInterval int               `yaml:"nrfCacheEvictionInterval,omitempty"`
+	PcfName                  string    `yaml:"pcfName,omitempty"`
+	Sbi                      *Sbi      `yaml:"sbi,omitempty"`
+	TimeFormat               string    `yaml:"timeFormat,omitempty"`
+	DefaultBdtRefId          string    `yaml:"defaultBdtRefId,omitempty"`
+	NrfUri                   string    `yaml:"nrfUri,omitempty"`
+	WebuiUri                 string    `yaml:"webuiUri"`
+	ServiceList              []Service `yaml:"serviceList,omitempty"`
+	EnableNrfCaching         bool      `yaml:"enableNrfCaching"`
+	NrfCacheEvictionInterval int       `yaml:"nrfCacheEvictionInterval,omitempty"`
 }
 
 type Service struct {
@@ -72,10 +65,6 @@ type Sbi struct {
 type TLS struct {
 	PEM string `yaml:"pem,omitempty"`
 	Key string `yaml:"key,omitempty"`
-}
-
-type PlmnSupportItem struct {
-	PlmnId models.PlmnId `yaml:"plmnId"`
 }
 
 func (c *Config) GetVersion() string {
