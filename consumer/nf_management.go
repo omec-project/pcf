@@ -39,7 +39,7 @@ func getNfProfile(pcfContext *pcfContext.PCFContext, nfProfileDynamicConfig NfPr
 	profile.NfServices = &service
 
 	if len(nfProfileDynamicConfig.Plmns) > 0 {
-		plmnCopy := make([]models.PlmnId, len(nfProfileDynamicConfig.Plmns))
+		plmnCopy := make([]models.PlmnId, 0, len(nfProfileDynamicConfig.Plmns))
 		for plmn := range nfProfileDynamicConfig.Plmns {
 			plmnCopy = append(plmnCopy, plmn)
 		}
@@ -50,7 +50,7 @@ func getNfProfile(pcfContext *pcfContext.PCFContext, nfProfileDynamicConfig NfPr
 	if len(nfProfileDynamicConfig.Dnns) == 0 {
 		logger.ConsumerLog.Warnln("DNN list has not been configured")
 	} else {
-		dnnList = make([]string, len(nfProfileDynamicConfig.Dnns))
+		dnnList = make([]string, 0, len(nfProfileDynamicConfig.Dnns))
 		for dnn := range nfProfileDynamicConfig.Dnns {
 			dnnList = append(dnnList, dnn)
 		}
