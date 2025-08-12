@@ -51,6 +51,7 @@ var GetImsiSessionRules = func(dnn, imsi string) (map[string]*models.SessionRule
 		key := dnn + "-" + strconv.Itoa(int(id))
 		sessionPolicies[key] = makeSessionRule(key, data)
 	}
+	logger.PollConfigLog.Debugf("sessionPolicies for %s in DNN %s: %+v", imsi, dnn, sessionPolicies)
 	return sessionPolicies, nil
 }
 
@@ -89,6 +90,8 @@ func fetchImsiQos(pollingEndpoint string) ([]nfConfigApi.ImsiQos, error) {
 		}
 		return config, nil
 
+	case http.StatusNotFound:
+		return []nfConfigApi.ImsiQos{}, nil
 	case http.StatusBadRequest, http.StatusInternalServerError:
 		return nil, fmt.Errorf("server returned %d error code", resp.StatusCode)
 	default:

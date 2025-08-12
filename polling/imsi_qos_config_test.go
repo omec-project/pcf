@@ -243,7 +243,7 @@ func TestGetImsiSessionRules_EmptyQoS(t *testing.T) {
 			t.Fail()
 		}
 		w.Header().Set("Content-Type", applicationJson)
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(http.StatusNotFound)
 		retrievedSessionRules := []nfConfigApi.ImsiQos{}
 		jsonData, err := json.Marshal(retrievedSessionRules)
 		if err != nil {
