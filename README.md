@@ -20,8 +20,12 @@ The reference 3GPP specification for PCF are as follows
 - Policy and Charging Control signalling flows and QoS parameter mapping (Spec 29.513)
 
 
-## PCF Block Diagram
-![PCF Block Diagram](/docs/images/README-PCF.png)
+## PCF Flow Diagram
+![PCF Flow Diagram](/docs/images/README-PCF.png)
+
+## Dynamic Network configuration (via webconsole)
+
+PCF polls the webconsole every 5 seconds to fetch the latest policy configuration.
 
 ### Setting Up Polling
 
