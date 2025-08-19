@@ -54,8 +54,12 @@ func AmfStatusChangeSubscribe(amfUri string, guamiList []models.Guami) (
 	}
 
 	defer func() {
-		if err = httpResp.Body.Close(); err != nil {
-			logger.Consumerlog.Errorf("error closing response body: %v", err)
+		// httpResp can be nil in some error scenarios above; this check prevents a
+		// panic when accessing httpResp.Body
+		if httpResp != nil {
+			if err = httpResp.Body.Close(); err != nil {
+				logger.Consumerlog.Errorf("error closing response body: %v", err)
+			}
 		}
 	}()
 
