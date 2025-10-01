@@ -12,16 +12,16 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/pcf/util"
-	"github.com/tim-ywliu/event"
 )
 
-const SendSMpolicyUpdateNotifyEventName event.Name = "SendSMpolicyUpdateNotify"
+const SendSMpolicyUpdateNotifyEventName = "SendSMpolicyUpdateNotify"
 
 type SendSMpolicyUpdateNotifyEvent struct {
 	request *models.SmPolicyNotification
 	uri     string
 }
 
+// Handle processes the SM policy update notification event
 func (e SendSMpolicyUpdateNotifyEvent) Handle() {
 	logger.NotifyEventLog.Infoln("handle SendSMpolicyUpdateNotifyEvent")
 	if e.uri == "" {
@@ -51,5 +51,20 @@ func (e SendSMpolicyUpdateNotifyEvent) Handle() {
 		logger.NotifyEventLog.Warnln("SM Policy Update Notification Failed")
 	} else {
 		logger.NotifyEventLog.Debugln("SM Policy Update Notification Success")
+	}
+}
+
+// HandleEvent implements the EventHandler interface for the dispatcher
+func (e SendSMpolicyUpdateNotifyEvent) HandleEvent(eventName string, data any) error {
+	// This method is called by the dispatcher
+	e.Handle()
+	return nil
+}
+
+// NewSendSMpolicyUpdateNotifyEvent creates a new update notification event
+func NewSendSMpolicyUpdateNotifyEvent(uri string, request *models.SmPolicyNotification) SendSMpolicyUpdateNotifyEvent {
+	return SendSMpolicyUpdateNotifyEvent{
+		uri:     uri,
+		request: request,
 	}
 }
