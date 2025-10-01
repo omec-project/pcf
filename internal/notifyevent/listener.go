@@ -30,7 +30,7 @@ func (nl NotifyListener) HandleEvent(eventName string, data any) error {
 		}
 		return fmt.Errorf("invalid data type for %s event", eventName)
 	default:
-		logger.NotifyEventLog.Errorf("registered an invalid user event: %T", eventName)
+		logger.NotifyEventLog.Errorf("registered an invalid user event: %s", eventName)
 		return fmt.Errorf("unknown event: %s", eventName)
 	}
 }
