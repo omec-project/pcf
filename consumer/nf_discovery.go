@@ -12,12 +12,12 @@ import (
 	"net/http"
 
 	"github.com/antihax/optional"
+	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/models"
 	nrfCache "github.com/omec-project/openapi/nrfcache"
 	pcfContext "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/logger"
-	"github.com/omec-project/pcf/util"
 )
 
 var (
@@ -110,7 +110,7 @@ func SendNFInstancesAMF(nrfUri string, guami models.Guami, serviceName models.Se
 	requestNfType := models.NfType_PCF
 
 	localVarOptionals := &Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
-		Guami: optional.NewInterface(util.MarshToJsonString(guami)),
+		Guami: optional.NewInterface(openapi.MarshToJsonString(guami)),
 	}
 	// switch types {
 	// case NFDiscoveryToUDRParamSupi:
