@@ -84,7 +84,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	if smPolicyData == nil || smPolicyData.SmPolicyData == nil {
 		client := util.GetNudrClient(udrUri)
 		param := Nudr_DataRepository.PolicyDataUesUeIdSmDataGetParamOpts{
-			Snssai: optional.NewInterface(util.MarshToJsonString(*request.SliceInfo)),
+			Snssai: optional.NewInterface(openapi.MarshToJsonString(*request.SliceInfo)),
 			Dnn:    optional.NewString(request.Dnn),
 		}
 		var response *http.Response
