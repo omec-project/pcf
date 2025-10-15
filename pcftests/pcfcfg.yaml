@@ -6,7 +6,7 @@ configuration:
   nrfUri: https://nrf:443
   enableNrfCaching: true
   nrfCacheEvictionInterval: 900
-  webuiUri: webui:9876
+  webuiUri: http://webui:5001
   pcfName: PCF
   sbi:
     bindingIPv4: 0.0.0.0

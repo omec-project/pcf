@@ -11,7 +11,6 @@ require (
 	github.com/omec-project/openapi v1.6.4
 	github.com/omec-project/util v1.5.4
 	github.com/prometheus/client_golang v1.23.2
-	github.com/stretchr/testify v1.11.1
 	github.com/urfave/cli/v3 v3.4.1
 	go.uber.org/zap v1.27.0
 	go.yaml.in/yaml/v4 v4.0.0-rc.2
@@ -63,5 +62,4 @@ require (
 	golang.org/x/tools v0.36.0 // indirect
 	google.golang.org/protobuf v1.36.9 // indirect
 	gopkg.in/h2non/gock.v1 v1.1.2 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
