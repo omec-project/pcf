@@ -127,8 +127,8 @@ func TestCreatePccPolicies_OnePolicyControlElement(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			sd := "112233"
-			maxBrUl = "500Mbps"
-			maxBrDl: "1Gbps"
+			maxBrUl := "500Mbps"
+			maxBrDl := "1Gbps"
 			input := nfConfigApi.PolicyControl{
 				Snssai: nfConfigApi.Snssai{
 					Sst: 1,
@@ -215,10 +215,10 @@ func TestCreatePccPolicies_MultiplePolicyControlElement(t *testing.T) {
 
 	sd1 := "112233"
 	sd2 := "445566"
-	maxBrUl1: "200Mbps"
-	maxBrDl1: "300Mbps"
-	maxBrUl2: "100Mbps"
-	maxBrDl2: "150Mbps"
+	maxBrUl1 := "200Mbps"
+	maxBrDl1 := "300Mbps"
+	maxBrUl2 := "100Mbps"
+	maxBrDl2 := "150Mbps"
 	input := []nfConfigApi.PolicyControl{
 		{
 			Snssai: nfConfigApi.Snssai{Sst: 1, Sd: &sd1},
