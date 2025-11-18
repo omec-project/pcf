@@ -120,11 +120,15 @@ func hasDefaultQosFlow(flows []models.FlowInformation) bool {
 
 func makeQosDesc(id int64, pccQos nfConfigApi.PccQos) models.QosData {
 	qos := models.QosData{
-		QosId:   strconv.FormatInt(id, 10),
-		Var5qi:  pccQos.FiveQi,
-		MaxbrUl: pccQos.MaxBrUl,
-		MaxbrDl: pccQos.MaxBrDl,
-		Arp:     &models.Arp{PriorityLevel: pccQos.Arp.PriorityLevel},
+		QosId:  strconv.FormatInt(id, 10),
+		Var5qi: pccQos.FiveQi,
+		Arp:    &models.Arp{PriorityLevel: pccQos.Arp.PriorityLevel},
+	}
+	if MaxbrUl, ok := pccQos.GetMaxBrUlOk(); ok {
+		qos.MaxbrUl = *MaxbrUl
+	}
+	if MaxbrDl, ok := pccQos.GetMaxBrDlOk(); ok {
+		qos.MaxbrDl = *MaxbrDl
 	}
 	switch pccQos.Arp.PreemptCap {
 	case nfConfigApi.PREEMPTCAP_NOT_PREEMPT:

@@ -127,6 +127,8 @@ func TestCreatePccPolicies_OnePolicyControlElement(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			sd := "112233"
+			maxBrUl := "500Mbps"
+			maxBrDl := "1Gbps"
 			input := nfConfigApi.PolicyControl{
 				Snssai: nfConfigApi.Snssai{
 					Sst: 1,
@@ -138,8 +140,8 @@ func TestCreatePccPolicies_OnePolicyControlElement(t *testing.T) {
 						Precedence: 255,
 						Qos: nfConfigApi.PccQos{
 							FiveQi:  9,
-							MaxBrUl: "500Mbps",
-							MaxBrDl: "1Gbps",
+							MaxBrUl: &maxBrUl,
+							MaxBrDl: &maxBrDl,
 							Arp: nfConfigApi.Arp{
 								PriorityLevel: 5,
 								PreemptCap:    nfConfigApi.PREEMPTCAP_MAY_PREEMPT,
@@ -213,6 +215,8 @@ func TestCreatePccPolicies_MultiplePolicyControlElement(t *testing.T) {
 
 	sd1 := "112233"
 	sd2 := "445566"
+	maxBrUl1 := "200Mbps"
+	maxBrDl1 := "300Mbps"
 	input := []nfConfigApi.PolicyControl{
 		{
 			Snssai: nfConfigApi.Snssai{Sst: 1, Sd: &sd1},
@@ -222,8 +226,8 @@ func TestCreatePccPolicies_MultiplePolicyControlElement(t *testing.T) {
 					Precedence: 10,
 					Qos: nfConfigApi.PccQos{
 						FiveQi:  5,
-						MaxBrUl: "200Mbps",
-						MaxBrDl: "300Mbps",
+						MaxBrUl: &maxBrUl1,
+						MaxBrDl: &maxBrDl1,
 						Arp: nfConfigApi.Arp{
 							PriorityLevel: 88,
 							PreemptCap:    nfConfigApi.PREEMPTCAP_NOT_PREEMPT,
@@ -244,9 +248,7 @@ func TestCreatePccPolicies_MultiplePolicyControlElement(t *testing.T) {
 					RuleId:     "rule2",
 					Precedence: 20,
 					Qos: nfConfigApi.PccQos{
-						FiveQi:  7,
-						MaxBrUl: "100Mbps",
-						MaxBrDl: "150Mbps",
+						FiveQi: 7,
 						Arp: nfConfigApi.Arp{
 							PriorityLevel: 3,
 							PreemptCap:    nfConfigApi.PREEMPTCAP_MAY_PREEMPT,
@@ -336,8 +338,6 @@ func TestCreatePccPolicies_MultiplePolicyControlElement(t *testing.T) {
 					QosId:                "4",
 					DefQosFlowIndication: false,
 					Var5qi:               7,
-					MaxbrUl:              "100Mbps",
-					MaxbrDl:              "150Mbps",
 					Arp: &models.Arp{
 						PriorityLevel: 3,
 						PreemptCap:    models.PreemptionCapability_MAY_PREEMPT,
