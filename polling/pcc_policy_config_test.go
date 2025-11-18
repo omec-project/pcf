@@ -217,8 +217,6 @@ func TestCreatePccPolicies_MultiplePolicyControlElement(t *testing.T) {
 	sd2 := "445566"
 	maxBrUl1 := "200Mbps"
 	maxBrDl1 := "300Mbps"
-	maxBrUl2 := "100Mbps"
-	maxBrDl2 := "150Mbps"
 	input := []nfConfigApi.PolicyControl{
 		{
 			Snssai: nfConfigApi.Snssai{Sst: 1, Sd: &sd1},
@@ -250,9 +248,7 @@ func TestCreatePccPolicies_MultiplePolicyControlElement(t *testing.T) {
 					RuleId:     "rule2",
 					Precedence: 20,
 					Qos: nfConfigApi.PccQos{
-						FiveQi:  7,
-						MaxBrUl: &maxBrUl2,
-						MaxBrDl: &maxBrDl2,
+						FiveQi: 7,
 						Arp: nfConfigApi.Arp{
 							PriorityLevel: 3,
 							PreemptCap:    nfConfigApi.PREEMPTCAP_MAY_PREEMPT,
@@ -342,8 +338,6 @@ func TestCreatePccPolicies_MultiplePolicyControlElement(t *testing.T) {
 					QosId:                "4",
 					DefQosFlowIndication: false,
 					Var5qi:               7,
-					MaxbrUl:              "100Mbps",
-					MaxbrDl:              "150Mbps",
 					Arp: &models.Arp{
 						PriorityLevel: 3,
 						PreemptCap:    models.PreemptionCapability_MAY_PREEMPT,
