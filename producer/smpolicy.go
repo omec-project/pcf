@@ -250,6 +250,7 @@ func buildSmPolicyDecision(imsi string, snssai models.Snssai, dnn string, subscr
 	for _, sessRule := range sessionRules {
 		decision.SessRules[sessRule.SessRuleId] = deepcopy.Copy(sessRule).(*models.SessionRule)
 	}
+	selectRulesBySubscribedQos(&decision, subscribedQos)
 	return &decision, nil
 }
 
@@ -270,6 +271,87 @@ func initSmPolicyDecisionFromPccPolicy(pccPolicy *polling.PccPolicy) models.SmPo
 		decision.TraffContDecs[id] = deepcopy.Copy(tc).(*models.TrafficControlData)
 	}
 	return decision
+}
+
+func selectRulesBySubscribedQos(decision *models.SmPolicyDecision, subsQos *models.SubscribedDefaultQos) {
+	if subsQos == nil {
+		logger.SMpolicylog.Warnf("SubscribedDefaultQos is nil, cannot select PCC/QoS rules")
+		return
+	}
+
+	var (
+		selectedQosKey string
+		selectedQos    *models.QosData
+	)
+
+	// 1. Select QoS
+	for key, qos := range decision.QosDecs {
+		if qos != nil && qos.Var5qi == subsQos.Var5qi {
+			selectedQosKey = key
+			selectedQos = qos
+			break
+		}
+	}
+
+	if selectedQosKey == "" {
+		return
+	}
+	decision.QosDecs = map[string]*models.QosData{
+		selectedQosKey: selectedQos,
+	}
+
+	var (
+		selectedPccKey  string
+		selectedPccRule *models.PccRule
+	)
+
+	for pccKey, pccRule := range decision.PccRules {
+		logger.SMpolicylog.Infof("PCC[%s] RefQosData=%v", pccKey, pccRule.RefQosData)
+		if pccRule == nil {
+			continue
+		}
+		for _, qosRef := range pccRule.RefQosData {
+			if qosRef == selectedQos.QosId {
+				selectedPccKey = pccKey
+				selectedPccRule = pccRule
+				break
+			}
+		}
+		if selectedPccRule != nil {
+			break
+		}
+	}
+
+	if selectedPccRule == nil {
+		logger.SMpolicylog.Errorf("No PccRule references QosDec=%s", selectedQosKey)
+		decision.PccRules = map[string]*models.PccRule{}
+		return
+	}
+
+	decision.PccRules = map[string]*models.PccRule{
+		selectedPccKey: selectedPccRule,
+	}
+
+	logger.SMpolicylog.Infof("Selected PccRule key=%s referencing QosDec=%s", selectedPccKey, selectedQosKey)
+
+	if len(selectedPccRule.RefTcData) == 0 {
+		logger.SMpolicylog.Warnf("PccRule[%s] has no RefTcData", selectedPccKey)
+		decision.TraffContDecs = map[string]*models.TrafficControlData{}
+		return
+	}
+
+	tcKey := selectedPccRule.RefTcData[0]
+
+	tc, ok := decision.TraffContDecs[tcKey]
+	if !ok {
+		logger.SMpolicylog.Errorf("No TrafficControlData with key=%s", tcKey)
+		decision.TraffContDecs = map[string]*models.TrafficControlData{}
+		return
+	}
+
+	decision.TraffContDecs = map[string]*models.TrafficControlData{
+		tcKey: tc,
+	}
 }
 
 func buildDefaultSessionPolicy(dnn string, ambr *models.Ambr, qos *models.SubscribedDefaultQos) map[string]*models.SessionRule {
