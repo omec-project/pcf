@@ -294,8 +294,13 @@ func selectRulesBySubscribedQos(decision *models.SmPolicyDecision, subsQos *mode
 	}
 
 	if selectedQosKey == "" {
+		logger.SMpolicylog.Warnf(
+			"No matching QoS found for subscribed 5QI=%v; available QoSDecs=%d",
+			subsQos.Var5qi, len(decision.QosDecs),
+		)
 		return
 	}
+
 	decision.QosDecs = map[string]*models.QosData{
 		selectedQosKey: selectedQos,
 	}
@@ -306,7 +311,7 @@ func selectRulesBySubscribedQos(decision *models.SmPolicyDecision, subsQos *mode
 	)
 
 	for pccKey, pccRule := range decision.PccRules {
-		logger.SMpolicylog.Infof("PCC[%s] RefQosData=%v", pccKey, pccRule.RefQosData)
+		logger.SMpolicylog.Infof("PccKey[%s] pccRule=%+v", pccKey, pccRule)
 		if pccRule == nil {
 			continue
 		}
@@ -338,19 +343,19 @@ func selectRulesBySubscribedQos(decision *models.SmPolicyDecision, subsQos *mode
 		logger.SMpolicylog.Warnf("PccRule[%s] has no RefTcData", selectedPccKey)
 		decision.TraffContDecs = map[string]*models.TrafficControlData{}
 		return
-	}
+	} else {
+		tcKey := selectedPccRule.RefTcData[0]
 
-	tcKey := selectedPccRule.RefTcData[0]
+		tc, ok := decision.TraffContDecs[tcKey]
+		if !ok {
+			logger.SMpolicylog.Errorf("No TrafficControlData with key=%s", tcKey)
+			decision.TraffContDecs = map[string]*models.TrafficControlData{}
+			return
+		}
 
-	tc, ok := decision.TraffContDecs[tcKey]
-	if !ok {
-		logger.SMpolicylog.Errorf("No TrafficControlData with key=%s", tcKey)
-		decision.TraffContDecs = map[string]*models.TrafficControlData{}
-		return
-	}
-
-	decision.TraffContDecs = map[string]*models.TrafficControlData{
-		tcKey: tc,
+		decision.TraffContDecs = map[string]*models.TrafficControlData{
+			tcKey: tc,
+		}
 	}
 }
 
