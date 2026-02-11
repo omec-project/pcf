@@ -311,13 +311,14 @@ func selectRulesBySubscribedQos(decision *models.SmPolicyDecision, subsQos *mode
 	)
 
 	for pccKey, pccRule := range decision.PccRules {
+		if pccRule == nil {
+			logger.SMpolicylog.Debugln("PccRule is nil")
+			continue
+		}
 		logger.SMpolicylog.Debugf(
 			"Evaluating PccRule: key=%s, ruleId=%s, refQosData=%v, refTcData=%v",
 			pccKey, pccRule.PccRuleId, pccRule.RefQosData, pccRule.RefTcData,
 		)
-		if pccRule == nil {
-			continue
-		}
 		for _, qosRef := range pccRule.RefQosData {
 			if qosRef == selectedQosKey {
 				selectedPccKey = pccKey
