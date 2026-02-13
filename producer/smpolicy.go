@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -319,14 +320,9 @@ func selectRulesBySubscribedQos(decision *models.SmPolicyDecision, subsQos *mode
 			"Evaluating PccRule: key=%s, ruleId=%s, refQosData=%v, refTcData=%v",
 			pccKey, pccRule.PccRuleId, pccRule.RefQosData, pccRule.RefTcData,
 		)
-		for _, qosRef := range pccRule.RefQosData {
-			if qosRef == selectedQosKey {
-				selectedPccKey = pccKey
-				selectedPccRule = pccRule
-				break
-			}
-		}
-		if selectedPccRule != nil {
+		if slices.Contains(pccRule.RefQosData, selectedQos.QosId) {
+			selectedPccKey = pccKey
+			selectedPccRule = pccRule
 			break
 		}
 	}
