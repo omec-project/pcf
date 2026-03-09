@@ -53,18 +53,3 @@ func (e SendSMpolicyTerminationNotifyEvent) Handle() {
 		logger.NotifyEventLog.Debugln("SM Policy Termination Request Notification Success")
 	}
 }
-
-// HandleEvent implements the EventHandler interface for the dispatcher
-func (e SendSMpolicyTerminationNotifyEvent) HandleEvent(eventName string, data any) error {
-	// This method is called by the dispatcher
-	e.Handle()
-	return nil
-}
-
-// NewSendSMpolicyTerminationNotifyEvent creates a new termination notification event
-func NewSendSMpolicyTerminationNotifyEvent(uri string, request *models.TerminationNotification) SendSMpolicyTerminationNotifyEvent {
-	return SendSMpolicyTerminationNotifyEvent{
-		uri:     uri,
-		request: request,
-	}
-}

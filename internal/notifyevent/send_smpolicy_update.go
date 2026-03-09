@@ -60,11 +60,3 @@ func (e SendSMpolicyUpdateNotifyEvent) HandleEvent(eventName string, data any) e
 	e.Handle()
 	return nil
 }
-
-// NewSendSMpolicyUpdateNotifyEvent creates a new update notification event
-func NewSendSMpolicyUpdateNotifyEvent(uri string, request *models.SmPolicyNotification) SendSMpolicyUpdateNotifyEvent {
-	return SendSMpolicyUpdateNotifyEvent{
-		uri:     uri,
-		request: request,
-	}
-}

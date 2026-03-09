@@ -19,8 +19,6 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/omec-project/pcf/logger"
-	utilLogger "github.com/omec-project/util/logger"
 )
 
 type Route struct {
@@ -35,12 +33,6 @@ type Route struct {
 }
 
 type Routes []Route
-
-func NewRouter() *gin.Engine {
-	router := utilLogger.NewGinWithZap(logger.GinLog)
-	AddService(router)
-	return router
-}
 
 func AddService(engine *gin.Engine) *gin.RouterGroup {
 	group := engine.Group("/npcf-ue-policy-control/v1/")

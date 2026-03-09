@@ -7,7 +7,6 @@ package util
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/omec-project/openapi/models"
 )
@@ -23,26 +22,6 @@ var MediaTypeTo5qiMap = map[models.MediaType]int32{
 	models.MediaType_OTHER:       9,
 }
 
-// Create default pcc rule in PCF,
-// TODO: use config file to pass default pcc rule
-func CreateDefalutPccRules(id int32) *models.PccRule {
-	flowInfo := []models.FlowInformation{
-		{
-			FlowDescription:   "permit out ip from any to assigned",
-			FlowDirection:     models.FlowDirectionRm_DOWNLINK,
-			PacketFilterUsage: true,
-			PackFiltId:        "PackFiltId-0",
-		},
-		{
-			FlowDescription:   "permit out ip from any to assigned",
-			FlowDirection:     models.FlowDirectionRm_DOWNLINK,
-			PacketFilterUsage: true,
-			PackFiltId:        "PackFiltId-1",
-		},
-	}
-	return CreatePccRule(id, 10, flowInfo, "")
-}
-
 // Get pcc rule Identity(PccRuleId-%d)
 func GetPccRuleId(id int32) string {
 	return fmt.Sprintf("PccRuleId-%d", id)
@@ -51,11 +30,6 @@ func GetPccRuleId(id int32) string {
 // Get qos Identity(QosId-%d)
 func GetQosId(id int32) string {
 	return fmt.Sprintf("QosId-%d", id)
-}
-
-// Get Cond Identity(CondId-%d)
-func GetCondId(id int32) string {
-	return fmt.Sprintf("CondId-%d", id)
 }
 
 // Get Traffic Control Identity(TcId-%d)
@@ -87,14 +61,6 @@ func CreatePccRule(id, precedence int32, flowInfo []models.FlowInformation, appI
 		Precedence: precedence,
 	}
 	return &rule
-}
-
-func CreateCondData(id int32) models.ConditionData {
-	activationTime := time.Now()
-	return models.ConditionData{
-		CondId:         GetCondId(id),
-		ActivationTime: &activationTime,
-	}
 }
 
 func CreateQosData(id, var5qi, arp int32) models.QosData {
