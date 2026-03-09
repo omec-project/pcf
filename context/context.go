@@ -100,11 +100,7 @@ func GetUri(name models.ServiceName) string {
 var (
 	PolicyAuthorizationUri = "/npcf-policyauthorization/v1/app-sessions/"
 	SmUri                  = "/npcf-smpolicycontrol/v1"
-	IPv4Address            = "192.168."
-	IPv6Address            = "ffab::"
 	CheckNotifiUri         = "/npcf-callback/v1/nudr-notify/"
-	Ipv4_pool              = make(map[string]string)
-	Ipv6_pool              = make(map[string]string)
 )
 
 // DefaultBdtRefId BdtPolicy default value

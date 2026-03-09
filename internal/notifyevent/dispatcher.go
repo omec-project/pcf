@@ -66,9 +66,7 @@ var notifyDispatcher *Dispatcher
 
 func RegisterNotifyDispatcher() error {
 	notifyDispatcher = NewDispatcher()
-	if err := notifyDispatcher.Register(NotifyListener{},
-		SendSMpolicyUpdateNotifyEventName,
-		SendSMpolicyTerminationNotifyEventName); err != nil {
+	if err := notifyDispatcher.Register(NotifyListener{}, SendSMpolicyUpdateNotifyEventName); err != nil {
 		return err
 	}
 	return nil
