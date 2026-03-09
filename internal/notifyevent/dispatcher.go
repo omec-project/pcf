@@ -66,9 +66,7 @@ var notifyDispatcher *Dispatcher
 
 func RegisterNotifyDispatcher() error {
 	notifyDispatcher = NewDispatcher()
-	if err := notifyDispatcher.Register(NotifyListener{},
-		SendSMpolicyUpdateNotifyEventName,
-		SendSMpolicyTerminationNotifyEventName); err != nil {
+	if err := notifyDispatcher.Register(NotifyListener{}, SendSMpolicyUpdateNotifyEventName); err != nil {
 		return err
 	}
 	return nil
@@ -80,20 +78,6 @@ func DispatchSendSMPolicyUpdateNotifyEvent(uri string, request *models.SmPolicyN
 		return
 	}
 	err := notifyDispatcher.Dispatch(SendSMpolicyUpdateNotifyEventName, SendSMpolicyUpdateNotifyEvent{
-		uri:     uri,
-		request: request,
-	})
-	if err != nil {
-		logger.NotifyEventLog.Errorln(err)
-	}
-}
-
-func DispatchSendSMPolicyTerminationNotifyEvent(uri string, request *models.TerminationNotification) {
-	if notifyDispatcher == nil {
-		logger.NotifyEventLog.Errorf("notifyDispatcher is nil")
-		return
-	}
-	err := notifyDispatcher.Dispatch(SendSMpolicyTerminationNotifyEventName, SendSMpolicyTerminationNotifyEvent{
 		uri:     uri,
 		request: request,
 	})

@@ -93,10 +93,6 @@ func PCF_Self() *PCFContext {
 	return pcfCtx
 }
 
-func GetTimeformat() string {
-	return pcfCtx.TimeFormat
-}
-
 func GetUri(name models.ServiceName) string {
 	return pcfCtx.PcfServiceUris[name]
 }
@@ -104,11 +100,7 @@ func GetUri(name models.ServiceName) string {
 var (
 	PolicyAuthorizationUri = "/npcf-policyauthorization/v1/app-sessions/"
 	SmUri                  = "/npcf-smpolicycontrol/v1"
-	IPv4Address            = "192.168."
-	IPv6Address            = "ffab::"
 	CheckNotifiUri         = "/npcf-callback/v1/nudr-notify/"
-	Ipv4_pool              = make(map[string]string)
-	Ipv6_pool              = make(map[string]string)
 )
 
 // DefaultBdtRefId BdtPolicy default value
@@ -304,50 +296,6 @@ func (c *PCFContext) SetDefaultUdrURI(uri string) {
 	c.DefaultUdrURILock.Lock()
 	defer c.DefaultUdrURILock.Unlock()
 	c.DefaultUdrURI = uri
-}
-
-func Ipv4Pool(ipindex int32) string {
-	ipv4address := IPv4Address + fmt.Sprint((int(ipindex)/255)+1) + "." + fmt.Sprint(int(ipindex)%255)
-	return ipv4address
-}
-
-func Ipv4Index() int32 {
-	if len(Ipv4_pool) == 0 {
-		Ipv4_pool["1"] = Ipv4Pool(1)
-	} else {
-		for i := 1; i <= len(Ipv4_pool); i++ {
-			if Ipv4_pool[fmt.Sprint(i)] == "" {
-				Ipv4_pool[fmt.Sprint(i)] = Ipv4Pool(int32(i))
-				return int32(i)
-			}
-		}
-
-		Ipv4_pool[fmt.Sprint(int32(len(Ipv4_pool)+1))] = Ipv4Pool(int32(len(Ipv4_pool) + 1))
-		return int32(len(Ipv4_pool))
-	}
-	return 1
-}
-
-func Ipv6Pool(ipindex int32) string {
-	ipv6address := IPv6Address + fmt.Sprintf("%x\n", ipindex)
-	return ipv6address
-}
-
-func Ipv6Index() int32 {
-	if len(Ipv6_pool) == 0 {
-		Ipv6_pool["1"] = Ipv6Pool(1)
-	} else {
-		for i := 1; i <= len(Ipv6_pool); i++ {
-			if Ipv6_pool[fmt.Sprint(i)] == "" {
-				Ipv6_pool[fmt.Sprint(i)] = Ipv6Pool(int32(i))
-				return int32(i)
-			}
-		}
-
-		Ipv6_pool[fmt.Sprint(int32(len(Ipv6_pool)+1))] = Ipv6Pool(int32(len(Ipv6_pool) + 1))
-		return int32(len(Ipv6_pool))
-	}
-	return 1
 }
 
 func (c *PCFContext) NewAmfStatusSubscription(subscriptionID string, subscriptionData AMFStatusSubscriptionData) {

@@ -23,12 +23,6 @@ func (nl NotifyListener) HandleEvent(eventName string, data any) error {
 			return nil
 		}
 		return fmt.Errorf("invalid data type for %s event", eventName)
-	case SendSMpolicyTerminationNotifyEventName:
-		if event, ok := data.(SendSMpolicyTerminationNotifyEvent); ok {
-			event.Handle()
-			return nil
-		}
-		return fmt.Errorf("invalid data type for %s event", eventName)
 	default:
 		logger.NotifyEventLog.Errorf("registered an invalid user event: %s", eventName)
 		return fmt.Errorf("unknown event: %s", eventName)

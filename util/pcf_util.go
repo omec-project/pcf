@@ -12,13 +12,11 @@ import (
 	"time"
 
 	"github.com/omec-project/openapi/Namf_Communication"
-	"github.com/omec-project/openapi/Npcf_AMPolicy"
 	"github.com/omec-project/openapi/Npcf_PolicyAuthorization"
 	"github.com/omec-project/openapi/Npcf_SMPolicyControl"
 	"github.com/omec-project/openapi/Nudr_DataRepository"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/pcf/context"
-	"github.com/omec-project/pcf/logger"
 )
 
 const TimeFormat = time.RFC3339
@@ -56,12 +54,6 @@ var (
 	}
 )
 
-func GetNpcfAMPolicyCallbackClient() *Npcf_AMPolicy.APIClient {
-	configuration := Npcf_AMPolicy.NewConfiguration()
-	client := Npcf_AMPolicy.NewAPIClient(configuration)
-	return client
-}
-
 func GetNpcfSMPolicyCallbackClient() *Npcf_SMPolicyControl.APIClient {
 	configuration := Npcf_SMPolicyControl.NewConfiguration()
 	client := Npcf_SMPolicyControl.NewAPIClient(configuration)
@@ -86,45 +78,6 @@ func GetNamfClient(uri string) *Namf_Communication.APIClient {
 	configuration.SetBasePath(uri)
 	client := Namf_Communication.NewAPIClient(configuration)
 	return client
-}
-
-func GetDefaultDataRate() models.UsageThreshold {
-	var usageThreshold models.UsageThreshold
-	usageThreshold.DownlinkVolume = 1024 * 1024 / 8 // 1 Mbps
-	usageThreshold.UplinkVolume = 1024 * 1024 / 8   // 1 Mbps
-	return usageThreshold
-}
-
-func GetDefaultTime() models.TimeWindow {
-	var timeWindow models.TimeWindow
-	timeWindow.StartTime = time.Now().Format(time.RFC3339)
-	lease, err := time.ParseDuration("720h")
-	if err != nil {
-		logger.UtilLog.Errorf("ParseDuration error: %+v", err)
-	}
-	timeWindow.StopTime = time.Now().Add(lease).Format(time.RFC3339)
-	return timeWindow
-}
-
-func CheckStopTime(StopTime time.Time) bool {
-	if StopTime.Before(time.Now()) {
-		return false
-	} else {
-		return true
-	}
-}
-
-// Convert int data rate bytes to string data rate bits
-func Convert(bytes int64) (DateRate string) {
-	BitDateRate := float64(bytes) * 8
-	if BitDateRate/1024 > 0 && BitDateRate/1024/1024 < 0 {
-		DateRate = fmt.Sprintf("%.2f", BitDateRate/1024) + " Kbps"
-	} else if BitDateRate/1024/1024 > 0 {
-		DateRate = fmt.Sprintf("%.2f", BitDateRate/1024/1024) + " Mbps"
-	} else {
-		DateRate = fmt.Sprintf("%.2f", BitDateRate) + " bps"
-	}
-	return DateRate
 }
 
 // Return ProblemDatail, errString represent Detail, cause represent Cause of the fields
@@ -152,31 +105,6 @@ func GetSMPolicyDnnData(data models.SmPolicyData, snssai *models.Snssai, dnn str
 		}
 	}
 	return
-}
-
-// do AND on two byte array
-func AndBytes(bytes1, bytes2 []byte) []byte {
-	if bytes1 != nil && len(bytes1) == len(bytes2) {
-		bytes3 := []byte{}
-		for i, b := range bytes1 {
-			bytes3 = append(bytes3, b&bytes2[i])
-		}
-		return bytes3
-	}
-	return nil
-}
-
-// Negotiate Support Feture with PCF
-func GetNegotiateSuppFeat(suppFeat string, serviceSuppFeat []byte) string {
-	if serviceSuppFeat == nil {
-		return ""
-	}
-	bytes, err := hex.DecodeString(suppFeat)
-	if err != nil {
-		logger.UtilLog.Errorf("DecodeString error: %+v", err)
-	}
-	negoSuppFeat := AndBytes(bytes, serviceSuppFeat)
-	return hex.EncodeToString(negoSuppFeat)
 }
 
 var serviceUriMap = map[models.ServiceName]string{

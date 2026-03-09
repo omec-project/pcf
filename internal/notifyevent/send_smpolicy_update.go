@@ -53,18 +53,3 @@ func (e SendSMpolicyUpdateNotifyEvent) Handle() {
 		logger.NotifyEventLog.Debugln("SM Policy Update Notification Success")
 	}
 }
-
-// HandleEvent implements the EventHandler interface for the dispatcher
-func (e SendSMpolicyUpdateNotifyEvent) HandleEvent(eventName string, data any) error {
-	// This method is called by the dispatcher
-	e.Handle()
-	return nil
-}
-
-// NewSendSMpolicyUpdateNotifyEvent creates a new update notification event
-func NewSendSMpolicyUpdateNotifyEvent(uri string, request *models.SmPolicyNotification) SendSMpolicyUpdateNotifyEvent {
-	return SendSMpolicyUpdateNotifyEvent{
-		uri:     uri,
-		request: request,
-	}
-}
