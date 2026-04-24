@@ -426,10 +426,7 @@ func (ue *UeContext) SMPolicyFindByIpv6(v6 string) *UeSmPolicyData {
 }
 
 // returns SM Policy by IPv4
-func (ue *UeContext) SMPolicyFindByIdentifiersIpv4(
-	v4 string, sNssai *models.Snssai, dnn string, ipDomain string,
-) *UeSmPolicyData {
-
+func (ue *UeContext) SMPolicyFindByIdentifiersIpv4(v4 string, sNssai *models.Snssai, dnn string, ipDomain string) *UeSmPolicyData {
 	for id, smPolicy := range ue.SmPolicyData {
 		policyContext := smPolicy.PolicyContext
 
