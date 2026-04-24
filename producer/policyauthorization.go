@@ -187,7 +187,6 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 ) {
 	ascReqData := appSessCtx.AscReqData
 	pcfSelf := pcf_context.PCF_Self()
-	logger.PolicyAuthorizationlog.Infof("Received App Session Context Request: %+v", ascReqData)
 	// Initial BDT policy indication(the only one which is not related to session)
 	if ascReqData.BdtRefId != "" {
 		logger.PolicyAuthorizationlog.Infof("Handling BDT Policy Indication for BdtRefId: %s", ascReqData.BdtRefId)
@@ -300,7 +299,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 				return nil, "", &problemDetail
 			}
 			// Find pccRule by AfAppId, otherwise create a new pcc rule
-			logger.PolicyAuthorizationlog.Debugf("AfAppId", appID)
+			logger.PolicyAuthorizationlog.Debugf("AfAppId: %s", appID)
 			pccRule = util.GetPccRuleByAfAppId(smPolicy.PolicyDecision.PccRules, appID)
 			if pccRule == nil {
 				logger.PolicyAuthorizationlog.Infof("No existing PCC Rule found for AppID: %s, creating a new one", appID)
@@ -502,8 +501,8 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 		SmPolicyData:      smPolicy,
 	}
 	logger.PolicyAuthorizationlog.Infof("Created/updated AppSession with ID [%s]", appSessID)
-	logger.PolicyAuthorizationlog.Infof("AppSession Context: %+v", appSessCtx)
-	logger.PolicyAuthorizationlog.Infof("SM Policy associated with AppSession [%s]: %+v", appSessID, smPolicy)
+	logger.PolicyAuthorizationlog.Debugf("AppSession Context: %+v", appSessCtx)
+	logger.PolicyAuthorizationlog.Debugf("SM Policy associated with AppSession [%s]: %+v", appSessID, smPolicy)
 	if len(relatedPccRuleIds) > 0 {
 		data.RelatedPccRuleIds = relatedPccRuleIds
 		data.PccRuleIdMapToCompId = reverseStringMap(relatedPccRuleIds)
@@ -560,13 +559,13 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 		smPolicyID := fmt.Sprintf("%s-%d", ue.Supi, smPolicy.PolicyContext.PduSessionId)
 		notification := models.SmPolicyNotification{
 			ResourceUri:      util.GetResourceUri(models.ServiceName_NPCF_SMPOLICYCONTROL, smPolicyID),
-			SmPolicyDecision: filteredDecision,
+			SmPolicyDecision: smPolicy.PolicyDecision,
 		}
-		decisionJSON, err := json.MarshalIndent(filteredDecision, "", "  ")
+		decisionJSON, err := json.MarshalIndent(smPolicy.PolicyDecision, "", "  ")
 		if err != nil {
 			logger.PolicyAuthorizationlog.Errorf("Failed to marshal SmPolicyDecision: %+v", err)
 		} else {
-			logger.PolicyAuthorizationlog.Infof("SmPolicyDecision data: %s", string(decisionJSON))
+			logger.PolicyAuthorizationlog.Debugf("SmPolicyDecision data: %s", string(decisionJSON))
 		}
 		notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(smPolicy.PolicyContext.NotificationUri, &notification)
 	}
@@ -644,7 +643,14 @@ func handleCombinedMediaSubComponents(
 			smPolicy.PackFiltIdGenarator++
 		}
 		pccRule.FlowInfos = flowInfos
-		tcData := util.CreateTcData(smPolicy.PccRuleIdGenarator, "", medSubComps[0].FStatus)
+		var fStatus models.FlowStatus
+		if len(medSubComps) > 0 {
+			fStatus = medSubComps[0].FStatus
+		} else {
+			// Fall back to a sensible default when no media sub-components are provided.
+			fStatus = models.FlowStatus_ENABLED
+		}
+		tcData := util.CreateTcData(smPolicy.PccRuleIdGenarator, "", fStatus)
 		util.SetPccRuleRelatedData(smPolicy.PolicyDecision, pccRule, tcData, &qosData, nil, nil)
 		smPolicy.PccRuleIdGenarator++
 		logger.PolicyAuthorizationlog.Debugf("PCC Rule ID [%s]", pccRule.PccRuleId)
@@ -1521,11 +1527,29 @@ func getMaxPrecedence(pccRules map[string]*models.PccRule) (maxVaule int32) {
 func getMaxPccRuleIdNum(pccRules map[string]*models.PccRule) int32 {
 	var maxID int32 = 0
 	for id := range pccRules {
-		if n, err := strconv.Atoi(id); err == nil && int32(n) > maxID {
-			maxID = int32(n)
+		if n, ok := parsePccRuleID(id); ok && n > maxID {
+			maxID = n
 		}
 	}
 	return maxID
+}
+
+func parsePccRuleID(id string) (int32, bool) {
+	// Try plain integer
+	if n, err := strconv.Atoi(id); err == nil {
+		return int32(n), true
+	}
+
+	// Legacy format: "PccRuleId-<n>"
+	const legacyPrefix = "PccRuleId-"
+	if strings.HasPrefix(id, legacyPrefix) {
+		numPart := strings.TrimPrefix(id, legacyPrefix)
+		if n, err := strconv.Atoi(numPart); err == nil {
+			return int32(n), true
+		}
+	}
+
+	return 0, false
 }
 
 /*
