@@ -1,9 +1,9 @@
-// Copyright 2019 free5GC.org
+// SPDX-FileCopyrightText: 2025 Intel Corporation
 //
 // SPDX-License-Identifier: Apache-2.0
 //
 
-package consumer
+package util
 
 import (
 	"fmt"
@@ -12,7 +12,7 @@ import (
 )
 
 // SearchNFServiceUri returns NF Uri derived from NfProfile with corresponding service
-func SearchNFServiceUri(nfProfile models.NFProfile, serviceName models.ServiceName,
+func SearchNFServiceUri(nfProfile models.NFProfileDiscovery, serviceName models.ServiceName,
 	nfServiceStatus models.NFServiceStatus,
 ) (nfUri string) {
 	if nfProfile.NfServices != nil {
@@ -27,9 +27,9 @@ func SearchNFServiceUri(nfProfile models.NFProfile, serviceName models.ServiceNa
 				} else if service.IpEndPoints != nil {
 					point := (service.IpEndPoints)[0]
 					if point.GetIpv4Address() != "" {
-						nfUri = getSbiUri(service.Scheme, point.GetIpv4Address(), point.GetPort())
+						nfUri = getSbiUri(service.GetScheme(), point.GetIpv4Address(), point.GetPort())
 					} else if len(nfProfile.Ipv4Addresses) != 0 {
-						nfUri = getSbiUri(service.Scheme, nfProfile.Ipv4Addresses[0], point.GetPort())
+						nfUri = getSbiUri(service.GetScheme(), nfProfile.Ipv4Addresses[0], point.GetPort())
 					}
 				}
 			}

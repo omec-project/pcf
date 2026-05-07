@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/openapi/nfConfigApi"
 	"github.com/omec-project/pcf/factory"
@@ -103,8 +104,12 @@ func makeSessionRule(id string, dnnQoS nfConfigApi.ImsiQos) *models.SessionRule 
 	return &models.SessionRule{
 		SessRuleId: id,
 		AuthDefQos: &models.AuthorizedDefaultQos{
-			Var5qi: dnnQoS.FiveQi,
-			Arp:    &models.Arp{PriorityLevel: dnnQoS.ArpPriorityLevel},
+			Var5qi: openapi.PtrInt32(dnnQoS.GetFiveQi()),
+			Arp: &models.Arp{
+				PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(dnnQoS.ArpPriorityLevel)),
+				PreemptCap:    models.PREEMPTIONCAPABILITY_NOT_PREEMPT,
+				PreemptVuln:   models.PREEMPTIONVULNERABILITY_PREEMPTABLE,
+			},
 		},
 		AuthSessAmbr: &models.Ambr{
 			Uplink:   dnnQoS.MbrUplink,

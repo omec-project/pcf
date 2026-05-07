@@ -16,6 +16,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/openapi/nfConfigApi"
 	"github.com/omec-project/pcf/factory"
@@ -51,8 +52,12 @@ func TestGetImsiSessionRules_Success(t *testing.T) {
 						Downlink: "500 Mbps",
 					},
 					AuthDefQos: &models.AuthorizedDefaultQos{
-						Var5qi: 9,
-						Arp:    &models.Arp{PriorityLevel: 2},
+						Var5qi: openapi.PtrInt32(9),
+						Arp: &models.Arp{
+							PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(2)),
+							PreemptCap:    models.PREEMPTIONCAPABILITY_NOT_PREEMPT,
+							PreemptVuln:   models.PREEMPTIONVULNERABILITY_PREEMPTABLE,
+						},
 					},
 				},
 			},
@@ -83,8 +88,12 @@ func TestGetImsiSessionRules_Success(t *testing.T) {
 						Downlink: "500 Mbps",
 					},
 					AuthDefQos: &models.AuthorizedDefaultQos{
-						Var5qi: 9,
-						Arp:    &models.Arp{PriorityLevel: 2},
+						Var5qi: openapi.PtrInt32(9),
+						Arp: &models.Arp{
+							PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(2)),
+							PreemptCap:    models.PREEMPTIONCAPABILITY_NOT_PREEMPT,
+							PreemptVuln:   models.PREEMPTIONVULNERABILITY_PREEMPTABLE,
+						},
 					},
 				},
 				"internet-2": {
@@ -94,8 +103,12 @@ func TestGetImsiSessionRules_Success(t *testing.T) {
 						Downlink: "12 Kbps",
 					},
 					AuthDefQos: &models.AuthorizedDefaultQos{
-						Var5qi: 8,
-						Arp:    &models.Arp{PriorityLevel: 1},
+						Var5qi: openapi.PtrInt32(8),
+						Arp: &models.Arp{
+							PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(1)),
+							PreemptCap:    models.PREEMPTIONCAPABILITY_NOT_PREEMPT,
+							PreemptVuln:   models.PREEMPTIONVULNERABILITY_PREEMPTABLE,
+						},
 					},
 				},
 				"internet-3": {
@@ -105,8 +118,12 @@ func TestGetImsiSessionRules_Success(t *testing.T) {
 						Downlink: "90 Mbps",
 					},
 					AuthDefQos: &models.AuthorizedDefaultQos{
-						Var5qi: 2,
-						Arp:    &models.Arp{PriorityLevel: 7},
+						Var5qi: openapi.PtrInt32(2),
+						Arp: &models.Arp{
+							PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(7)),
+							PreemptCap:    models.PREEMPTIONCAPABILITY_NOT_PREEMPT,
+							PreemptVuln:   models.PREEMPTIONVULNERABILITY_PREEMPTABLE,
+						},
 					},
 				},
 			},

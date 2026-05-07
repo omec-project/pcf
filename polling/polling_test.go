@@ -20,9 +20,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/openapi/nfConfigApi"
 	"github.com/omec-project/pcf/consumer"
+	"github.com/omec-project/pcf/util"
 )
 
 const applicationJson = "application/json"
@@ -35,7 +37,7 @@ func TestStartPollingService_Success(t *testing.T) {
 		fetchPolicyControlConfig = originalFetchPolicyControlConfig
 		pccPolicies = originalPccPolicies
 	}()
-	pccPolicies = make(map[models.Snssai]*PccPolicy)
+	pccPolicies = make(map[SnssaiKey]*PccPolicy)
 	fetchedConfig := []nfConfigApi.PolicyControl{
 		{
 			PlmnId:   nfConfigApi.PlmnId{Mcc: "001", Mnc: "01"},
@@ -147,7 +149,7 @@ func TestHandlePolledPolicyControl_ExpectChannelNotToBeUpdated(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			originalFetchPolicyControlConfig := fetchPolicyControlConfig
 			originalPccPolicies := pccPolicies
-			pccPolicies = make(map[models.Snssai]*PccPolicy)
+			pccPolicies = make(map[SnssaiKey]*PccPolicy)
 			defer func() {
 				fetchPolicyControlConfig = originalFetchPolicyControlConfig
 				pccPolicies = originalPccPolicies
@@ -259,7 +261,7 @@ func TestHandlePolledPolicyControl_ExpectNFRegistrationChannelUpdate(t *testing.
 		t.Run(tc.name, func(t *testing.T) {
 			originalFetchPolicyControlConfig := fetchPolicyControlConfig
 			originalPccPolicies := pccPolicies
-			pccPolicies = make(map[models.Snssai]*PccPolicy)
+			pccPolicies = make(map[SnssaiKey]*PccPolicy)
 			defer func() {
 				fetchPolicyControlConfig = originalFetchPolicyControlConfig
 				pccPolicies = originalPccPolicies
@@ -359,12 +361,12 @@ func TestHandlePolledPolicyControl_ExpectPccConfigNotToBeUpdated(t *testing.T) {
 				pccPolicies = originalPccPolicies
 			}()
 
-			initialPccPolicies := map[models.Snssai]*PccPolicy{
+			initialPccPolicies := map[SnssaiKey]*PccPolicy{
 				{Sst: 1}: {PccRules: map[string]*models.PccRule{
 					"id1": {},
 				}},
 			}
-			pccPolicies = map[models.Snssai]*PccPolicy{
+			pccPolicies = map[SnssaiKey]*PccPolicy{
 				{Sst: 1}: {PccRules: map[string]*models.PccRule{
 					"id1": {},
 				}},
@@ -426,20 +428,20 @@ func TestHandlePolledPolicyControl_ExpectPccConfigToBeUpdated(t *testing.T) {
 	tests := []struct {
 		name                 string
 		initialPolicyControl []nfConfigApi.PolicyControl
-		initialPccPolicies   map[models.Snssai]*PccPolicy
+		initialPccPolicies   map[SnssaiKey]*PccPolicy
 		input                []nfConfigApi.PolicyControl
-		expectedPccPolicies  map[models.Snssai]*PccPolicy
+		expectedPccPolicies  map[SnssaiKey]*PccPolicy
 	}{
 		{
 			name:                 "New config has different snssai",
 			initialPolicyControl: pc1,
-			initialPccPolicies: map[models.Snssai]*PccPolicy{
+			initialPccPolicies: map[SnssaiKey]*PccPolicy{
 				{Sst: 1}: {PccRules: map[string]*models.PccRule{
 					"id1": {},
 				}},
 			},
 			input: newSnssaiPc,
-			expectedPccPolicies: map[models.Snssai]*PccPolicy{
+			expectedPccPolicies: map[SnssaiKey]*PccPolicy{
 				{Sst: 2}: {
 					PccRules: map[string]*models.PccRule{
 						"id1": {
@@ -450,20 +452,27 @@ func TestHandlePolledPolicyControl_ExpectPccConfigToBeUpdated(t *testing.T) {
 						},
 					},
 					TraffContDecs: make(map[string]*models.TrafficControlData),
-					QosDecs:       map[string]*models.QosData{"1": {QosId: "1", Arp: &models.Arp{PriorityLevel: 0}}},
+					QosDecs: map[string]*models.QosData{
+						"1": {
+							QosId: "1",
+							Arp: &models.Arp{
+								PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(0)),
+							},
+						},
+					},
 				},
 			},
 		},
 		{
 			name:                 "New config has different pcc Rules",
 			initialPolicyControl: pc1,
-			initialPccPolicies: map[models.Snssai]*PccPolicy{
+			initialPccPolicies: map[SnssaiKey]*PccPolicy{
 				{Sst: 1}: {PccRules: map[string]*models.PccRule{
 					"id1": {},
 				}},
 			},
 			input: newPccRules,
-			expectedPccPolicies: map[models.Snssai]*PccPolicy{
+			expectedPccPolicies: map[SnssaiKey]*PccPolicy{
 				{Sst: 1}: {
 					PccRules: map[string]*models.PccRule{
 						"id2": {
@@ -474,7 +483,14 @@ func TestHandlePolledPolicyControl_ExpectPccConfigToBeUpdated(t *testing.T) {
 						},
 					},
 					TraffContDecs: make(map[string]*models.TrafficControlData),
-					QosDecs:       map[string]*models.QosData{"1": {QosId: "1", Arp: &models.Arp{PriorityLevel: 0}}},
+					QosDecs: map[string]*models.QosData{
+						"1": {
+							QosId: "1",
+							Arp: &models.Arp{
+								PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(0)),
+							},
+						},
+					},
 				},
 			},
 		},
@@ -495,9 +511,22 @@ func TestHandlePolledPolicyControl_ExpectPccConfigToBeUpdated(t *testing.T) {
 				t.Errorf("expected current policy control config: %+v, got: %+v",
 					tc.input, poller.currentPolicyControl)
 			}
-			if !reflect.DeepEqual(pccPolicies, tc.expectedPccPolicies) {
-				t.Errorf("expected pcc policies config: %+v, got: %+v",
-					tc.expectedPccPolicies, pccPolicies)
+			if !util.CompareViaJSON(tc.expectedPccPolicies, pccPolicies) {
+				t.Errorf("PccPolicy mismatch")
+				expectedJSON, err := json.MarshalIndent(tc.expectedPccPolicies, "", "  ")
+				if err != nil {
+					t.Logf("Failed to marshal expected PccPolicy: %v", err)
+				} else {
+					t.Logf("Expected PccPolicy: %s", expectedJSON)
+				}
+				actualJSON, err := json.MarshalIndent(pccPolicies, "", "  ")
+				if err != nil {
+					t.Logf("Failed to marshal actual PccPolicy: %v", err)
+				} else {
+					t.Logf("Actual PccPolicy: %s", actualJSON)
+				}
+				t.Logf("Expected PccPolicy: %s", expectedJSON)
+				t.Logf("Actual PccPolicy: %s", actualJSON)
 			}
 		})
 	}
@@ -575,7 +604,7 @@ func TestFetchPlmnConfig(t *testing.T) {
 			defer func() {
 				pccPolicies = originalPccPolicies
 			}()
-			pccPolicies = make(map[models.Snssai]*PccPolicy)
+			pccPolicies = make(map[SnssaiKey]*PccPolicy)
 			handler := func(w http.ResponseWriter, r *http.Request) {
 				accept := r.Header.Get("Accept")
 				if accept != applicationJson {

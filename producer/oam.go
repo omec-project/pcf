@@ -10,6 +10,7 @@ import (
 	"strconv"
 
 	"github.com/omec-project/openapi/models"
+	"github.com/omec-project/openapi/utils"
 	"github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/util/httpwrapper"
@@ -36,12 +37,9 @@ func HandleOAMGetAmPolicyRequest(request *httpwrapper.Request) *httpwrapper.Resp
 		// status code is based on SPEC, and option headers
 		return httpwrapper.NewResponse(http.StatusOK, nil, response)
 	} else if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+		return httpwrapper.NewResponse(int(problemDetails.GetStatus()), nil, problemDetails)
 	}
-	problemDetails = &models.ProblemDetails{
-		Status: http.StatusForbidden,
-		Cause:  "UNSPECIFIED",
-	}
+	problemDetails = utils.ProblemDetailsUnspecified()
 	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
 }
 
@@ -61,18 +59,17 @@ func OAMGetAmPolicyProcedure(supi string) (response *UEAmPolicys, problemDetails
 			}
 			if amPolicy.ServAreaRes != nil {
 				servAreaRes := amPolicy.ServAreaRes
-				ueAmPolicy.RestrictionType = servAreaRes.RestrictionType
+				ueAmPolicy.RestrictionType = servAreaRes.GetRestrictionType()
 				ueAmPolicy.Areas = servAreaRes.Areas
-				ueAmPolicy.MaxNumOfTAs = servAreaRes.MaxNumOfTAs
+				ueAmPolicy.MaxNumOfTAs = servAreaRes.GetMaxNumOfTAs()
 			}
 			*response = append(*response, ueAmPolicy)
 		}
 		return response, nil
 	} else {
-		problemDetails = &models.ProblemDetails{
-			Status: http.StatusNotFound,
-			Cause:  "CONTEXT_NOT_FOUND",
-		}
+		problemDetails = models.NewProblemDetails()
+		problemDetails.SetStatus(http.StatusNotFound)
+		problemDetails.SetCause("CONTEXT_NOT_FOUND")
 		return nil, problemDetails
 	}
 }

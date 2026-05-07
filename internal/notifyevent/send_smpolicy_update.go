@@ -9,9 +9,9 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/omec-project/openapi/Npcf_SMPolicyControl"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/pcf/logger"
-	"github.com/omec-project/pcf/util"
 )
 
 const SendSMpolicyUpdateNotifyEventName = "SendSMpolicyUpdateNotify"
@@ -28,9 +28,21 @@ func (e SendSMpolicyUpdateNotifyEvent) Handle() {
 		logger.NotifyEventLog.Warnln("SM Policy Update Notification Error [URI is empty]")
 		return
 	}
-	client := util.GetNpcfSMPolicyCallbackClient()
+	configuration := Npcf_SMPolicyControl.NewConfiguration()
+	serverConfig := &configuration.Servers[0]
+	if apiRootVar, exists := serverConfig.Variables["apiRoot"]; exists {
+		apiRootVar.DefaultValue = e.uri
+		serverConfig.Variables["apiRoot"] = apiRootVar
+	}
+	client := Npcf_SMPolicyControl.NewAPIClient(configuration)
 	logger.NotifyEventLog.Infoln("send SM Policy Update Notification to SMF")
-	_, httpResponse, err := client.DefaultCallbackApi.SmPolicyUpdateNotification(context.Background(), e.uri, *e.request)
+	apiSmPolicyUpdateNotificationUpdatePostRequest := client.SMPoliciesCollectionCallbackSmPolicyUpdateNotificationAPI.SmPolicyUpdateNotificationUpdatePost(context.Background())
+	smPolicyNotification := models.SmPolicyNotification{
+		ResourceUri:      &e.uri,
+		SmPolicyDecision: e.request.SmPolicyDecision,
+	}
+	apiSmPolicyUpdateNotificationUpdatePostRequest = apiSmPolicyUpdateNotificationUpdatePostRequest.SmPolicyNotification(smPolicyNotification)
+	_, httpResponse, err := client.SMPoliciesCollectionCallbackSmPolicyUpdateNotificationAPI.SmPolicyUpdateNotificationUpdatePostExecute(apiSmPolicyUpdateNotificationUpdatePostRequest)
 	if err != nil {
 		if httpResponse != nil {
 			logger.NotifyEventLog.Warnf("SM Policy Update Notification Error[%s]", httpResponse.Status)

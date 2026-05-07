@@ -14,18 +14,19 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"testing"
 
+	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/openapi/nfConfigApi"
 	"github.com/omec-project/pcf/factory"
 	"github.com/omec-project/pcf/polling"
+	"github.com/omec-project/pcf/util"
 )
 
 var testSnssai = models.Snssai{
 	Sst: 1,
-	Sd:  "010203",
+	Sd:  openapi.PtrString("010203"),
 }
 
 var (
@@ -39,9 +40,9 @@ var (
 
 var testQos = &models.SubscribedDefaultQos{
 	Var5qi:        6,
-	PriorityLevel: 8,
-	Arp: &models.Arp{
-		PriorityLevel: 10,
+	PriorityLevel: openapi.PtrInt32(8),
+	Arp: models.Arp{
+		PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(10)),
 	},
 }
 
@@ -117,39 +118,62 @@ func TestBuildSmPolicyDecision_FoundInLocalPolicy(t *testing.T) {
 		t.Error("expected decision to be not nil, but got nil")
 	}
 
-	expectedDecision := &models.SmPolicyDecision{
-		PccRules: map[string]*models.PccRule{
-			"rule1": {
-				PccRuleId: "rule1",
-			},
+	qosDecs := map[string]models.QosData{
+		"qos1": {
+			QosId: "qos1",
 		},
-		QosDecs: map[string]*models.QosData{
-			"qos1": {
-				QosId: "qos1",
-			},
+	}
+	traffContDecs := map[string]models.TrafficControlData{
+		"tc1": {
+			TcId: "tc1",
 		},
-		TraffContDecs: map[string]*models.TrafficControlData{
-			"tc1": {
-				TcId: "tc1",
+	}
+	sessRules := map[string]models.SessionRule{
+		"internet-1": {
+			SessRuleId: "internet-1",
+			AuthSessAmbr: &models.Ambr{
+				Uplink:   "55 Mbps",
+				Downlink: "515 Mbps",
 			},
-		},
-		SessRules: map[string]*models.SessionRule{
-			"internet-1": {
-				SessRuleId: "internet-1",
-				AuthSessAmbr: &models.Ambr{
-					Uplink:   "55 Mbps",
-					Downlink: "515 Mbps",
-				},
-				AuthDefQos: &models.AuthorizedDefaultQos{
-					Var5qi: 7,
-					Arp:    &models.Arp{PriorityLevel: 9},
+			AuthDefQos: &models.AuthorizedDefaultQos{
+				Var5qi: openapi.PtrInt32(7),
+				Arp: &models.Arp{
+					PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(9)),
+					PreemptCap:    models.PREEMPTIONCAPABILITY_NOT_PREEMPT,
+					PreemptVuln:   models.PREEMPTIONVULNERABILITY_PREEMPTABLE,
 				},
 			},
 		},
 	}
 
-	if !reflect.DeepEqual(decision, expectedDecision) {
-		t.Errorf("expected %+v, got %+v", expectedDecision, decision)
+	expectedDecision := &models.SmPolicyDecision{
+		PccRules: map[string]models.PccRule{
+			"rule1": {
+				PccRuleId: "rule1",
+			},
+		},
+		QosDecs:       &qosDecs,
+		TraffContDecs: &traffContDecs,
+		SessRules:     &sessRules,
+		OfflineChOnly: openapi.PtrBool(false),
+	}
+
+	if !util.CompareViaJSON(decision, expectedDecision) {
+		t.Errorf("SmPolicyDecision mismatch")
+		expectedJSON, err := json.MarshalIndent(expectedDecision, "", "  ")
+		if err != nil {
+			t.Logf("Failed to marshal expected Decision: %v", err)
+		} else {
+			t.Logf("Expected Decision: %s", expectedJSON)
+		}
+		actualJSON, err := json.MarshalIndent(decision, "", "  ")
+		if err != nil {
+			t.Logf("Failed to marshal actual Decision: %v", err)
+		} else {
+			t.Logf("Actual Decision: %s", actualJSON)
+		}
+		t.Logf("Expected SmPolicyDecision: %s", expectedJSON)
+		t.Logf("Actual SmPolicyDecision: %s", actualJSON)
 	}
 }
 
@@ -166,8 +190,8 @@ func TestBuildSmPolicyDecision_SlicePolicyNotFound(t *testing.T) {
 	if problem == nil {
 		t.Fatal("expected problem details not to be nil")
 	}
-	if problem.Cause != "USER_UNKNOWN" {
-		t.Errorf("expected cause to be %s, but got %s", "USER_UNKNOWN", problem.Cause)
+	if problem.GetCause() != "USER_UNKNOWN" {
+		t.Errorf("expected cause to be %s, but got %s", "USER_UNKNOWN", problem.GetCause())
 	}
 	if decision != nil {
 		t.Errorf("expected decision to be nil, but got %+v", decision)
@@ -224,8 +248,8 @@ func TestBuildSmPolicyDecision_SessionRulesEmpty(t *testing.T) {
 	if problem == nil {
 		t.Fatal("expected problem details not to be nil")
 	}
-	if problem.Cause != "USER_UNKNOWN" {
-		t.Errorf("expected cause to be %s, but got %s", "USER_UNKNOWN", problem.Cause)
+	if problem.GetCause() != "USER_UNKNOWN" {
+		t.Errorf("expected cause to be %s, but got %s", "USER_UNKNOWN", problem.GetCause())
 	}
 	if decision != nil {
 		t.Errorf("expected decision to be nil, but got %+v", decision)
@@ -252,10 +276,11 @@ func TestBuildSmPolicyDecision_FallbackToDefault(t *testing.T) {
 			inputAmbr: testAmbr,
 			inputQos:  testQos,
 			expectedQos: &models.AuthorizedDefaultQos{
-				Var5qi: 6,
+				Var5qi: openapi.PtrInt32(6),
 				Arp: &models.Arp{
-					PriorityLevel: 10,
+					PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(10)),
 				},
+				AverWindow: *openapi.NewNullableInt32(openapi.PtrInt32(2000)),
 			},
 			expectedAmbr: &models.Ambr{
 				Downlink: "500 Mbps",
@@ -267,10 +292,11 @@ func TestBuildSmPolicyDecision_FallbackToDefault(t *testing.T) {
 			inputAmbr: nil,
 			inputQos:  nil,
 			expectedQos: &models.AuthorizedDefaultQos{
-				Var5qi: 5,
+				Var5qi: openapi.PtrInt32(5),
 				Arp: &models.Arp{
-					PriorityLevel: 1,
+					PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(1)),
 				},
+				AverWindow: *openapi.NewNullableInt32(openapi.PtrInt32(2000)),
 			},
 			expectedAmbr: &models.Ambr{
 				Downlink: "1 Mbps",
@@ -282,10 +308,11 @@ func TestBuildSmPolicyDecision_FallbackToDefault(t *testing.T) {
 			inputAmbr: nil,
 			inputQos:  testQos,
 			expectedQos: &models.AuthorizedDefaultQos{
-				Var5qi: 5,
+				Var5qi: openapi.PtrInt32(5),
 				Arp: &models.Arp{
-					PriorityLevel: 1,
+					PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(1)),
 				},
+				AverWindow: *openapi.NewNullableInt32(openapi.PtrInt32(2000)),
 			},
 			expectedAmbr: &models.Ambr{
 				Downlink: "1 Mbps",
@@ -297,10 +324,11 @@ func TestBuildSmPolicyDecision_FallbackToDefault(t *testing.T) {
 			inputAmbr: testAmbr,
 			inputQos:  nil,
 			expectedQos: &models.AuthorizedDefaultQos{
-				Var5qi: 5,
+				Var5qi: openapi.PtrInt32(5),
 				Arp: &models.Arp{
-					PriorityLevel: 1,
+					PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(1)),
 				},
+				AverWindow: *openapi.NewNullableInt32(openapi.PtrInt32(2000)),
 			},
 			expectedAmbr: &models.Ambr{
 				Downlink: "1 Mbps",
@@ -351,33 +379,52 @@ func TestBuildSmPolicyDecision_FallbackToDefault(t *testing.T) {
 				t.Error("expected decision to be not nil, but got nil")
 			}
 
+			qosDecs := map[string]models.QosData{
+				"qos1": {
+					QosId: "qos1",
+				},
+			}
+			traffContDecs := map[string]models.TrafficControlData{
+				"tc1": {
+					TcId: "tc1",
+				},
+			}
+			sessRules := map[string]models.SessionRule{
+				"internet-1": {
+					SessRuleId:   "internet-1",
+					AuthDefQos:   tc.expectedQos,
+					AuthSessAmbr: tc.expectedAmbr,
+				},
+			}
+
 			expectedDecision := &models.SmPolicyDecision{
-				PccRules: map[string]*models.PccRule{
+				PccRules: map[string]models.PccRule{
 					"rule1": {
 						PccRuleId: "rule1",
 					},
 				},
-				QosDecs: map[string]*models.QosData{
-					"qos1": {
-						QosId: "qos1",
-					},
-				},
-				TraffContDecs: map[string]*models.TrafficControlData{
-					"tc1": {
-						TcId: "tc1",
-					},
-				},
-				SessRules: map[string]*models.SessionRule{
-					"internet-1": {
-						SessRuleId:   "internet-1",
-						AuthDefQos:   tc.expectedQos,
-						AuthSessAmbr: tc.expectedAmbr,
-					},
-				},
+				QosDecs:       &qosDecs,
+				TraffContDecs: &traffContDecs,
+				SessRules:     &sessRules,
+				OfflineChOnly: openapi.PtrBool(false),
 			}
 
-			if !reflect.DeepEqual(decision, expectedDecision) {
-				t.Errorf("expected %+v, got %+v", expectedDecision, decision)
+			if !util.CompareViaJSON(decision, expectedDecision) {
+				t.Errorf("SmPolicyDecision mismatch")
+				expectedJSON, err := json.MarshalIndent(expectedDecision, "", "  ")
+				if err != nil {
+					t.Logf("Failed to marshal expected Decision: %v", err)
+				} else {
+					t.Logf("Expected Decision: %s", expectedJSON)
+				}
+				actualJSON, err := json.MarshalIndent(decision, "", "  ")
+				if err != nil {
+					t.Logf("Failed to marshal actual Decision: %v", err)
+				} else {
+					t.Logf("Actual Decision: %s", actualJSON)
+				}
+				t.Logf("Expected SmPolicyDecision: %s", expectedJSON)
+				t.Logf("Actual SmPolicyDecision: %s", actualJSON)
 			}
 		})
 	}

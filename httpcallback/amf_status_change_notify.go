@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
+	"github.com/omec-project/openapi/utils"
 	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/pcf/producer"
 	"github.com/omec-project/util/httpwrapper"
@@ -22,25 +23,16 @@ func HTTPAmfStatusChangeNotify(c *gin.Context) {
 
 	requestBody, err := c.GetRawData()
 	if err != nil {
-		problemDetail := models.ProblemDetails{
-			Title:  "System failure",
-			Status: http.StatusInternalServerError,
-			Detail: err.Error(),
-			Cause:  "SYSTEM_FAILURE",
-		}
+		problemDetail := utils.ProblemDetailsSystemFailure(err.Error())
 		logger.CallbackLog.Errorf("Get Request Body error: %+v", err)
 		c.JSON(http.StatusInternalServerError, problemDetail)
 		return
 	}
 
-	err = openapi.Deserialize(&amfStatusChangeNotification, requestBody, "application/json")
+	err = openapi.Decode(&amfStatusChangeNotification, requestBody, "application/json")
 	if err != nil {
 		problemDetail := "[Request Body] " + err.Error()
-		rsp := models.ProblemDetails{
-			Title:  "Malformed request syntax",
-			Status: http.StatusBadRequest,
-			Detail: problemDetail,
-		}
+		rsp := utils.ProblemDetailsMalformedRequestSyntax(problemDetail)
 		logger.CallbackLog.Errorln(problemDetail)
 		c.JSON(http.StatusBadRequest, rsp)
 		return
@@ -53,17 +45,13 @@ func HTTPAmfStatusChangeNotify(c *gin.Context) {
 	if rsp.Status == http.StatusNoContent {
 		c.Status(rsp.Status)
 	} else {
-		responseBody, err := openapi.Serialize(rsp.Body, "application/json")
+		responseBody, err := openapi.SetBody(rsp.Body, "application/json")
 		if err != nil {
 			logger.CallbackLog.Errorln(err)
-			problemDetails := models.ProblemDetails{
-				Status: http.StatusInternalServerError,
-				Cause:  "SYSTEM_FAILURE",
-				Detail: err.Error(),
-			}
+			problemDetails := utils.ProblemDetailsSystemFailure(err.Error())
 			c.JSON(http.StatusInternalServerError, problemDetails)
 		} else {
-			c.Data(rsp.Status, "application/json", responseBody)
+			c.Data(rsp.Status, "application/json", responseBody.Bytes())
 		}
 	}
 }

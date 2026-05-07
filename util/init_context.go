@@ -11,15 +11,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/pcf/context"
+	pcfContext "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/factory"
 	"github.com/omec-project/pcf/logger"
 )
 
 // InitPcfContext Init PCF Context from config file
-func InitPcfContext(context *context.PCFContext) {
+func InitPcfContext(context *pcfContext.PCFContext) {
 	config := factory.PcfConfig
 	logger.UtilLog.Infof("pcfconfig Info: Version[%s] Description[%s]", config.Info.Version, config.Info.Description)
 	configuration := config.Configuration
@@ -44,9 +43,9 @@ func InitPcfContext(context *context.PCFContext) {
 			context.SBIPort = sbi.Port
 		}
 		if sbi.Scheme == "https" {
-			context.UriScheme = models.UriScheme_HTTPS
+			context.UriScheme = models.URISCHEME_HTTPS
 		} else {
-			context.UriScheme = models.UriScheme_HTTP
+			context.UriScheme = models.URISCHEME_HTTP
 		}
 		if tls := sbi.TLS; tls != nil {
 			if tls.Key != "" {
@@ -81,11 +80,11 @@ func InitPcfContext(context *context.PCFContext) {
 	context.TimeFormat = configuration.TimeFormat
 	context.DefaultBdtRefId = configuration.DefaultBdtRefId
 	for _, service := range context.NfService {
-		var err error
-		context.PcfServiceUris[service.ServiceName] = service.ApiPrefix + "/" + string(service.ServiceName) + "/" + (*service.Versions)[0].ApiVersionInUri
-		context.PcfSuppFeats[service.ServiceName], err = openapi.NewSupportedFeature(service.SupportedFeatures)
+		context.PcfServiceUris[service.ServiceName] = service.GetApiPrefix() + "/" + string(service.ServiceName) + "/" + (service.Versions)[0].ApiVersionInUri
+		pcfSuppFeats, err := pcfContext.NewSupportedFeature(service.GetSupportedFeatures())
 		if err != nil {
-			logger.UtilLog.Errorf("openapi NewSupportedFeature error: %+v", err)
+			logger.UtilLog.Errorf("NewSupportedFeature error: %+v", err)
 		}
+		context.PcfSuppFeats[service.ServiceName] = *pcfSuppFeats
 	}
 }

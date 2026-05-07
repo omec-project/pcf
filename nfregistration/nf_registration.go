@@ -55,13 +55,13 @@ func StartNfRegistrationService(ctx context.Context, nfProfileConfigChan <-chan 
 			if len(newNfProfileConfig.Plmns) == 0 {
 				logger.NrfRegistrationLog.Debugln("NF profile config is empty. PCF will deregister")
 				DeregisterNF()
-			} else {
-				logger.NrfRegistrationLog.Debugln("NF profile config is not empty. PCF will update registration")
-				registerCtx, registerCancel = context.WithCancel(context.Background())
-				// Create new cancellable context for this registration
-				go registerNF(registerCtx, newNfProfileConfig)
-				consumer.DiscoverUdr()
+				return
 			}
+			logger.NrfRegistrationLog.Debugln("NF profile config is not empty. PCF will update registration")
+			registerCtx, registerCancel = context.WithCancel(context.Background())
+			// Create new cancellable context for this registration
+			go registerNF(registerCtx, newNfProfileConfig)
+			consumer.DiscoverUdr()
 		}
 	}
 }
@@ -84,7 +84,7 @@ var registerNF = func(registerCtx context.Context, newNfProfileConfig consumer.N
 				continue
 			}
 			logger.NrfRegistrationLog.Infoln("register PCF instance to NRF with updated profile succeeded")
-			startKeepAliveTimer(nfProfile.HeartBeatTimer, newNfProfileConfig)
+			startKeepAliveTimer(nfProfile.GetHeartBeatTimer(), newNfProfileConfig)
 			return
 		}
 	}
@@ -104,9 +104,9 @@ func heartbeatNF(nfProfileConfig consumer.NfProfileDynamicConfig) {
 
 	patchItem := []models.PatchItem{
 		{
-			Op:    "replace",
-			Path:  "/nfStatus",
-			Value: "REGISTERED",
+			Op:    models.PATCHOPERATION_REPLACE,
+			Path:  "/nfstatus",
+			Value: models.NFSTATUS_REGISTERED,
 		},
 	}
 	nfProfile, problemDetails, err := consumer.SendUpdateNFInstance(patchItem)
@@ -122,7 +122,7 @@ func heartbeatNF(nfProfileConfig consumer.NfProfileDynamicConfig) {
 	} else {
 		logger.NrfRegistrationLog.Debugln("PCF update NF instance (heartbeat) succeeded")
 	}
-	startKeepAliveTimer(nfProfile.HeartBeatTimer, nfProfileConfig)
+	startKeepAliveTimer(nfProfile.GetHeartBeatTimer(), nfProfileConfig)
 }
 
 func shouldRegister(problemDetails *models.ProblemDetails, err error) bool {
@@ -160,7 +160,7 @@ func startKeepAliveTimer(profileHeartbeatTimer int32, nfProfileConfig consumer.N
 	heartbeatFunction := func() { heartbeatNF(nfProfileConfig) }
 	// AfterFunc starts timer and waits for keepAliveTimer to elapse and then calls heartbeatNF function
 	keepAliveTimer = afterFunc(time.Duration(heartbeatTimer)*time.Second, heartbeatFunction)
-	logger.NrfRegistrationLog.Debugf("started heartbeat timer: %v sec", heartbeatTimer)
+	logger.NrfRegistrationLog.Debugf("started heartbeat timer: %d sec", heartbeatTimer)
 }
 
 func stopKeepAliveTimer() {

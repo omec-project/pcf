@@ -8,18 +8,19 @@ package util
 import (
 	"fmt"
 
+	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 )
 
 var MediaTypeTo5qiMap = map[models.MediaType]int32{
-	models.MediaType_AUDIO:       1,
-	models.MediaType_VIDEO:       2,
-	models.MediaType_APPLICATION: 2,
-	models.MediaType_DATA:        9,
-	models.MediaType_CONTROL:     9,
-	models.MediaType_TEXT:        9,
-	models.MediaType_MESSAGE:     9,
-	models.MediaType_OTHER:       9,
+	models.MEDIATYPE_AUDIO:       1,
+	models.MEDIATYPE_VIDEO:       2,
+	models.MEDIATYPE_APPLICATION: 2,
+	models.MEDIATYPE_DATA:        9,
+	models.MEDIATYPE_CONTROL:     9,
+	models.MEDIATYPE_TEXT:        9,
+	models.MEDIATYPE_MESSAGE:     9,
+	models.MEDIATYPE_OTHER:       9,
 }
 
 // Get pcc rule Identity(PccRuleId-%d)
@@ -54,45 +55,43 @@ func GetPackFiltId(id int32) string {
 
 // Create Pcc Rule with param id, precedence, flow information, appID
 func CreatePccRule(id, precedence int32, flowInfo []models.FlowInformation, appID string) *models.PccRule {
-	rule := models.PccRule{
-		AppId:      appID,
-		FlowInfos:  flowInfo,
-		PccRuleId:  GetPccRuleId(id),
-		Precedence: precedence,
-	}
-	return &rule
+	rule := models.NewPccRule(GetPccRuleId(id))
+	rule.SetAppId(appID)
+	rule.SetFlowInfos(flowInfo)
+	rule.SetPrecedence(precedence)
+	return rule
 }
 
 func CreateQosData(id, var5qi, arp int32) models.QosData {
 	return models.QosData{
 		QosId:  GetQosId(id),
-		Var5qi: var5qi,
+		Var5qi: openapi.PtrInt32(var5qi),
 		Arp: &models.Arp{
-			PriorityLevel: arp,
+			PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(arp)),
 		},
 	}
 }
 
 func CreateTcData(id int32, fullID string, flowStatus models.FlowStatus) *models.TrafficControlData {
 	if flowStatus == "" {
-		flowStatus = models.FlowStatus_ENABLED
+		flowStatus = models.FLOWSTATUS_ENABLED
 	}
 	if fullID == "" {
 		fullID = GetTcId(id)
 	}
 	return &models.TrafficControlData{
 		TcId:       fullID,
-		FlowStatus: flowStatus,
+		FlowStatus: flowStatus.Ptr(),
 	}
 }
 
 func CreateUmData(umId string, thresh models.UsageThreshold) models.UsageMonitoringData {
 	return models.UsageMonitoringData{
 		UmId:                    umId,
-		VolumeThreshold:         thresh.TotalVolume,
-		VolumeThresholdUplink:   thresh.UplinkVolume,
-		VolumeThresholdDownlink: thresh.DownlinkVolume,
-		TimeThreshold:           thresh.Duration,
+		VolumeThreshold:         *openapi.NewNullableInt64(thresh.TotalVolume),
+		VolumeThresholdUplink:   *openapi.NewNullableInt64(thresh.UplinkVolume),
+		VolumeThresholdDownlink: *openapi.NewNullableInt64(thresh.DownlinkVolume),
+		TimeThreshold:           *openapi.NewNullableInt32(thresh.Duration),
 	}
 }
 
@@ -100,47 +99,52 @@ func CreateUmData(umId string, thresh models.UsageThreshold) models.UsageMonitor
 // EthDescription is Not Supported
 func ConvertPacketInfoToFlowInformation(infos []models.PacketFilterInfo) (flowInfos []models.FlowInformation) {
 	for _, info := range infos {
+		flowDirection, err := models.NewFlowDirectionRmFromValue(string(info.GetFlowDirection()))
+		if err != nil {
+			return nil
+		}
+
 		flowInfo := models.FlowInformation{
 			FlowDescription:   info.PackFiltCont,
 			PackFiltId:        info.PackFiltId,
-			PacketFilterUsage: true,
-			TosTrafficClass:   info.TosTrafficClass,
-			Spi:               info.Spi,
-			FlowLabel:         info.FlowLabel,
-			FlowDirection:     models.FlowDirectionRm(info.FlowDirection),
+			PacketFilterUsage: openapi.PtrBool(true),
+			TosTrafficClass:   *openapi.NewNullableString(info.TosTrafficClass),
+			Spi:               *openapi.NewNullableString(info.Spi),
+			FlowLabel:         *openapi.NewNullableString(info.FlowLabel),
+			FlowDirection:     flowDirection,
 		}
 		flowInfos = append(flowInfos, flowInfo)
 	}
-	return
+	return flowInfos
 }
 
-func GetPccRuleByAfAppId(pccRules map[string]*models.PccRule, afAppId string) *models.PccRule {
+func GetPccRuleByAfAppId(pccRules map[string]models.PccRule, afAppId string) *models.PccRule {
 	for _, pccRule := range pccRules {
-		if pccRule.AppId == afAppId {
-			return pccRule
+		if pccRule.GetAppId() == afAppId {
+			return &pccRule
 		}
 	}
 	return nil
 }
 
-func GetPccRuleByFlowInfos(pccRules map[string]*models.PccRule, flowInfos []models.FlowInformation) *models.PccRule {
+func GetPccRuleByFlowInfos(pccRules map[string]models.PccRule, flowInfos []models.FlowInformation) *models.PccRule {
 	found := false
 	set := make(map[string]models.FlowInformation)
 
 	for _, flowInfo := range flowInfos {
-		set[flowInfo.FlowDescription] = flowInfo
+		set[flowInfo.GetFlowDescription()] = flowInfo
 	}
 
 	for _, pccRule := range pccRules {
 		found = true
 		for _, flowInfo := range pccRule.FlowInfos {
-			if _, exists := set[flowInfo.FlowDescription]; !exists {
+			if _, exists := set[flowInfo.GetFlowDescription()]; !exists {
 				found = false
 				break
 			}
 		}
 		if found {
-			return pccRule
+			return &pccRule
 		}
 	}
 	return nil
@@ -152,36 +156,38 @@ func SetPccRuleRelatedData(decicion *models.SmPolicyDecision, pccRule *models.Pc
 ) {
 	if tcData != nil {
 		if decicion.TraffContDecs == nil {
-			decicion.TraffContDecs = make(map[string]*models.TrafficControlData)
+			traffContDecs := make(map[string]models.TrafficControlData)
+			decicion.TraffContDecs = &traffContDecs
 		}
-		decicion.TraffContDecs[tcData.TcId] = tcData
+		(*decicion.TraffContDecs)[tcData.TcId] = *tcData
 		pccRule.RefTcData = []string{tcData.TcId}
 	}
 	if qosData != nil {
 		if decicion.QosDecs == nil {
-			decicion.QosDecs = make(map[string]*models.QosData)
+			qosDecs := make(map[string]models.QosData)
+			decicion.QosDecs = &qosDecs
 		}
-		decicion.QosDecs[qosData.QosId] = qosData
+		(*decicion.QosDecs)[qosData.QosId] = *qosData
 		pccRule.RefQosData = []string{qosData.QosId}
 	}
 	if chgData != nil {
 		if decicion.ChgDecs == nil {
-			decicion.ChgDecs = make(map[string]*models.ChargingData)
+			decicion.ChgDecs = make(map[string]models.ChargingData)
 		}
-		decicion.ChgDecs[chgData.ChgId] = chgData
+		decicion.ChgDecs[chgData.ChgId] = *chgData
 		pccRule.RefChgData = []string{chgData.ChgId}
 	}
 	if umData != nil {
 		if decicion.UmDecs == nil {
-			decicion.UmDecs = make(map[string]*models.UsageMonitoringData)
+			decicion.UmDecs = make(map[string]models.UsageMonitoringData)
 		}
-		decicion.UmDecs[umData.UmId] = umData
+		decicion.UmDecs[umData.UmId] = *umData
 		pccRule.RefUmData = []string{umData.UmId}
 	}
 	if pccRule != nil {
 		if decicion.PccRules == nil {
-			decicion.PccRules = make(map[string]*models.PccRule)
+			decicion.PccRules = make(map[string]models.PccRule)
 		}
-		decicion.PccRules[pccRule.PccRuleId] = pccRule
+		decicion.PccRules[pccRule.PccRuleId] = *pccRule
 	}
 }

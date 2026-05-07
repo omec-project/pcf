@@ -11,23 +11,22 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/antihax/optional"
-	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/models"
 	nrfCache "github.com/omec-project/openapi/nrfcache"
 	pcfContext "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/logger"
+	"github.com/omec-project/pcf/util"
 )
 
 var (
 	CreateSubscription        = SendCreateSubscription
 	NRFCacheSearchNFInstances = nrfCache.SearchNFInstances
-	StoreApiSearchNFInstances = (*Nnrf_NFDiscovery.NFInstancesStoreApiService).SearchNFInstances
+	StoreApiSearchNFInstances = (*Nnrf_NFDiscovery.NFInstancesStoreAPIService).SearchNFInstancesExecute
 )
 
-var SendSearchNFInstances = func(nrfUri string, targetNfType, requestNfType models.NfType, param *Nnrf_NFDiscovery.SearchNFInstancesParamOpts) (
-	models.SearchResult, error,
+var SendSearchNFInstances = func(nrfUri string, targetNfType, requestNfType models.NFType, param Nnrf_NFDiscovery.ApiSearchNFInstancesRequest) (
+	*models.SearchResult, error,
 ) {
 	ctx := context.Background()
 	if pcfContext.PCF_Self().EnableNrfCaching {
@@ -37,32 +36,40 @@ var SendSearchNFInstances = func(nrfUri string, targetNfType, requestNfType mode
 	}
 }
 
-var SendNfDiscoveryToNrf = func(ctx context.Context, nrfUri string, targetNfType, requesterNfType models.NfType, param *Nnrf_NFDiscovery.SearchNFInstancesParamOpts,
-) (models.SearchResult, error) {
-	// Set client and set url
+var SendNfDiscoveryToNrf = func(ctx context.Context, nrfUri string, targetNfType, requestNfType models.NFType, param Nnrf_NFDiscovery.ApiSearchNFInstancesRequest,
+) (*models.SearchResult, error) {
 	configuration := Nnrf_NFDiscovery.NewConfiguration()
-	configuration.SetBasePath(nrfUri)
+	serverConfig := &configuration.Servers[0]
+	if apiRootVar, exists := serverConfig.Variables["apiRoot"]; exists {
+		apiRootVar.DefaultValue = nrfUri
+		serverConfig.Variables["apiRoot"] = apiRootVar
+	}
 	client := Nnrf_NFDiscovery.NewAPIClient(configuration)
-	result, res, err := StoreApiSearchNFInstances(client.NFInstancesStoreApi, context.TODO(), targetNfType, requesterNfType, param)
+
+	param = param.TargetNfType(targetNfType)
+	param = param.RequesterNfType(requestNfType)
+	result, res, err := StoreApiSearchNFInstances(client.NFInstancesStoreAPI.(*Nnrf_NFDiscovery.NFInstancesStoreAPIService), param)
 	if res != nil && res.StatusCode == http.StatusTemporaryRedirect {
 		err = fmt.Errorf("temporary redirect for non NRF consumer")
 	}
 	defer func() {
 		if bodyCloseErr := res.Body.Close(); bodyCloseErr != nil {
-			err = fmt.Errorf("SearchNFInstances' response body cannot close: %w", bodyCloseErr)
+			err = fmt.Errorf("SearchNFInstances' response body cannot close: %+w", bodyCloseErr)
 		}
 	}()
 
 	pcfSelf := pcfContext.PCF_Self()
-	var nrfSubData models.NrfSubscriptionData
+	var nrfSubData *models.SubscriptionData
 	var problemDetails *models.ProblemDetails
 	for _, nfProfile := range result.NfInstances {
 		// checking whether the PCF subscribed to this target nfinstanceid or not
 		if _, ok := pcfSelf.NfStatusSubscriptions.Load(nfProfile.NfInstanceId); !ok {
-			nrfSubscriptionData := models.NrfSubscriptionData{
+			nfInstanceIdCond := models.NewNfInstanceIdCond()
+			nfInstanceIdCond.SetNfInstanceId(nfProfile.GetNfInstanceId())
+			nrfSubscriptionData := models.SubscriptionData{
 				NfStatusNotificationUri: fmt.Sprintf("%s/npcf-callback/v1/nf-status-notify", pcfSelf.GetIPv4Uri()),
-				SubscrCond:              &models.NfInstanceIdCond{NfInstanceId: nfProfile.NfInstanceId},
-				ReqNfType:               requesterNfType,
+				SubscrCond:              &models.SubscrCond{NfInstanceIdCond: nfInstanceIdCond},
+				ReqNfType:               &requestNfType,
 			}
 			nrfSubData, problemDetails, err = CreateSubscription(nrfUri, nrfSubscriptionData)
 			if problemDetails != nil {
@@ -70,7 +77,7 @@ var SendNfDiscoveryToNrf = func(ctx context.Context, nrfUri string, targetNfType
 			} else if err != nil {
 				logger.ConsumerLog.Errorf("SendCreateSubscription Error[%+v]", err)
 			}
-			pcfSelf.NfStatusSubscriptions.Store(nfProfile.NfInstanceId, nrfSubData.SubscriptionId)
+			pcfSelf.NfStatusSubscriptions.Store(nfProfile.GetNfInstanceId(), nrfSubData.GetSubscriptionId())
 		}
 	}
 
@@ -78,11 +85,9 @@ var SendNfDiscoveryToNrf = func(ctx context.Context, nrfUri string, targetNfType
 }
 
 func SendNFInstancesUDR(nrfUri, id string) string {
-	targetNfType := models.NfType_UDR
-	requestNfType := models.NfType_PCF
-	localVarOptionals := &Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
-		// 	DataSet: optional.NewInterface(models.DataSetId_SUBSCRIPTION),
-	}
+	targetNfType := models.NFTYPE_UDR
+	requestNfType := models.NFTYPE_PCF
+	localVarOptionals := Nnrf_NFDiscovery.ApiSearchNFInstancesRequest{}
 	// switch types {
 	// case NFDiscoveryToUDRParamSupi:
 	// 	localVarOptionals.Supi = optional.NewString(id)
@@ -98,7 +103,7 @@ func SendNFInstancesUDR(nrfUri, id string) string {
 		return ""
 	}
 	for _, profile := range result.NfInstances {
-		if uri := SearchNFServiceUri(profile, models.ServiceName_NUDR_DR, models.NfServiceStatus_REGISTERED); uri != "" {
+		if uri := util.SearchNFServiceUri(profile, models.SERVICENAME_NUDR_DR, models.NFSERVICESTATUS_REGISTERED); uri != "" {
 			return uri
 		}
 	}
@@ -106,12 +111,11 @@ func SendNFInstancesUDR(nrfUri, id string) string {
 }
 
 func SendNFInstancesAMF(nrfUri string, guami models.Guami, serviceName models.ServiceName) string {
-	targetNfType := models.NfType_AMF
-	requestNfType := models.NfType_PCF
+	targetNfType := models.NFTYPE_AMF
+	requestNfType := models.NFTYPE_PCF
 
-	localVarOptionals := &Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
-		Guami: optional.NewInterface(openapi.MarshToJsonString(guami)),
-	}
+	localVarOptionals := Nnrf_NFDiscovery.ApiSearchNFInstancesRequest{}
+	localVarOptionals.Guami(guami)
 	// switch types {
 	// case NFDiscoveryToUDRParamSupi:
 	// 	localVarOptionals.Supi = optional.NewString(id)
@@ -127,21 +131,21 @@ func SendNFInstancesAMF(nrfUri string, guami models.Guami, serviceName models.Se
 		return ""
 	}
 	for _, profile := range result.NfInstances {
-		return SearchNFServiceUri(profile, serviceName, models.NfServiceStatus_REGISTERED)
+		return util.SearchNFServiceUri(profile, serviceName, models.NFSERVICESTATUS_REGISTERED)
 	}
 	return ""
 }
 
 var DiscoverUdr = func() {
 	self := pcfContext.PCF_Self()
-	param := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
-		ServiceNames: optional.NewInterface([]models.ServiceName{models.ServiceName_NUDR_DR}),
-	}
-	if resp, err := SendSearchNFInstances(self.NrfUri, models.NfType_UDR, models.NfType_PCF, &param); err != nil {
+	param := Nnrf_NFDiscovery.ApiSearchNFInstancesRequest{}
+	param = param.ServiceNames([]models.ServiceName{models.SERVICENAME_NUDR_DR})
+
+	if resp, err := SendSearchNFInstances(self.NrfUri, models.NFTYPE_UDR, models.NFTYPE_PCF, param); err != nil {
 		logger.ConsumerLog.Errorln(err)
 	} else {
 		for _, nfProfile := range resp.NfInstances {
-			udruri := SearchNFServiceUri(nfProfile, models.ServiceName_NUDR_DR, models.NfServiceStatus_REGISTERED)
+			udruri := util.SearchNFServiceUri(nfProfile, models.SERVICENAME_NUDR_DR, models.NFSERVICESTATUS_REGISTERED)
 			if udruri != "" {
 				self.SetDefaultUdrURI(udruri)
 				break

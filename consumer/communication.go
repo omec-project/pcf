@@ -12,10 +12,10 @@ import (
 	"strings"
 
 	"github.com/omec-project/openapi"
+	"github.com/omec-project/openapi/Namf_Communication"
 	"github.com/omec-project/openapi/models"
 	pcf_context "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/logger"
-	"github.com/omec-project/pcf/util"
 )
 
 func AmfStatusChangeSubscribe(amfUri string, guamiList []models.Guami) (
@@ -23,14 +23,22 @@ func AmfStatusChangeSubscribe(amfUri string, guamiList []models.Guami) (
 ) {
 	logger.Consumerlog.Debugf("PCF Subscribe to AMF status[%+v]", amfUri)
 	pcfSelf := pcf_context.PCF_Self()
-	client := util.GetNamfClient(amfUri)
+	configuration := Namf_Communication.NewConfiguration()
+	serverConfig := &configuration.Servers[0]
+	if apiRootVar, exists := serverConfig.Variables["apiRoot"]; exists {
+		apiRootVar.DefaultValue = amfUri
+		serverConfig.Variables["apiRoot"] = apiRootVar
+	}
+	client := Namf_Communication.NewAPIClient(configuration)
 
-	subscriptionData := models.SubscriptionData{
+	subscriptionDataAmf := models.SubscriptionDataAmf{
 		AmfStatusUri: fmt.Sprintf("%s/npcf-callback/v1/amfstatus", pcfSelf.GetIPv4Uri()),
 		GuamiList:    guamiList,
 	}
 
-	res, httpResp, localErr := client.SubscriptionsCollectionDocumentApi.AMFStatusChangeSubscribe(context.Background(), subscriptionData)
+	apiAMFStatusChangeSubscribeRequest := client.SubscriptionsCollectionCollectionAPI.AMFStatusChangeSubscribe(context.Background())
+	apiAMFStatusChangeSubscribeRequest = apiAMFStatusChangeSubscribeRequest.SubscriptionDataAmf(subscriptionDataAmf)
+	res, httpResp, localErr := client.SubscriptionsCollectionCollectionAPI.AMFStatusChangeSubscribeExecute(apiAMFStatusChangeSubscribeRequest)
 	if localErr == nil {
 		locationHeader := httpResp.Header.Get("Location")
 		logger.Consumerlog.Debugf("location header: %+v", locationHeader)

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/openapi/nfConfigApi"
 	"github.com/omec-project/pcf/logger"
@@ -19,7 +20,7 @@ import (
 )
 
 var (
-	pccPolicies map[models.Snssai]*PccPolicy
+	pccPolicies map[SnssaiKey]*PccPolicy
 	configLock  sync.RWMutex
 )
 
@@ -29,10 +30,24 @@ type PccPolicy struct {
 	TraffContDecs map[string]*models.TrafficControlData
 }
 
+// SnssaiKey is used to avoid using models.Snssai as map key directly due to pointer field issue
+type SnssaiKey struct {
+	Sst int32
+	Sd  string
+}
+
+// Helper function to convert models.Snssai to SnssaiKey
+func SnssaiToKey(s models.Snssai) SnssaiKey {
+	return SnssaiKey{
+		Sst: s.GetSst(),
+		Sd:  s.GetSd(),
+	}
+}
+
 func GetSlicePccPolicy(snssai models.Snssai) *PccPolicy {
 	configLock.RLock()
 	defer configLock.RUnlock()
-	slicePccPolicyData, ok := pccPolicies[snssai]
+	slicePccPolicyData, ok := pccPolicies[SnssaiToKey(snssai)]
 	if ok {
 		return slicePccPolicyData
 	}
@@ -44,11 +59,11 @@ func updatePccPolicy(policyControlConfig []nfConfigApi.PolicyControl) {
 	defer configLock.Unlock()
 	if len(policyControlConfig) == 0 {
 		logger.PollConfigLog.Warnln("received empty Policy Control config. Clearing PCC Policy data")
-		pccPolicies = make(map[models.Snssai]*PccPolicy, 0)
+		pccPolicies = make(map[SnssaiKey]*PccPolicy, 0)
 		return
 	}
 	idGenerator := idgenerator.NewGenerator(1, math.MaxInt64)
-	pccPolicies = make(map[models.Snssai]*PccPolicy)
+	pccPolicies = make(map[SnssaiKey]*PccPolicy)
 	for _, pc := range policyControlConfig {
 		createPccPolicies(idGenerator, pc)
 	}
@@ -64,10 +79,10 @@ var createPccPolicies = func(idGenerator *idgenerator.IDGenerator, policyControl
 		Sst: policyControlConfig.Snssai.Sst,
 	}
 	if sd, ok := policyControlConfig.Snssai.GetSdOk(); ok {
-		snssai.Sd = *sd
+		snssai.Sd = sd
 	}
 	pccPolicy := makePccPolicy(idGenerator, policyControlConfig.PccRules)
-	pccPolicies[snssai] = pccPolicy
+	pccPolicies[SnssaiToKey(snssai)] = pccPolicy
 }
 
 func makePccPolicy(idGenerator *idgenerator.IDGenerator, pccRules []nfConfigApi.PccRule) (pccPolicy *PccPolicy) {
@@ -92,25 +107,25 @@ func makePccPolicy(idGenerator *idgenerator.IDGenerator, pccRules []nfConfigApi.
 
 		qos := makeQosDesc(id, pccrule.Qos)
 		if hasDefaultQosFlow(flowInfos) {
-			qos.DefQosFlowIndication = true
+			qos.DefQosFlowIndication = openapi.PtrBool(true)
 		}
 		pccPolicy.QosDecs[qos.QosId] = &qos
 
-		rule := models.PccRule{
-			PccRuleId:  strconv.FormatInt(id, 10),
-			Precedence: pccrule.Precedence,
-			FlowInfos:  flowInfos,
-			RefTcData:  refTcData,
-			RefQosData: []string{qos.QosId},
+		rule := models.NewPccRule(strconv.FormatInt(id, 10))
+		if pccrule.Precedence != 0 {
+			rule.SetPrecedence(pccrule.Precedence)
 		}
-		pccPolicy.PccRules[pccrule.RuleId] = &rule
+		rule.SetFlowInfos(flowInfos)
+		rule.SetRefTcData(refTcData)
+		rule.SetRefQosData([]string{qos.QosId})
+		pccPolicy.PccRules[pccrule.RuleId] = rule
 	}
 	return pccPolicy
 }
 
 func hasDefaultQosFlow(flows []models.FlowInformation) bool {
 	for _, flow := range flows {
-		desc := strings.TrimSpace(flow.FlowDescription)
+		desc := strings.TrimSpace(flow.GetFlowDescription())
 		if strings.HasSuffix(desc, "any to assigned") {
 			return true
 		}
@@ -120,27 +135,31 @@ func hasDefaultQosFlow(flows []models.FlowInformation) bool {
 
 func makeQosDesc(id int64, pccQos nfConfigApi.PccQos) models.QosData {
 	qos := models.QosData{
-		QosId:  strconv.FormatInt(id, 10),
-		Var5qi: pccQos.FiveQi,
-		Arp:    &models.Arp{PriorityLevel: pccQos.Arp.PriorityLevel},
+		QosId: strconv.FormatInt(id, 10),
+		Arp: &models.Arp{
+			PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(pccQos.Arp.GetPriorityLevel())),
+		},
+	}
+	if pccQos.FiveQi != 0 {
+		qos.Var5qi = openapi.PtrInt32(pccQos.FiveQi)
 	}
 	if MaxbrUl, ok := pccQos.GetMaxBrUlOk(); ok {
-		qos.MaxbrUl = *MaxbrUl
+		qos.MaxbrUl = *openapi.NewNullableString(MaxbrUl)
 	}
 	if MaxbrDl, ok := pccQos.GetMaxBrDlOk(); ok {
-		qos.MaxbrDl = *MaxbrDl
+		qos.MaxbrDl = *openapi.NewNullableString(MaxbrDl)
 	}
 	switch pccQos.Arp.PreemptCap {
 	case nfConfigApi.PREEMPTCAP_NOT_PREEMPT:
-		qos.Arp.PreemptCap = models.PreemptionCapability_NOT_PREEMPT
+		qos.Arp.PreemptCap = models.PREEMPTIONCAPABILITY_NOT_PREEMPT
 	case nfConfigApi.PREEMPTCAP_MAY_PREEMPT:
-		qos.Arp.PreemptCap = models.PreemptionCapability_MAY_PREEMPT
+		qos.Arp.PreemptCap = models.PREEMPTIONCAPABILITY_MAY_PREEMPT
 	}
 	switch pccQos.Arp.PreemptVuln {
 	case nfConfigApi.PREEMPTVULN_NOT_PREEMPTABLE:
-		qos.Arp.PreemptVuln = models.PreemptionVulnerability_NOT_PREEMPTABLE
+		qos.Arp.PreemptVuln = models.PREEMPTIONVULNERABILITY_NOT_PREEMPTABLE
 	case nfConfigApi.PREEMPTVULN_PREEMPTABLE:
-		qos.Arp.PreemptVuln = models.PreemptionVulnerability_PREEMPTABLE
+		qos.Arp.PreemptVuln = models.PREEMPTIONVULNERABILITY_PREEMPTABLE
 	}
 	return qos
 }
@@ -159,42 +178,42 @@ func makeFlowInfosAndTrafficContDesc(idGenerator *idgenerator.IDGenerator, pccFl
 		var direction models.FlowDirectionRm
 		switch pccFlow.Direction {
 		case nfConfigApi.DIRECTION_DOWNLINK:
-			direction = models.FlowDirectionRm_DOWNLINK
+			direction = models.FLOWDIRECTIONRM_DOWNLINK
 		case nfConfigApi.DIRECTION_UPLINK:
-			direction = models.FlowDirectionRm_UPLINK
+			direction = models.FLOWDIRECTIONRM_UPLINK
 		case nfConfigApi.DIRECTION_BIDIRECTIONAL:
-			direction = models.FlowDirectionRm_BIDIRECTIONAL
+			direction = models.FLOWDIRECTIONRM_BIDIRECTIONAL
 		case nfConfigApi.DIRECTION_UNSPECIFIED:
-			direction = models.FlowDirectionRm_UNSPECIFIED
+			direction = models.FLOWDIRECTIONRM_UNSPECIFIED
 		default:
-			direction = models.FlowDirectionRm_UNSPECIFIED
+			direction = models.FLOWDIRECTIONRM_UNSPECIFIED
 		}
 
 		flow := models.FlowInformation{
-			PackFiltId:      strconv.FormatInt(id, 10),
-			FlowDescription: pccFlow.Description,
-			FlowDirection:   direction,
+			PackFiltId:      openapi.PtrString(strconv.FormatInt(id, 10)),
+			FlowDescription: openapi.PtrString(pccFlow.GetDescription()),
+			FlowDirection:   direction.Ptr(),
 		}
 		parsedFlows = append(parsedFlows, flow)
 
 		var status models.FlowStatus
 		switch pccFlow.Status {
 		case nfConfigApi.STATUS_ENABLED:
-			status = models.FlowStatus_ENABLED
+			status = models.FLOWSTATUS_ENABLED
 		case nfConfigApi.STATUS_DISABLED:
-			status = models.FlowStatus_DISABLED
+			status = models.FLOWSTATUS_DISABLED
 		case nfConfigApi.STATUS_ENABLED_UPLINK:
-			status = models.FlowStatus_ENABLED_UPLINK
+			status = models.FLOWSTATUS_ENABLED_UPLINK
 		case nfConfigApi.STATUS_ENABLED_DOWNLINK:
-			status = models.FlowStatus_ENABLED_DOWNLINK
+			status = models.FLOWSTATUS_ENABLED_DOWNLINK
 		case nfConfigApi.STATUS_REMOVED:
-			status = models.FlowStatus_REMOVED
+			status = models.FLOWSTATUS_REMOVED
 		}
 
 		// traffic control info set based on flow at present
 		tcData := models.TrafficControlData{
 			TcId:       "TcId-" + strconv.FormatInt(id, 10),
-			FlowStatus: status,
+			FlowStatus: status.Ptr(),
 		}
 		parsedTrafficControl = append(parsedTrafficControl, tcData)
 	}
