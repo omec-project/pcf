@@ -9,8 +9,8 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/omec-project/openapi/Npcf_SMPolicyControl"
-	"github.com/omec-project/openapi/models"
+	"github.com/omec-project/openapi/v2/Npcf_SMPolicyControl"
+	"github.com/omec-project/openapi/v2/models"
 	"github.com/omec-project/pcf/logger"
 )
 

@@ -17,8 +17,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/omec-project/openapi/Nudr_DR"
-	"github.com/omec-project/openapi/models"
+	"github.com/omec-project/openapi/v2/Nudr_DR"
+	"github.com/omec-project/openapi/v2/models"
 	"github.com/omec-project/pcf/context"
 )
 

@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/openapi/nfConfigApi"
+	"github.com/omec-project/openapi/v2/models"
+	"github.com/omec-project/openapi/v2/nfConfigApi"
 	"github.com/omec-project/pcf/consumer"
 	"github.com/omec-project/pcf/logger"
 )

@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/omec-project/openapi/models"
+	"github.com/omec-project/openapi/v2/models"
 	pcfContext "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/factory"
 	"github.com/omec-project/pcf/logger"
