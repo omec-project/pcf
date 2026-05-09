@@ -52,11 +52,19 @@ var SendNfDiscoveryToNrf = func(ctx context.Context, nrfUri string, targetNfType
 	if res != nil && res.StatusCode == http.StatusTemporaryRedirect {
 		err = fmt.Errorf("temporary redirect for non NRF consumer")
 	}
-	defer func() {
-		if bodyCloseErr := res.Body.Close(); bodyCloseErr != nil {
-			err = fmt.Errorf("SearchNFInstances' response body cannot close: %+w", bodyCloseErr)
-		}
-	}()
+	if res != nil && res.Body != nil {
+		defer func() {
+			if bodyCloseErr := res.Body.Close(); bodyCloseErr != nil {
+				err = fmt.Errorf("SearchNFInstances' response body cannot close: %w", bodyCloseErr)
+			}
+		}()
+	}
+	if err != nil {
+		return result, err
+	}
+	if result == nil {
+		return nil, fmt.Errorf("SearchNFInstances returned no result")
+	}
 
 	pcfSelf := pcfContext.PCF_Self()
 	var nrfSubData *models.SubscriptionData
@@ -76,8 +84,9 @@ var SendNfDiscoveryToNrf = func(ctx context.Context, nrfUri string, targetNfType
 				logger.ConsumerLog.Errorf("SendCreateSubscription to NRF, Problem[%+v]", problemDetails)
 			} else if err != nil {
 				logger.ConsumerLog.Errorf("SendCreateSubscription Error[%+v]", err)
+			} else if nrfSubData != nil {
+				pcfSelf.NfStatusSubscriptions.Store(nfProfile.GetNfInstanceId(), nrfSubData.GetSubscriptionId())
 			}
-			pcfSelf.NfStatusSubscriptions.Store(nfProfile.GetNfInstanceId(), nrfSubData.GetSubscriptionId())
 		}
 	}
 

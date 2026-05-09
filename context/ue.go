@@ -312,6 +312,9 @@ func (policy *UeSmPolicyData) IncreaseRemainGBR(qosId string) (origUl, origDl *f
 	if decision == nil {
 		return
 	}
+	if decision.QosDecs == nil {
+		return
+	}
 	if qos, exist := (*decision.QosDecs)[qosId]; exist {
 		if qos.GetVar5qi() <= 4 {
 			// Add GBR

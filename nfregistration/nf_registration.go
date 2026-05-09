@@ -55,7 +55,7 @@ func StartNfRegistrationService(ctx context.Context, nfProfileConfigChan <-chan 
 			if len(newNfProfileConfig.Plmns) == 0 {
 				logger.NrfRegistrationLog.Debugln("NF profile config is empty. PCF will deregister")
 				DeregisterNF()
-				return
+				continue
 			}
 			logger.NrfRegistrationLog.Debugln("NF profile config is not empty. PCF will update registration")
 			registerCtx, registerCancel = context.WithCancel(context.Background())

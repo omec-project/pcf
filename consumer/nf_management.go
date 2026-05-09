@@ -132,10 +132,10 @@ var SendDeregisterNFInstance = func() error {
 	if res == nil {
 		return openapi.ReportError("server no response")
 	}
-	if res.StatusCode == http.StatusBadRequest {
+	if res.StatusCode == http.StatusNoContent {
 		return nil
 	}
-	return openapi.ReportError("unexpected response code")
+	return openapi.ReportError("unexpected response code %d", res.StatusCode)
 }
 
 var SendUpdateNFInstance = func(patchItem []models.PatchItem) (nfProfile *models.NFProfile, problemDetails *models.ProblemDetails, err error) {

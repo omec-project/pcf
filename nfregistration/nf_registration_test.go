@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Intel Corporation
 // SPDX-FileCopyrightText: 2025 Canonical Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
@@ -125,6 +126,57 @@ func TestNfRegistrationService_WhenConfigChanged_ThenRegisterNFSuccessAndStartTi
 	}
 	if !reflect.DeepEqual(registrations[0], newConfig) {
 		t.Errorf("expected %+v config, received %+v", newConfig, registrations)
+	}
+}
+
+func TestNfRegistrationService_WhenEmptyConfig_ThenContinuesListeningForUpdates(t *testing.T) {
+	originalDeregisterNF := consumer.SendDeregisterNFInstance
+	originalRegisterNF := registerNF
+	originalDiscoverUdr := consumer.DiscoverUdr
+	defer func() {
+		consumer.SendDeregisterNFInstance = originalDeregisterNF
+		registerNF = originalRegisterNF
+		consumer.DiscoverUdr = originalDiscoverUdr
+		if keepAliveTimer != nil {
+			keepAliveTimer.Stop()
+			keepAliveTimer = nil
+		}
+	}()
+
+	deregisterCalls := 0
+	consumer.SendDeregisterNFInstance = func() error {
+		deregisterCalls++
+		return nil
+	}
+	consumer.DiscoverUdr = func() {}
+
+	registered := make(chan consumer.NfProfileDynamicConfig, 1)
+	registerNF = func(registerCtx context.Context, newNfProfileConfig consumer.NfProfileDynamicConfig) {
+		registered <- newNfProfileConfig
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	ch := make(chan consumer.NfProfileDynamicConfig, 2)
+	go StartNfRegistrationService(ctx, ch)
+
+	ch <- consumer.NfProfileDynamicConfig{}
+	ch <- consumer.NfProfileDynamicConfig{
+		Plmns: map[models.PlmnId]struct{}{{Mcc: "001", Mnc: "01"}: {}},
+		Dnns:  map[string]struct{}{},
+	}
+
+	select {
+	case got := <-registered:
+		if len(got.Plmns) != 1 {
+			t.Fatalf("expected one PLMN in follow-up registration, got %+v", got)
+		}
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("expected registration service to continue after empty config")
+	}
+
+	if deregisterCalls != 1 {
+		t.Fatalf("expected one deregistration call, got %d", deregisterCalls)
 	}
 }
 

@@ -84,6 +84,7 @@ func InitPcfContext(context *pcfContext.PCFContext) {
 		pcfSuppFeats, err := pcfContext.NewSupportedFeature(service.GetSupportedFeatures())
 		if err != nil {
 			logger.UtilLog.Errorf("NewSupportedFeature error: %+v", err)
+			pcfSuppFeats = pcfContext.NewEmptySupportedFeature()
 		}
 		context.PcfSuppFeats[service.ServiceName] = *pcfSuppFeats
 	}

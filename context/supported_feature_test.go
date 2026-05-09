@@ -101,7 +101,7 @@ func TestStringOfSupportedFeature(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create new supported feature from string: %v", err)
 	}
-	expected := "01" // Note: Based on your implementation, it should be "1", not "01"
+	expected := "01"
 	if suppFeat.String() != expected {
 		t.Errorf("Expected '%s', got '%s'", expected, suppFeat.String())
 	}
@@ -110,7 +110,7 @@ func TestStringOfSupportedFeature(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create new supported feature from string: %v", err)
 	}
-	expected = "0ABCDE" // Note: Based on your implementation, it should be "ABCDE", not "0abcde"
+	expected = "0ABCDE"
 	if suppFeat.String() != expected {
 		t.Errorf("Expected '%s', got '%s'", expected, suppFeat.String())
 	}
