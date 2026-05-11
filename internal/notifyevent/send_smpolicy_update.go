@@ -28,6 +28,10 @@ func (e SendSMpolicyUpdateNotifyEvent) Handle() {
 		logger.NotifyEventLog.Warnln("SM Policy Update Notification Error [URI is empty]")
 		return
 	}
+	if e.request == nil {
+		logger.NotifyEventLog.Warnln("SM Policy Update Notification Error [request is nil]")
+		return
+	}
 	configuration := Npcf_SMPolicyControl.NewConfiguration()
 	serverConfig := &configuration.Servers[0]
 	if apiRootVar, exists := serverConfig.Variables["apiRoot"]; exists {
@@ -37,10 +41,7 @@ func (e SendSMpolicyUpdateNotifyEvent) Handle() {
 	client := Npcf_SMPolicyControl.NewAPIClient(configuration)
 	logger.NotifyEventLog.Infoln("send SM Policy Update Notification to SMF")
 	apiSmPolicyUpdateNotificationUpdatePostRequest := client.SMPoliciesCollectionCallbackSmPolicyUpdateNotificationAPI.SmPolicyUpdateNotificationUpdatePost(context.Background())
-	smPolicyNotification := models.SmPolicyNotification{
-		ResourceUri:      &e.uri,
-		SmPolicyDecision: e.request.SmPolicyDecision,
-	}
+	smPolicyNotification := *e.request
 	apiSmPolicyUpdateNotificationUpdatePostRequest = apiSmPolicyUpdateNotificationUpdatePostRequest.SmPolicyNotification(smPolicyNotification)
 	_, httpResponse, err := client.SMPoliciesCollectionCallbackSmPolicyUpdateNotificationAPI.SmPolicyUpdateNotificationUpdatePostExecute(apiSmPolicyUpdateNotificationUpdatePostRequest)
 	if err != nil {

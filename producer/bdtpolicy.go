@@ -151,8 +151,9 @@ func createBDTPolicyContextProcedure(request *models.BdtReqData) (
 		// Can't find any UDR support this Ue
 		problemDetails = models.NewProblemDetails()
 		problemDetails.SetStatus(http.StatusServiceUnavailable)
-		problemDetails.SetCause("Can not find any UDR which supported to this PCF")
-		logger.Bdtpolicylog.Warnln(problemDetails.Detail)
+		problemDetails.SetCause("UDR_NOT_FOUND")
+		problemDetails.SetDetail("Cannot find any UDR that supports this PCF")
+		logger.Bdtpolicylog.Warnln(problemDetails.GetDetail())
 		return nil, nil, problemDetails
 	}
 	pcfSelf.SetDefaultUdrURI(udrUri)
@@ -227,8 +228,10 @@ func createBDTPolicyContextProcedure(request *models.BdtReqData) (
 		updateRsp = rsp
 	}
 	defer func() {
-		if rspCloseErr := updateRsp.Body.Close(); rspCloseErr != nil {
+		if updateRsp != nil && updateRsp.Body != nil {
+			if rspCloseErr := updateRsp.Body.Close(); rspCloseErr != nil {
 			logger.Bdtpolicylog.Errorf("PolicyDataBdtDataBdtReferenceIdPut response body cannot close: %+v", rspCloseErr)
+			}
 		}
 	}()
 
