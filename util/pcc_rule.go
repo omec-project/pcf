@@ -22,19 +22,19 @@ var MediaTypeTo5qiMap = map[models.MediaType]int32{
 	models.MediaType_OTHER:       9,
 }
 
-// Get pcc rule Identity(PccRuleId-%d)
+// GetPccRuleId returns the PCC Rule ID as a plain numeric string.
 func GetPccRuleId(id int32) string {
-	return fmt.Sprintf("PccRuleId-%d", id)
+	return fmt.Sprintf("%d", id)
 }
 
-// Get qos Identity(QosId-%d)
+// GetQosId returns the QoS ID as a plain numeric string.
 func GetQosId(id int32) string {
-	return fmt.Sprintf("QosId-%d", id)
+	return fmt.Sprintf("%d", id)
 }
 
-// Get Traffic Control Identity(TcId-%d)
+// GetTcId returns the Traffic Control ID as a plain numeric string.
 func GetTcId(id int32) string {
-	return fmt.Sprintf("TcId-%d", id)
+	return fmt.Sprintf("%d", id)
 }
 
 // Get Charging Identity(ChgId-%d)
@@ -49,7 +49,7 @@ func GetUmId(sponId, aspId string) string {
 
 // Get Packet Filter Identity(PackFiltId-%d)
 func GetPackFiltId(id int32) string {
-	return fmt.Sprintf("PackFiltId-%d", id)
+	return fmt.Sprintf("%d", id)
 }
 
 // Create Pcc Rule with param id, precedence, flow information, appID
@@ -64,8 +64,9 @@ func CreatePccRule(id, precedence int32, flowInfo []models.FlowInformation, appI
 }
 
 func CreateQosData(id, var5qi, arp int32) models.QosData {
+	qosId := GetQosId(id)
 	return models.QosData{
-		QosId:  GetQosId(id),
+		QosId:  qosId,
 		Var5qi: var5qi,
 		Arp: &models.Arp{
 			PriorityLevel: arp,
