@@ -10,7 +10,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"math"
 	"net/http"
 	"reflect"
 	"slices"
@@ -76,7 +75,7 @@ func GetProblemDetail(errString, cause string) *models.ProblemDetails {
 
 // GetSMPolicyDnnData returns SMPolicyDnnData derived from SmPolicy data which snssai and dnn match
 func GetSMPolicyDnnData(data models.SmPolicyData, snssai models.Snssai, dnn string) (result *models.SmPolicyDnnData) {
-	if snssai.GetSst() < 0 || snssai.GetSst() > math.MaxUint8 || dnn == "" || data.SmPolicySnssaiData == nil {
+	if snssai.GetSst() < 0 || snssai.GetSst() > 255 || dnn == "" || data.SmPolicySnssaiData == nil {
 		return
 	}
 	snssaiString := SnssaiModelsToHex(snssai)

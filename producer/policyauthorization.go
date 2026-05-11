@@ -148,8 +148,9 @@ func handleMediaSubComponent(smPolicy *pcfContext.UeSmPolicyData, medComp *model
 	} else {
 		flowInfos = tempFlowInfos
 	}
-	pccRule := util.GetPccRuleByFlowInfos(smPolicy.PolicyDecision.GetPccRules(), flowInfos)
-	if pccRule == nil {
+	_, existingPccRule, found := util.GetPccRuleByFlowInfos(smPolicy.PolicyDecision.GetPccRules(), flowInfos)
+	var pccRule *models.PccRule
+	if !found {
 		maxPrecedence := getMaxPrecedence(smPolicy.PolicyDecision.GetPccRules())
 		pccRule = util.CreatePccRule(smPolicy.PccRuleIdGenarator, maxPrecedence+1, nil, "")
 		// Set QoS Data
@@ -177,6 +178,7 @@ func handleMediaSubComponent(smPolicy *pcfContext.UeSmPolicyData, medComp *model
 		util.SetPccRuleRelatedData(smPolicy.PolicyDecision, pccRule, tcData, &qosData, nil, nil)
 		smPolicy.PccRuleIdGenarator++
 	} else {
+		pccRule = &existingPccRule
 		// update qos
 		var qosData models.QosData
 		for _, qosID := range pccRule.RefQosData {
@@ -327,8 +329,8 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 			}
 
 			// Find pccRule by AfAppId, otherwise create a new pcc rule
-			pccRule = util.GetPccRuleByAfAppId(smPolicy.PolicyDecision.PccRules, appID)
-			if pccRule == nil {
+			_, existingPccRule, found := util.GetPccRuleByAfAppId(smPolicy.PolicyDecision.PccRules, appID)
+			if !found {
 				pccRule = util.CreatePccRule(smPolicy.PccRuleIdGenarator, maxPrecedence+1, nil, appID)
 				// Set QoS Data
 				// TODO: use real arp
@@ -345,6 +347,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 				smPolicy.PccRuleIdGenarator++
 				maxPrecedence++
 			} else {
+				pccRule = &existingPccRule
 				// update pccRule's qos
 				var qosData models.QosData
 				for _, qosID := range pccRule.RefQosData {
@@ -707,8 +710,8 @@ func ModAppSessionContextProcedure(appSessID string,
 				return problemDetail, nil
 			}
 
-			pccRule = util.GetPccRuleByAfAppId(smPolicy.PolicyDecision.PccRules, appID)
-			if pccRule == nil { // create new pcc rule
+			_, existingPccRule, found := util.GetPccRuleByAfAppId(smPolicy.PolicyDecision.PccRules, appID)
+			if !found { // create new pcc rule
 				pccRule = util.CreatePccRule(smPolicy.PccRuleIdGenarator, maxPrecedence+1, nil, appID)
 				// Set QoS Data
 				// TODO: use real arp
@@ -725,6 +728,7 @@ func ModAppSessionContextProcedure(appSessID string,
 				smPolicy.PccRuleIdGenarator++
 				maxPrecedence++
 			} else {
+				pccRule = &existingPccRule
 				// update qos
 				var qosData models.QosData
 				for _, qosID := range pccRule.RefQosData {
@@ -1812,10 +1816,12 @@ func provisioningOfTrafficRoutingInfo(smPolicy *pcfContext.UeSmPolicyData, appID
 	routeReq *models.AfRoutingRequirement, fStatus models.FlowStatus,
 ) *models.PccRule {
 	var tcData *models.TrafficControlData
+	var pccRule *models.PccRule
 
 	// TODO : handle temporal or spatial validity
-	pccRule := util.GetPccRuleByAfAppId(smPolicy.PolicyDecision.PccRules, appID)
-	if pccRule != nil {
+	_, existingPccRule, found := util.GetPccRuleByAfAppId(smPolicy.PolicyDecision.PccRules, appID)
+	if found {
+		pccRule = &existingPccRule
 		// Update TcData
 		var tcID string
 		if len(pccRule.RefTcData) > 0 {

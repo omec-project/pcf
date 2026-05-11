@@ -124,7 +124,7 @@ func SendNFInstancesAMF(nrfUri string, guami models.Guami, serviceName models.Se
 	requestNfType := models.NFTYPE_PCF
 
 	localVarOptionals := Nnrf_NFDiscovery.ApiSearchNFInstancesRequest{}
-	localVarOptionals.Guami(guami)
+	localVarOptionals = localVarOptionals.Guami(guami)
 	// switch types {
 	// case NFDiscoveryToUDRParamSupi:
 	// 	localVarOptionals.Supi = optional.NewString(id)

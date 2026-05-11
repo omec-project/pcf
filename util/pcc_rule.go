@@ -118,16 +118,16 @@ func ConvertPacketInfoToFlowInformation(infos []models.PacketFilterInfo) (flowIn
 	return flowInfos
 }
 
-func GetPccRuleByAfAppId(pccRules map[string]models.PccRule, afAppId string) *models.PccRule {
-	for _, pccRule := range pccRules {
+func GetPccRuleByAfAppId(pccRules map[string]models.PccRule, afAppId string) (string, models.PccRule, bool) {
+	for key, pccRule := range pccRules {
 		if pccRule.GetAppId() == afAppId {
-			return &pccRule
+			return key, pccRule, true
 		}
 	}
-	return nil
+	return "", models.PccRule{}, false
 }
 
-func GetPccRuleByFlowInfos(pccRules map[string]models.PccRule, flowInfos []models.FlowInformation) *models.PccRule {
+func GetPccRuleByFlowInfos(pccRules map[string]models.PccRule, flowInfos []models.FlowInformation) (string, models.PccRule, bool) {
 	found := false
 	set := make(map[string]models.FlowInformation)
 
@@ -135,7 +135,7 @@ func GetPccRuleByFlowInfos(pccRules map[string]models.PccRule, flowInfos []model
 		set[flowInfo.GetFlowDescription()] = flowInfo
 	}
 
-	for _, pccRule := range pccRules {
+	for key, pccRule := range pccRules {
 		found = true
 		for _, flowInfo := range pccRule.FlowInfos {
 			if _, exists := set[flowInfo.GetFlowDescription()]; !exists {
@@ -144,10 +144,10 @@ func GetPccRuleByFlowInfos(pccRules map[string]models.PccRule, flowInfos []model
 			}
 		}
 		if found {
-			return &pccRule
+			return key, pccRule, true
 		}
 	}
-	return nil
+	return "", models.PccRule{}, false
 }
 
 func SetPccRuleRelatedData(decicion *models.SmPolicyDecision, pccRule *models.PccRule,
