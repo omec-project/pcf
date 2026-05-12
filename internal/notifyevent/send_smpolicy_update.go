@@ -6,10 +6,11 @@
 package notifyevent
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 
-	"github.com/omec-project/openapi/v2/Npcf_SMPolicyControl"
 	"github.com/omec-project/openapi/v2/models"
 	"github.com/omec-project/pcf/logger"
 )
@@ -32,18 +33,21 @@ func (e SendSMpolicyUpdateNotifyEvent) Handle() {
 		logger.NotifyEventLog.Warnln("SM Policy Update Notification Error [request is nil]")
 		return
 	}
-	configuration := Npcf_SMPolicyControl.NewConfiguration()
-	serverConfig := &configuration.Servers[0]
-	if apiRootVar, exists := serverConfig.Variables["apiRoot"]; exists {
-		apiRootVar.DefaultValue = e.uri
-		serverConfig.Variables["apiRoot"] = apiRootVar
+	payload, err := json.Marshal(e.request)
+	if err != nil {
+		logger.NotifyEventLog.Warnf("SM Policy Update Notification Failed to marshal request[%s]", err.Error())
+		return
 	}
-	client := Npcf_SMPolicyControl.NewAPIClient(configuration)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, e.uri, bytes.NewReader(payload))
+	if err != nil {
+		logger.NotifyEventLog.Warnf("SM Policy Update Notification Failed to build request[%s]", err.Error())
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
 	logger.NotifyEventLog.Infoln("send SM Policy Update Notification to SMF")
-	apiSmPolicyUpdateNotificationUpdatePostRequest := client.SMPoliciesCollectionCallbackSmPolicyUpdateNotificationAPI.SmPolicyUpdateNotificationUpdatePost(context.Background())
-	smPolicyNotification := *e.request
-	apiSmPolicyUpdateNotificationUpdatePostRequest = apiSmPolicyUpdateNotificationUpdatePostRequest.SmPolicyNotification(smPolicyNotification)
-	_, httpResponse, err := client.SMPoliciesCollectionCallbackSmPolicyUpdateNotificationAPI.SmPolicyUpdateNotificationUpdatePostExecute(apiSmPolicyUpdateNotificationUpdatePostRequest)
+	httpResponse, err := http.DefaultClient.Do(req)
 	if err != nil {
 		if httpResponse != nil {
 			logger.NotifyEventLog.Warnf("SM Policy Update Notification Error[%s]", httpResponse.Status)
@@ -57,7 +61,7 @@ func (e SendSMpolicyUpdateNotifyEvent) Handle() {
 	}
 	defer func() {
 		if resCloseErr := httpResponse.Body.Close(); resCloseErr != nil {
-			logger.NotifyEventLog.Errorf("NFInstancesStoreApi response body cannot close: %+v", resCloseErr)
+			logger.NotifyEventLog.Errorf("SM Policy Update Notification response body cannot close: %+v", resCloseErr)
 		}
 	}()
 	if httpResponse.StatusCode != http.StatusOK && httpResponse.StatusCode != http.StatusNoContent {

@@ -10,6 +10,7 @@ import (
 
 	"github.com/omec-project/openapi/v2"
 	"github.com/omec-project/openapi/v2/models"
+	"github.com/omec-project/pcf/logger"
 )
 
 var MediaTypeTo5qiMap = map[models.MediaType]int32{
@@ -101,7 +102,8 @@ func ConvertPacketInfoToFlowInformation(infos []models.PacketFilterInfo) (flowIn
 	for _, info := range infos {
 		flowDirection, err := models.NewFlowDirectionRmFromValue(string(info.GetFlowDirection()))
 		if err != nil {
-			return nil
+			logger.UtilLog.Warnf("unsupported flow direction %q, defaulting to UNSPECIFIED", info.GetFlowDirection())
+			flowDirection = models.FLOWDIRECTIONRM_UNSPECIFIED.Ptr()
 		}
 
 		flowInfo := models.FlowInformation{
