@@ -547,9 +547,8 @@ func DeleteAppSessionContextProcedure(appSessID string,
 	}
 	// Remove related pcc rule resource
 	smPolicy := appSession.SmPolicyData
-	deletedSmPolicyDec := models.SmPolicyDecision{}
 	for _, pccRuleID := range appSession.RelatedPccRuleIds {
-		if err := smPolicy.RemovePccRule(pccRuleID, &deletedSmPolicyDec); err != nil {
+		if err := smPolicy.RemovePccRule(pccRuleID, nil); err != nil {
 			logger.PolicyAuthorizationlog.Warnln(err.Error())
 		}
 	}
@@ -578,7 +577,7 @@ func DeleteAppSessionContextProcedure(appSessID string,
 	smPolicyID := fmt.Sprintf("%s-%d", smPolicy.PcfUe.Supi, smPolicy.PolicyContext.PduSessionId)
 	notification := models.SmPolicyNotification{
 		ResourceUri:      openapi.PtrString(util.GetResourceUri(models.SERVICENAME_NPCF_SMPOLICYCONTROL, smPolicyID)),
-		SmPolicyDecision: &deletedSmPolicyDec,
+		SmPolicyDecision: smPolicy.PolicyDecision,
 	}
 	notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(smPolicy.PolicyContext.NotificationUri, &notification)
 	logger.PolicyAuthorizationlog.Debugf("send SM Policy[%s] Update Notification", smPolicyID)
