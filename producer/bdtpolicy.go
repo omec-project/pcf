@@ -165,7 +165,14 @@ func createBDTPolicyContextProcedure(request *models.BdtReqData) (
 	if err != nil || httpResponse == nil || httpResponse.StatusCode != http.StatusOK {
 		problemDetails = models.NewProblemDetails()
 		problemDetails.SetStatus(http.StatusServiceUnavailable)
-		problemDetails.SetCause("Query to UDR failed")
+		problemDetails.SetCause("UDR_QUERY_FAILED")
+		if err != nil {
+			problemDetails.SetDetail(err.Error())
+		} else if httpResponse == nil {
+			problemDetails.SetDetail("Query to UDR failed: no response")
+		} else {
+			problemDetails.SetDetail(fmt.Sprintf("Query to UDR failed: unexpected status %s", httpResponse.Status))
+		}
 		logger.Bdtpolicylog.Warnln("query to UDR failed")
 		return nil, nil, problemDetails
 	}
@@ -246,9 +253,9 @@ func createBDTPolicyContextProcedure(request *models.BdtReqData) (
 func getDefaultUdrUri(context *pcfContext.PCFContext) string {
 	context.DefaultUdrURILock.RLock()
 	defer context.DefaultUdrURILock.RUnlock()
-	param := Nnrf_NFDiscovery.ApiSearchNFInstancesRequest{}
-	param = param.ServiceNames([]models.ServiceName{models.SERVICENAME_NUDR_DR})
-	resp, err := consumer.SendSearchNFInstances(context.NrfUri, models.NFTYPE_UDR, models.NFTYPE_PCF, param)
+	resp, err := consumer.SendSearchNFInstances(context.NrfUri, models.NFTYPE_UDR, models.NFTYPE_PCF, func(request Nnrf_NFDiscovery.ApiSearchNFInstancesRequest) Nnrf_NFDiscovery.ApiSearchNFInstancesRequest {
+		return request.ServiceNames([]models.ServiceName{models.SERVICENAME_NUDR_DR})
+	})
 	if err != nil {
 		return ""
 	}

@@ -25,10 +25,31 @@ var (
 	StoreApiSearchNFInstances = (*Nnrf_NFDiscovery.NFInstancesStoreAPIService).SearchNFInstancesExecute
 )
 
-var SendSearchNFInstances = func(nrfUri string, targetNfType, requestNfType models.NFType, param Nnrf_NFDiscovery.ApiSearchNFInstancesRequest) (
+type SearchNFInstancesRequestConfigurer func(
+	Nnrf_NFDiscovery.ApiSearchNFInstancesRequest,
+) Nnrf_NFDiscovery.ApiSearchNFInstancesRequest
+
+func buildSearchNFInstancesRequest(
+	ctx context.Context,
+	client *Nnrf_NFDiscovery.APIClient,
+	targetNfType, requestNfType models.NFType,
+	configure SearchNFInstancesRequestConfigurer,
+) Nnrf_NFDiscovery.ApiSearchNFInstancesRequest {
+	request := client.NFInstancesStoreAPI.SearchNFInstances(ctx)
+	request = request.TargetNfType(targetNfType)
+	request = request.RequesterNfType(requestNfType)
+	if configure != nil {
+		request = configure(request)
+	}
+	return request
+}
+
+var SendSearchNFInstances = func(nrfUri string, targetNfType, requestNfType models.NFType, configure SearchNFInstancesRequestConfigurer) (
 	*models.SearchResult, error,
 ) {
 	ctx := context.Background()
+	client := Nnrf_NFDiscovery.NewAPIClient(Nnrf_NFDiscovery.NewConfiguration())
+	param := buildSearchNFInstancesRequest(ctx, client, targetNfType, requestNfType, configure)
 	if pcfContext.PCF_Self().EnableNrfCaching {
 		return NRFCacheSearchNFInstances(ctx, nrfUri, targetNfType, requestNfType, param)
 	} else {
@@ -46,8 +67,20 @@ var SendNfDiscoveryToNrf = func(ctx context.Context, nrfUri string, targetNfType
 	}
 	client := Nnrf_NFDiscovery.NewAPIClient(configuration)
 
+	if param.ApiService == nil {
+		param = client.NFInstancesStoreAPI.SearchNFInstances(ctx)
+	}
 	param = param.TargetNfType(targetNfType)
 	param = param.RequesterNfType(requestNfType)
+	return executeNfDiscoveryRequest(client, requestNfType, nrfUri, param)
+}
+
+func executeNfDiscoveryRequest(
+	client *Nnrf_NFDiscovery.APIClient,
+	requestNfType models.NFType,
+	nrfUri string,
+	param Nnrf_NFDiscovery.ApiSearchNFInstancesRequest,
+) (*models.SearchResult, error) {
 	result, res, err := StoreApiSearchNFInstances(client.NFInstancesStoreAPI.(*Nnrf_NFDiscovery.NFInstancesStoreAPIService), param)
 	if res != nil && res.StatusCode == http.StatusTemporaryRedirect {
 		err = fmt.Errorf("temporary redirect for non NRF consumer")
@@ -55,7 +88,7 @@ var SendNfDiscoveryToNrf = func(ctx context.Context, nrfUri string, targetNfType
 	if res != nil && res.Body != nil {
 		defer func() {
 			if bodyCloseErr := res.Body.Close(); bodyCloseErr != nil {
-				err = fmt.Errorf("SearchNFInstances' response body cannot close: %w", bodyCloseErr)
+				logger.ConsumerLog.Errorf("SearchNFInstances response body cannot close: %+v", bodyCloseErr)
 			}
 		}()
 	}
@@ -96,7 +129,7 @@ var SendNfDiscoveryToNrf = func(ctx context.Context, nrfUri string, targetNfType
 func SendNFInstancesUDR(nrfUri, id string) string {
 	targetNfType := models.NFTYPE_UDR
 	requestNfType := models.NFTYPE_PCF
-	localVarOptionals := Nnrf_NFDiscovery.ApiSearchNFInstancesRequest{}
+	configure := SearchNFInstancesRequestConfigurer(nil)
 	// switch types {
 	// case NFDiscoveryToUDRParamSupi:
 	// 	localVarOptionals.Supi = optional.NewString(id)
@@ -106,7 +139,7 @@ func SendNFInstancesUDR(nrfUri, id string) string {
 	// 	localVarOptionals.Gpsi = optional.NewString(id)
 	// }
 
-	result, err := SendSearchNFInstances(nrfUri, targetNfType, requestNfType, localVarOptionals)
+	result, err := SendSearchNFInstances(nrfUri, targetNfType, requestNfType, configure)
 	if err != nil {
 		logger.Consumerlog.Error(err.Error())
 		return ""
@@ -123,8 +156,9 @@ func SendNFInstancesAMF(nrfUri string, guami models.Guami, serviceName models.Se
 	targetNfType := models.NFTYPE_AMF
 	requestNfType := models.NFTYPE_PCF
 
-	localVarOptionals := Nnrf_NFDiscovery.ApiSearchNFInstancesRequest{}
-	localVarOptionals = localVarOptionals.Guami(guami)
+	configure := func(request Nnrf_NFDiscovery.ApiSearchNFInstancesRequest) Nnrf_NFDiscovery.ApiSearchNFInstancesRequest {
+		return request.Guami(guami)
+	}
 	// switch types {
 	// case NFDiscoveryToUDRParamSupi:
 	// 	localVarOptionals.Supi = optional.NewString(id)
@@ -134,7 +168,7 @@ func SendNFInstancesAMF(nrfUri string, guami models.Guami, serviceName models.Se
 	// 	localVarOptionals.Gpsi = optional.NewString(id)
 	// }
 
-	result, err := SendSearchNFInstances(nrfUri, targetNfType, requestNfType, localVarOptionals)
+	result, err := SendSearchNFInstances(nrfUri, targetNfType, requestNfType, configure)
 	if err != nil {
 		logger.Consumerlog.Error(err.Error())
 		return ""
@@ -147,10 +181,11 @@ func SendNFInstancesAMF(nrfUri string, guami models.Guami, serviceName models.Se
 
 var DiscoverUdr = func() {
 	self := pcfContext.PCF_Self()
-	param := Nnrf_NFDiscovery.ApiSearchNFInstancesRequest{}
-	param = param.ServiceNames([]models.ServiceName{models.SERVICENAME_NUDR_DR})
+	configure := func(request Nnrf_NFDiscovery.ApiSearchNFInstancesRequest) Nnrf_NFDiscovery.ApiSearchNFInstancesRequest {
+		return request.ServiceNames([]models.ServiceName{models.SERVICENAME_NUDR_DR})
+	}
 
-	if resp, err := SendSearchNFInstances(self.NrfUri, models.NFTYPE_UDR, models.NFTYPE_PCF, param); err != nil {
+	if resp, err := SendSearchNFInstances(self.NrfUri, models.NFTYPE_UDR, models.NFTYPE_PCF, configure); err != nil {
 		logger.ConsumerLog.Errorln(err)
 	} else {
 		for _, nfProfile := range resp.NfInstances {

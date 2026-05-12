@@ -10,12 +10,17 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/omec-project/openapi/v2/models"
 	"github.com/omec-project/pcf/logger"
 )
 
 const SendSMpolicyUpdateNotifyEventName = "SendSMpolicyUpdateNotify"
+
+const sendSMPolicyUpdateNotifyTimeout = 10 * time.Second
+
+var sendSMPolicyUpdateNotifyHTTPClient = &http.Client{Timeout: sendSMPolicyUpdateNotifyTimeout}
 
 type SendSMpolicyUpdateNotifyEvent struct {
 	request *models.SmPolicyNotification
@@ -38,7 +43,9 @@ func (e SendSMpolicyUpdateNotifyEvent) Handle() {
 		logger.NotifyEventLog.Warnf("SM Policy Update Notification Failed to marshal request[%s]", err.Error())
 		return
 	}
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, e.uri, bytes.NewReader(payload))
+	requestCtx, cancel := context.WithTimeout(context.Background(), sendSMPolicyUpdateNotifyTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(requestCtx, http.MethodPost, e.uri, bytes.NewReader(payload))
 	if err != nil {
 		logger.NotifyEventLog.Warnf("SM Policy Update Notification Failed to build request[%s]", err.Error())
 		return
@@ -47,7 +54,7 @@ func (e SendSMpolicyUpdateNotifyEvent) Handle() {
 	req.Header.Set("Accept", "application/json")
 
 	logger.NotifyEventLog.Infoln("send SM Policy Update Notification to SMF")
-	httpResponse, err := http.DefaultClient.Do(req)
+	httpResponse, err := sendSMPolicyUpdateNotifyHTTPClient.Do(req)
 	if err != nil {
 		if httpResponse != nil {
 			logger.NotifyEventLog.Warnf("SM Policy Update Notification Error[%s]", httpResponse.Status)
