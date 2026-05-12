@@ -230,7 +230,7 @@ func createBDTPolicyContextProcedure(request *models.BdtReqData) (
 	defer func() {
 		if updateRsp != nil && updateRsp.Body != nil {
 			if rspCloseErr := updateRsp.Body.Close(); rspCloseErr != nil {
-			logger.Bdtpolicylog.Errorf("PolicyDataBdtDataBdtReferenceIdPut response body cannot close: %+v", rspCloseErr)
+				logger.Bdtpolicylog.Errorf("PolicyDataBdtDataBdtReferenceIdPut response body cannot close: %+v", rspCloseErr)
 			}
 		}
 	}()
