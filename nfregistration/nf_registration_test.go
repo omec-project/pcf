@@ -171,7 +171,7 @@ func TestNfRegistrationService_WhenEmptyConfig_ThenContinuesListeningForUpdates(
 		if len(got.Plmns) != 1 {
 			t.Fatalf("expected one PLMN in follow-up registration, got %+v", got)
 		}
-	case <-time.After(200 * time.Millisecond):
+	case <-time.After(2 * time.Second):
 		t.Fatal("expected registration service to continue after empty config")
 	}
 

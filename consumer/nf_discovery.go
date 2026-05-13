@@ -106,6 +106,7 @@ func executeNfDiscoveryRequest(
 	pcfSelf := pcfContext.PCF_Self()
 	var nrfSubData *models.SubscriptionData
 	var problemDetails *models.ProblemDetails
+	var subscriptionErr error
 	for _, nfProfile := range result.NfInstances {
 		// checking whether the PCF subscribed to this target nfinstanceid or not
 		if _, ok := pcfSelf.NfStatusSubscriptions.Load(nfProfile.NfInstanceId); !ok {
@@ -121,13 +122,16 @@ func executeNfDiscoveryRequest(
 				logger.ConsumerLog.Errorf("SendCreateSubscription to NRF, Problem[%+v]", problemDetails)
 			} else if err != nil {
 				logger.ConsumerLog.Errorf("SendCreateSubscription Error[%+v]", err)
+				if subscriptionErr == nil {
+					subscriptionErr = err
+				}
 			} else if nrfSubData != nil {
 				pcfSelf.NfStatusSubscriptions.Store(nfProfile.GetNfInstanceId(), nrfSubData.GetSubscriptionId())
 			}
 		}
 	}
 
-	return result, err
+	return result, subscriptionErr
 }
 
 func SendNFInstancesUDR(nrfUri, id string) string {

@@ -26,7 +26,7 @@ type NfProfileDynamicConfig struct {
 
 func getNfProfile(pcfContext *pcfContext.PCFContext, nfProfileDynamicConfig NfProfileDynamicConfig) (profile models.NFProfile, err error) {
 	if pcfContext == nil {
-		return profile, fmt.Errorf("pcf context has not been intialized. NF profile cannot be built")
+		return profile, fmt.Errorf("pcf context has not been initialized. NF profile cannot be built")
 	}
 	profile.NfInstanceId = pcfContext.NfId
 	profile.NfType = models.NFTYPE_PCF
