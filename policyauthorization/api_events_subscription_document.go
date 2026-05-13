@@ -75,8 +75,8 @@ func HTTPUpdateEventsSubsc(c *gin.Context) {
 	}
 
 	if eventsSubscReqData.Events == nil || eventsSubscReqData.GetNotifUri() == "" {
-		problemDetail := util.GetProblemDetail("Errorneous/Missing Mandotory IE", util.ERROR_REQUEST_PARAMETERS)
-		logger.PolicyAuthorizationlog.Errorln(problemDetail.Detail)
+		problemDetail := util.GetProblemDetail("Erroneous/Missing mandatory IE", util.ERROR_REQUEST_PARAMETERS)
+		logger.PolicyAuthorizationlog.Errorln(problemDetail.GetDetail())
 		c.JSON(int(problemDetail.GetStatus()), problemDetail)
 		return
 	}

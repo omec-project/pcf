@@ -219,7 +219,8 @@ func createBDTPolicyContextProcedure(request *models.BdtReqData) (
 	if err != nil {
 		problemDetails = models.NewProblemDetails()
 		problemDetails.SetStatus(http.StatusServiceUnavailable)
-		problemDetails.SetCause("Allocate bdtPolicyID failed")
+		problemDetails.SetCause("ALLOC_BDT_POLICY_ID_FAILED")
+		problemDetails.SetDetail("Allocate bdtPolicyID failed")
 		logger.Bdtpolicylog.Warnln("allocate bdtPolicyID failed")
 		return nil, nil, problemDetails
 	}
@@ -232,7 +233,7 @@ func createBDTPolicyContextProcedure(request *models.BdtReqData) (
 	apiCreateIndividualBdtDataRequest = apiCreateIndividualBdtDataRequest.BdtData(*bdtData)
 	_, rsp, rspErr := client.IndividualBdtDataDocumentAPI.CreateIndividualBdtDataExecute(apiCreateIndividualBdtDataRequest)
 	if rspErr != nil {
-		logger.Bdtpolicylog.Warnf("UDR Put BdtDate error[%s]", rspErr.Error())
+		logger.Bdtpolicylog.Warnf("UDR put BdtData error[%s]", rspErr.Error())
 	} else {
 		updateRsp = rsp
 	}

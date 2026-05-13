@@ -64,7 +64,7 @@ func GetNudrClient(uri string) *Nudr_DR.APIClient {
 	return client
 }
 
-// Return ProblemDatail, errString represent Detail, cause represent Cause of the fields
+// Return ProblemDetail; errString represents Detail and cause represents Cause.
 func GetProblemDetail(errString, cause string) *models.ProblemDetails {
 	problemDetails := models.NewProblemDetails()
 	problemDetails.SetStatus(PcpErrHttpStatusMap[cause])
