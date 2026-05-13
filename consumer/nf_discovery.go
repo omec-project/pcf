@@ -81,7 +81,11 @@ func executeNfDiscoveryRequest(
 	nrfUri string,
 	param Nnrf_NFDiscovery.ApiSearchNFInstancesRequest,
 ) (*models.SearchResult, error) {
-	result, res, err := StoreApiSearchNFInstances(client.NFInstancesStoreAPI.(*Nnrf_NFDiscovery.NFInstancesStoreAPIService), param)
+	service, ok := client.NFInstancesStoreAPI.(*Nnrf_NFDiscovery.NFInstancesStoreAPIService)
+	if !ok {
+		return nil, fmt.Errorf("unexpected NFInstancesStoreAPI type %T", client.NFInstancesStoreAPI)
+	}
+	result, res, err := StoreApiSearchNFInstances(service, param)
 	if res != nil && res.StatusCode == http.StatusTemporaryRedirect {
 		err = fmt.Errorf("temporary redirect for non NRF consumer")
 	}
