@@ -180,6 +180,38 @@ func TestNfRegistrationService_WhenEmptyConfig_ThenContinuesListeningForUpdates(
 	}
 }
 
+func TestNfRegistrationService_WhenConfigChannelClosed_ThenStopsService(t *testing.T) {
+	keepAliveTimer = time.NewTimer(60 * time.Second)
+	originalRegisterNF := registerNF
+	defer func() {
+		registerNF = originalRegisterNF
+		if keepAliveTimer != nil {
+			keepAliveTimer.Stop()
+			keepAliveTimer = nil
+		}
+	}()
+
+	registerCalled := false
+	registerNF = func(registerCtx context.Context, newNfProfileConfig consumer.NfProfileDynamicConfig) {
+		registerCalled = true
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	ch := make(chan consumer.NfProfileDynamicConfig)
+	go StartNfRegistrationService(ctx, ch)
+	close(ch)
+
+	time.Sleep(100 * time.Millisecond)
+
+	if registerCalled {
+		t.Fatal("expected registerNF not to be called after channel close")
+	}
+	if keepAliveTimer != nil {
+		t.Fatal("expected keepAliveTimer to be cleared after channel close")
+	}
+}
+
 func TestNfRegistrationService_ConfigChanged_RetryIfRegisterNFFails(t *testing.T) {
 	originalSendRegisterNFInstance := consumer.SendRegisterNFInstance
 	originalDiscoverUdr := consumer.DiscoverUdr

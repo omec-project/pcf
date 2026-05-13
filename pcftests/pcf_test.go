@@ -379,7 +379,7 @@ func TestCreateSubscriptionFail(t *testing.T) {
 			httpResponseSuccess,
 			nil,
 			nil,
-			nil,
+			errors.New("SendCreateSubscription to NRF failed: Server Error"),
 			serverErrorProblem,
 			emptyNrfSubscriptionData,
 			searchResult,

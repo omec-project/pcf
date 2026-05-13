@@ -120,6 +120,13 @@ func executeNfDiscoveryRequest(
 			nrfSubData, problemDetails, err = CreateSubscription(nrfUri, nrfSubscriptionData)
 			if problemDetails != nil {
 				logger.ConsumerLog.Errorf("SendCreateSubscription to NRF, Problem[%+v]", problemDetails)
+				if subscriptionErr == nil {
+					cause := problemDetails.GetCause()
+					if cause == "" {
+						cause = "unknown problem"
+					}
+					subscriptionErr = fmt.Errorf("SendCreateSubscription to NRF failed: %s", cause)
+				}
 			} else if err != nil {
 				logger.ConsumerLog.Errorf("SendCreateSubscription Error[%+v]", err)
 				if subscriptionErr == nil {

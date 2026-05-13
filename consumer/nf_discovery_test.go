@@ -54,3 +54,27 @@ func TestSendNfDiscoveryToNrf_DoesNotStoreSubscriptionOnCreateFailure(t *testing
 		t.Fatalf("expected no stored subscription, got %v", value)
 	}
 }
+
+func TestSendNfDiscoveryToNrf_PropagatesSubscriptionProblemDetails(t *testing.T) {
+	originalStore := StoreApiSearchNFInstances
+	originalCreate := CreateSubscription
+	defer func() {
+		StoreApiSearchNFInstances = originalStore
+		CreateSubscription = originalCreate
+		pcfContext.PCF_Self().NfStatusSubscriptions.Delete("nf-instance")
+	}()
+
+	problem := models.NewProblemDetails()
+	problem.SetCause("SERVER_ERROR")
+	StoreApiSearchNFInstances = func(*Nnrf_NFDiscovery.NFInstancesStoreAPIService, Nnrf_NFDiscovery.ApiSearchNFInstancesRequest) (*models.SearchResult, *http.Response, error) {
+		return &models.SearchResult{NfInstances: []models.NFProfileDiscovery{{NfInstanceId: "nf-instance"}}}, nil, nil
+	}
+	CreateSubscription = func(string, models.SubscriptionData) (*models.SubscriptionData, *models.ProblemDetails, error) {
+		return nil, problem, nil
+	}
+
+	_, err := SendNfDiscoveryToNrf(context.Background(), "http://nrf", models.NFTYPE_UDR, models.NFTYPE_PCF, Nnrf_NFDiscovery.ApiSearchNFInstancesRequest{})
+	if err == nil || err.Error() != "SendCreateSubscription to NRF failed: SERVER_ERROR" {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}

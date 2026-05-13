@@ -43,9 +43,22 @@ func StartNfRegistrationService(ctx context.Context, nfProfileConfigChan <-chan 
 			if registerCancel != nil {
 				registerCancel()
 			}
+			keepAliveTimerMutex.Lock()
+			stopKeepAliveTimer()
+			keepAliveTimerMutex.Unlock()
 			logger.NrfRegistrationLog.Infoln("NF registration service shutting down")
 			return
-		case newNfProfileConfig := <-nfProfileConfigChan:
+		case newNfProfileConfig, ok := <-nfProfileConfigChan:
+			if !ok {
+				if registerCancel != nil {
+					registerCancel()
+				}
+				keepAliveTimerMutex.Lock()
+				stopKeepAliveTimer()
+				keepAliveTimerMutex.Unlock()
+				logger.NrfRegistrationLog.Infoln("NF profile config channel closed; stopping NF registration service")
+				return
+			}
 			// Cancel current sync if running
 			if registerCancel != nil {
 				logger.NrfRegistrationLog.Infoln("NF registration context cancelled")
