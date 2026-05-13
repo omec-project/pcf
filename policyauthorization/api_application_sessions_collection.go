@@ -58,8 +58,8 @@ func HTTPPostAppSessions(c *gin.Context) {
 	ascReqData := appSessionContext.AscReqData
 	if ascReqData.Get() == nil || ascReqData.Get().SuppFeat == "" || ascReqData.Get().NotifUri == "" {
 		// Check Mandatory IEs
-		rsp := util.GetProblemDetail("Errorneous/Missing Mandotory IE", util.ERROR_INITIAL_PARAMETERS)
-		logger.PolicyAuthorizationlog.Errorln(rsp.Detail)
+		rsp := util.GetProblemDetail("Erroneous/Missing mandatory IE", util.ERROR_INITIAL_PARAMETERS)
+		logger.PolicyAuthorizationlog.Errorln(rsp.GetDetail())
 		c.JSON(int(rsp.GetStatus()), rsp)
 		return
 	}

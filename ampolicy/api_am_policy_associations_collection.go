@@ -56,8 +56,8 @@ func HTTPCreateIndividualAMPolicyAssociation(c *gin.Context) {
 	}
 
 	if policyAssociationRequest.Supi == "" || policyAssociationRequest.NotificationUri == "" {
-		rsp := util.GetProblemDetail("Miss Mandotory IE", util.ERROR_REQUEST_PARAMETERS)
-		logger.HandlerLog.Errorln(rsp.Detail)
+		rsp := util.GetProblemDetail("Missing mandatory IE", util.ERROR_REQUEST_PARAMETERS)
+		logger.HandlerLog.Errorln(rsp.GetDetail())
 		c.JSON(int(rsp.GetStatus()), rsp)
 		return
 	}

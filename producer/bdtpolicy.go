@@ -106,11 +106,13 @@ func updateBDTPolicyContextProcedure(request models.BdtPolicyDataPatch, bdtPolic
 			if err != nil {
 				logger.Bdtpolicylog.Warnf("put BdtData error[%s]", err.Error())
 			}
-			defer func() {
-				if rspCloseErr := rsp.Body.Close(); rspCloseErr != nil {
-					logger.Bdtpolicylog.Errorf("PolicyDataBdtDataBdtReferenceIdPut response body cannot close: %+v", rspCloseErr)
-				}
-			}()
+			if rsp != nil && rsp.Body != nil {
+				defer func() {
+					if rspCloseErr := rsp.Body.Close(); rspCloseErr != nil {
+						logger.Bdtpolicylog.Errorf("PolicyDataBdtDataBdtReferenceIdPut response body cannot close: %+v", rspCloseErr)
+					}
+				}()
+			}
 			logger.Bdtpolicylog.Debugf("bdtPolicyID[%s] has Updated with SelTransPolicyId[%d]",
 				bdtPolicyID, request.SelTransPolicyId)
 			return bdtPolicy, nil
