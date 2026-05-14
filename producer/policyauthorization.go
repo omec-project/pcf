@@ -8,7 +8,9 @@
 package producer
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -16,7 +18,6 @@ import (
 	"time"
 
 	"github.com/omec-project/openapi/v2"
-	"github.com/omec-project/openapi/v2/Npcf_PolicyAuthorization"
 	"github.com/omec-project/openapi/v2/models"
 	"github.com/omec-project/openapi/v2/utils"
 	pcfContext "github.com/omec-project/pcf/context"
@@ -26,6 +27,52 @@ import (
 	"github.com/omec-project/pcf/util"
 	"github.com/omec-project/util/httpwrapper"
 )
+
+const appSessionCallbackTimeout = 10 * time.Second
+
+var appSessionCallbackHTTPClient = &http.Client{Timeout: appSessionCallbackTimeout}
+
+func postAppSessionCallbackJSON(uri string, request any, callbackName string) {
+	payload, err := json.Marshal(request)
+	if err != nil {
+		logger.PolicyAuthorizationlog.Warnf("send %s Failed to marshal request[%s]", callbackName, err.Error())
+		return
+	}
+
+	requestCtx, cancel := context.WithTimeout(context.Background(), appSessionCallbackTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(requestCtx, http.MethodPost, uri, bytes.NewReader(payload))
+	if err != nil {
+		logger.PolicyAuthorizationlog.Warnf("send %s Failed to build request[%s]", callbackName, err.Error())
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	httpResponse, err := appSessionCallbackHTTPClient.Do(req)
+	if err != nil {
+		if httpResponse != nil {
+			logger.PolicyAuthorizationlog.Warnf("send %s Error[%s]", callbackName, httpResponse.Status)
+		} else {
+			logger.PolicyAuthorizationlog.Warnf("send %s Failed[%s]", callbackName, err.Error())
+		}
+		return
+	} else if httpResponse == nil {
+		logger.PolicyAuthorizationlog.Warnf("send %s Failed[HTTP Response is nil]", callbackName)
+		return
+	}
+	defer func() {
+		if rspCloseErr := httpResponse.Body.Close(); rspCloseErr != nil {
+			logger.PolicyAuthorizationlog.Errorf("%s response body cannot close: %+v", callbackName, rspCloseErr)
+		}
+	}()
+	if httpResponse.StatusCode != http.StatusOK && httpResponse.StatusCode != http.StatusNoContent {
+		logger.PolicyAuthorizationlog.Warnf("send %s Failed", callbackName)
+	} else {
+		logger.PolicyAuthorizationlog.Debugf("send %s Success", callbackName)
+	}
+}
 
 func transferAfRoutReqRmToAfRoutReq(AfRoutReqRm models.AfRoutingRequirementRm) *models.AfRoutingRequirement {
 	spVal := models.SpatialValidity{
@@ -984,38 +1031,7 @@ func SendAppSessionEventNotification(appSession *pcfContext.AppSessionData, requ
 	if uri != "" {
 		request.EvSubsUri = fmt.Sprintf("%s/events-subscription",
 			util.GetResourceUri(models.SERVICENAME_NPCF_POLICYAUTHORIZATION, appSession.AppSessionId))
-		configuration := Npcf_PolicyAuthorization.NewConfiguration()
-		serverConfig := &configuration.Servers[0]
-		if apiRootVar, exists := serverConfig.Variables["apiRoot"]; exists {
-			apiRootVar.DefaultValue = uri
-			serverConfig.Variables["apiRoot"] = apiRootVar
-		}
-		client := Npcf_PolicyAuthorization.NewAPIClient(configuration)
-		// TODO: GA: Validate whether this change is correct
-		apiEventNotificationAppSessionIdNotifyPostRequest := client.IndividualApplicationSessionContextDocumentCallbackeventNotificationAppSessionIdAPI.EventNotificationAppSessionIdNotifyPost(context.Background())
-		apiEventNotificationAppSessionIdNotifyPostRequest = apiEventNotificationAppSessionIdNotifyPostRequest.EventsNotification(request)
-		httpResponse, err := client.IndividualApplicationSessionContextDocumentCallbackeventNotificationAppSessionIdAPI.EventNotificationAppSessionIdNotifyPostExecute(apiEventNotificationAppSessionIdNotifyPostRequest)
-		if err != nil {
-			if httpResponse != nil {
-				logger.PolicyAuthorizationlog.Warnf("send App Session Event Notification Error[%s]", httpResponse.Status)
-			} else {
-				logger.PolicyAuthorizationlog.Warnf("send App Session Event Notification Failed[%s]", err.Error())
-			}
-			return
-		} else if httpResponse == nil {
-			logger.PolicyAuthorizationlog.Warnln("send App Session Event Notification Failed[HTTP Response is nil]")
-			return
-		}
-		defer func() {
-			if rspCloseErr := httpResponse.Body.Close(); rspCloseErr != nil {
-				logger.PolicyAuthorizationlog.Errorf("UpdateEventsSubsc response body cannot close: %+v", rspCloseErr)
-			}
-		}()
-		if httpResponse.StatusCode != http.StatusOK && httpResponse.StatusCode != http.StatusNoContent {
-			logger.PolicyAuthorizationlog.Warnln("send App Session Event Notification Failed")
-		} else {
-			logger.PolicyAuthorizationlog.Debugln("send App Session Event Notification Success")
-		}
+		postAppSessionCallbackJSON(uri, request, "App Session Event Notification")
 	}
 }
 
@@ -1160,39 +1176,7 @@ func SendAppSessionTermination(appSession *pcfContext.AppSessionData, request mo
 	uri := appSession.AppSessionContext.AscReqData.Get().GetNotifUri()
 	if uri != "" {
 		request.ResUri = util.GetResourceUri(models.SERVICENAME_NPCF_POLICYAUTHORIZATION, appSession.AppSessionId)
-		configuration := Npcf_PolicyAuthorization.NewConfiguration()
-		serverConfig := &configuration.Servers[0]
-		if apiRootVar, exists := serverConfig.Variables["apiRoot"]; exists {
-			apiRootVar.DefaultValue = uri
-			serverConfig.Variables["apiRoot"] = apiRootVar
-		}
-		client := Npcf_PolicyAuthorization.NewAPIClient(configuration)
-		apiTerminationRequestTerminatePostRequest := client.ApplicationSessionsCollectionCallbackterminationRequestAPI.TerminationRequestTerminatePost(
-			context.Background())
-		apiTerminationRequestTerminatePostRequest = apiTerminationRequestTerminatePostRequest.TerminationInfo(request)
-		httpResponse, err := client.ApplicationSessionsCollectionCallbackterminationRequestAPI.TerminationRequestTerminatePostExecute(apiTerminationRequestTerminatePostRequest)
-		if err != nil {
-			if httpResponse != nil {
-				logger.PolicyAuthorizationlog.Warnf("send App Session Termination Error[%s]", httpResponse.Status)
-			} else {
-				logger.PolicyAuthorizationlog.Warnf("send App Session Termination Failed[%s]", err.Error())
-			}
-			return
-		} else if httpResponse == nil {
-			logger.PolicyAuthorizationlog.Warnln("send App Session Termination Failed[HTTP Response is nil]")
-			return
-		}
-		defer func() {
-			if rspCloseErr := httpResponse.Body.Close(); rspCloseErr != nil {
-				logger.PolicyAuthorizationlog.Errorf(
-					"PolicyAuthorizationTerminateRequest response body cannot close: %+v", rspCloseErr)
-			}
-		}()
-		if httpResponse.StatusCode != http.StatusOK && httpResponse.StatusCode != http.StatusNoContent {
-			logger.PolicyAuthorizationlog.Warnln("send App Session Termination Failed")
-		} else {
-			logger.PolicyAuthorizationlog.Debugf("send App Session Termination Success")
-		}
+		postAppSessionCallbackJSON(uri, request, "App Session Termination")
 	}
 }
 

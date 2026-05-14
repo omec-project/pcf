@@ -30,13 +30,20 @@ import (
 const applicationJson = "application/json"
 
 func TestStartPollingService_Success(t *testing.T) {
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
 	originalFetchPolicyControlConfig := fetchPolicyControlConfig
+	originalPollingIntervalAfter := pollingIntervalAfter
 	originalPccPolicies := pccPolicies
 	defer func() {
+		cancel()
 		fetchPolicyControlConfig = originalFetchPolicyControlConfig
+		pollingIntervalAfter = originalPollingIntervalAfter
 		pccPolicies = originalPccPolicies
 	}()
+	tick := make(chan time.Time, 1)
+	pollingIntervalAfter = func(time.Duration) <-chan time.Time {
+		return tick
+	}
 	pccPolicies = make(map[SnssaiKey]*PccPolicy)
 	fetchedConfig := []nfConfigApi.PolicyControl{
 		{
@@ -54,8 +61,12 @@ func TestStartPollingService_Success(t *testing.T) {
 		Dnns:  map[string]struct{}{},
 	}
 	pollingChan := make(chan consumer.NfProfileDynamicConfig, 1)
-	go StartPollingService(ctx, "http://dummy", pollingChan)
-	time.Sleep(initialPollingInterval)
+	done := make(chan struct{})
+	go func() {
+		StartPollingService(ctx, "http://dummy", pollingChan)
+		close(done)
+	}()
+	tick <- time.Now()
 
 	select {
 	case result := <-pollingChan:
@@ -69,29 +80,63 @@ func TestStartPollingService_Success(t *testing.T) {
 	if len(pccPolicies) == 0 {
 		t.Errorf("expected pccPolicies to be updated")
 	}
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("polling service did not stop")
+	}
 }
 
 func TestStartPollingService_RetryAfterFailure(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	originalFetchPolicyControlConfig := fetchPolicyControlConfig
+	originalPollingIntervalAfter := pollingIntervalAfter
 	originalPccPolicies := pccPolicies
 
 	defer func() {
 		fetchPolicyControlConfig = originalFetchPolicyControlConfig
+		pollingIntervalAfter = originalPollingIntervalAfter
 		pccPolicies = originalPccPolicies
 	}()
+	tick := make(chan time.Time, 2)
+	pollingIntervalAfter = func(time.Duration) <-chan time.Time {
+		return tick
+	}
 
 	callCount := 0
+	fetchCalled := make(chan struct{}, 2)
 	fetchPolicyControlConfig = func(p *nfConfigPoller, endpoint string) ([]nfConfigApi.PolicyControl, error) {
 		callCount++
+		fetchCalled <- struct{}{}
 		return nil, errors.New("mock failure")
 	}
 	pollingChan := make(chan consumer.NfProfileDynamicConfig, 1)
-	go StartPollingService(ctx, "http://dummy", pollingChan)
+	done := make(chan struct{})
+	go func() {
+		StartPollingService(ctx, "http://dummy", pollingChan)
+		close(done)
+	}()
 
-	time.Sleep(4 * initialPollingInterval)
+	tick <- time.Now()
+	select {
+	case <-fetchCalled:
+	case <-time.After(time.Second):
+		t.Fatal("polling service did not process first retry tick")
+	}
+	tick <- time.Now()
+	select {
+	case <-fetchCalled:
+	case <-time.After(time.Second):
+		t.Fatal("polling service did not process second retry tick")
+	}
 	cancel()
-	<-ctx.Done()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("polling service did not stop")
+	}
 
 	if callCount < 2 {
 		t.Error("Expected to retry after failure")
