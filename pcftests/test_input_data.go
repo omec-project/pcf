@@ -16,13 +16,13 @@ var Data = []byte(`{
 		 "Site": {
 			"SiteName": "siteOne",
 			"Gnb": [
-				{"Name": "gnb1", "Tac": 1}, 
+				{"Name": "gnb1", "Tac": 1},
 				{"Name": "gnb2", "Tac": 2}
 			],
 			"Plmn": {"mcc": "208", "mnc": "93"}
 		  },
 		 "DeviceGroup": [
-		 	    {"Name": "dg1", 
+		 	    {"Name": "dg1",
 				"IpDomainDetails": {
 				"DnnName": "internet",
 				"UeDnnQos": {"DnnMbrUplink": 100000, "DnnMbrDownlink": 50000, "TrafficClass": {"Qci": 9, "Arp": 6}}
@@ -46,13 +46,13 @@ var UData = []byte(`{
 		 "Site": {
 			"SiteName": "siteOne",
 			"Gnb": [
-				{"Name": "gnb1", "Tac": 1}, 
+				{"Name": "gnb1", "Tac": 1},
 				{"Name": "gnb2", "Tac": 2}
 			],
 			"Plmn": {"mcc": "208", "mnc": "93"}
 		  },
 		 "DeviceGroup": [
-		 	    {"Name": "dg1", 
+		 	    {"Name": "dg1",
 				"IpDomainDetails": {
 				"DnnName": "internet",
 				"UeDnnQos": {"DnnMbrUplink": 20000, "DnnMbrDownlink": 80000, "TrafficClass": {"Qci": 9, "Arp": 6}}
@@ -77,13 +77,13 @@ var UData1 = []byte(`{
 		 "Site": {
 			"SiteName": "siteOne",
 			"Gnb": [
-				{"Name": "gnb1", "Tac": 1}, 
+				{"Name": "gnb1", "Tac": 1},
 				{"Name": "gnb2", "Tac": 2}
 			],
 			"Plmn": {"mcc": "208", "mnc": "93"}
 		  },
 		 "DeviceGroup": [
-		 	    {"Name": "dg1", 
+		 	    {"Name": "dg1",
 				"IpDomainDetails": {
 				"DnnName": "internet",
 				"UeDnnQos": {"DnnMbrUplink": 100000, "DnnMbrDownlink": 50000, "TrafficClass": {"Qci": 9, "Arp": 6}}
@@ -109,13 +109,13 @@ var DelData = []byte(`{
 		 "Site": {
 			"SiteName": "siteOne",
 			"Gnb": [
-				{"Name": "gnb1", "Tac": 1}, 
+				{"Name": "gnb1", "Tac": 1},
 				{"Name": "gnb2", "Tac": 2}
 			],
 			"Plmn": {"mcc": "208", "mnc": "93"}
 		  },
 		 "DeviceGroup": [
-		 	    {"Name": "dg1", 
+		 	    {"Name": "dg1",
 				"IpDomainDetails": {
 				"DnnName": "internet",
 				"UeDnnQos": {"DnnMbrUplink": 100000, "DnnMbrDownlink": 50000, "TrafficClass": {"Qci": 9, "Arp": 6}}
