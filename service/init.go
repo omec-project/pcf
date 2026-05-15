@@ -18,8 +18,8 @@ import (
 	"time"
 
 	"github.com/gin-contrib/cors"
-	openapiLogger "github.com/omec-project/openapi/logger"
-	nrfCache "github.com/omec-project/openapi/nrfcache"
+	openapiLogger "github.com/omec-project/openapi/v2/logger"
+	nrfCache "github.com/omec-project/openapi/v2/nrfcache"
 	"github.com/omec-project/pcf/ampolicy"
 	"github.com/omec-project/pcf/bdtpolicy"
 	"github.com/omec-project/pcf/callback"

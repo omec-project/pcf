@@ -9,8 +9,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/omec-project/openapi"
-	"github.com/omec-project/openapi/models"
+	"github.com/omec-project/openapi/v2"
+	"github.com/omec-project/openapi/v2/utils"
 	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/pcf/producer"
 	"github.com/omec-project/util/httpwrapper"
@@ -31,16 +31,12 @@ func HTTPOAMGetAmPolicy(c *gin.Context) {
 
 	rsp := producer.HandleOAMGetAmPolicyRequest(req)
 
-	responseBody, err := openapi.Serialize(rsp.Body, "application/json")
+	responseBody, err := openapi.SetBody(rsp.Body, "application/json")
 	if err != nil {
 		logger.OamLog.Errorln(err)
-		problemDetails := models.ProblemDetails{
-			Status: http.StatusInternalServerError,
-			Cause:  "SYSTEM_FAILURE",
-			Detail: err.Error(),
-		}
+		problemDetails := utils.ProblemDetailsSystemFailure(err.Error())
 		c.JSON(http.StatusInternalServerError, problemDetails)
 	} else {
-		c.Data(rsp.Status, "application/json", responseBody)
+		c.Data(rsp.Status, "application/json", responseBody.Bytes())
 	}
 }

@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/openapi/nfConfigApi"
+	"github.com/omec-project/openapi/v2/models"
+	"github.com/omec-project/openapi/v2/nfConfigApi"
 	"github.com/omec-project/pcf/consumer"
 	"github.com/omec-project/pcf/logger"
 )
@@ -52,7 +52,7 @@ func StartPollingService(ctx context.Context, webuiUri string, nfProfileConfigCh
 		case <-ctx.Done():
 			logger.PollConfigLog.Infoln("polling service shutting down")
 			return
-		case <-time.After(interval):
+		case <-pollingIntervalAfter(interval):
 			newConfig, err := fetchPolicyControlConfig(&poller, pollingEndpoint)
 			if err != nil {
 				interval = minDuration(interval*time.Duration(pollingBackoffFactor), pollingMaxBackoff)
@@ -68,6 +68,8 @@ func StartPollingService(ctx context.Context, webuiUri string, nfProfileConfigCh
 var fetchPolicyControlConfig = func(p *nfConfigPoller, endpoint string) ([]nfConfigApi.PolicyControl, error) {
 	return p.fetchPolicyControlConfig(endpoint)
 }
+
+var pollingIntervalAfter = time.After
 
 func (p *nfConfigPoller) fetchPolicyControlConfig(pollingEndpoint string) ([]nfConfigApi.PolicyControl, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), initialPollingInterval)

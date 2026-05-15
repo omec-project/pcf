@@ -8,37 +8,37 @@ package util
 import (
 	"fmt"
 
-	"github.com/omec-project/openapi/models"
+	"github.com/omec-project/openapi/v2/models"
 )
 
 var policyTriggerArray = []models.PolicyControlRequestTrigger{
-	models.PolicyControlRequestTrigger_PLMN_CH,
-	models.PolicyControlRequestTrigger_RES_MO_RE,
-	models.PolicyControlRequestTrigger_AC_TY_CH,
-	models.PolicyControlRequestTrigger_UE_IP_CH,
-	models.PolicyControlRequestTrigger_UE_MAC_CH,
-	models.PolicyControlRequestTrigger_AN_CH_COR,
-	models.PolicyControlRequestTrigger_US_RE,
-	models.PolicyControlRequestTrigger_APP_STA,
-	models.PolicyControlRequestTrigger_APP_STO,
-	models.PolicyControlRequestTrigger_AN_INFO,
-	models.PolicyControlRequestTrigger_CM_SES_FAIL,
-	models.PolicyControlRequestTrigger_PS_DA_OFF,
-	models.PolicyControlRequestTrigger_DEF_QOS_CH,
-	models.PolicyControlRequestTrigger_SE_AMBR_CH,
-	models.PolicyControlRequestTrigger_QOS_NOTIF,
-	models.PolicyControlRequestTrigger_NO_CREDIT,
-	models.PolicyControlRequestTrigger_PRA_CH,
-	models.PolicyControlRequestTrigger_SAREA_CH,
-	models.PolicyControlRequestTrigger_SCNN_CH,
-	models.PolicyControlRequestTrigger_RE_TIMEOUT,
-	models.PolicyControlRequestTrigger_RES_RELEASE,
-	models.PolicyControlRequestTrigger_SUCC_RES_ALLO,
-	models.PolicyControlRequestTrigger_RAT_TY_CH,
-	models.PolicyControlRequestTrigger_REF_QOS_IND_CH,
-	models.PolicyControlRequestTrigger_NUM_OF_PACKET_FILTER,
-	models.PolicyControlRequestTrigger_UE_STATUS_RESUME,
-	models.PolicyControlRequestTrigger_UE_TZ_CH,
+	models.POLICYCONTROLREQUESTTRIGGER_PLMN_CH,
+	models.POLICYCONTROLREQUESTTRIGGER_RES_MO_RE,
+	models.POLICYCONTROLREQUESTTRIGGER_AC_TY_CH,
+	models.POLICYCONTROLREQUESTTRIGGER_UE_IP_CH,
+	models.POLICYCONTROLREQUESTTRIGGER_UE_MAC_CH,
+	models.POLICYCONTROLREQUESTTRIGGER_AN_CH_COR,
+	models.POLICYCONTROLREQUESTTRIGGER_US_RE,
+	models.POLICYCONTROLREQUESTTRIGGER_APP_STA,
+	models.POLICYCONTROLREQUESTTRIGGER_APP_STO,
+	models.POLICYCONTROLREQUESTTRIGGER_AN_INFO,
+	models.POLICYCONTROLREQUESTTRIGGER_CM_SES_FAIL,
+	models.POLICYCONTROLREQUESTTRIGGER_PS_DA_OFF,
+	models.POLICYCONTROLREQUESTTRIGGER_DEF_QOS_CH,
+	models.POLICYCONTROLREQUESTTRIGGER_SE_AMBR_CH,
+	models.POLICYCONTROLREQUESTTRIGGER_QOS_NOTIF,
+	models.POLICYCONTROLREQUESTTRIGGER_NO_CREDIT,
+	models.POLICYCONTROLREQUESTTRIGGER_PRA_CH,
+	models.POLICYCONTROLREQUESTTRIGGER_SAREA_CH,
+	models.POLICYCONTROLREQUESTTRIGGER_SCNN_CH,
+	models.POLICYCONTROLREQUESTTRIGGER_RE_TIMEOUT,
+	models.POLICYCONTROLREQUESTTRIGGER_RES_RELEASE,
+	models.POLICYCONTROLREQUESTTRIGGER_SUCC_RES_ALLO,
+	models.POLICYCONTROLREQUESTTRIGGER_RAT_TY_CH,
+	models.POLICYCONTROLREQUESTTRIGGER_REF_QOS_IND_CH,
+	models.POLICYCONTROLREQUESTTRIGGER_NUM_OF_PACKET_FILTER,
+	models.POLICYCONTROLREQUESTTRIGGER_UE_STATUS_RESUME,
+	models.POLICYCONTROLREQUESTTRIGGER_UE_TZ_CH,
 }
 
 // func GetSMPolicyKey(snssai *models.Snssai, dnn string) string {
@@ -51,7 +51,7 @@ var policyTriggerArray = []models.PolicyControlRequestTrigger{
 // Convert Snssai form models to hexString(sst(2)+sd(6))
 func SnssaiModelsToHex(snssai models.Snssai) string {
 	sst := fmt.Sprintf("%02x", snssai.Sst)
-	return sst + snssai.Sd
+	return sst + snssai.GetSd()
 }
 
 // Use BitMap to generate requested policy control triggers,

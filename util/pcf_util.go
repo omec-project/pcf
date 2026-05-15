@@ -6,22 +6,21 @@
 package util
 
 import (
+	"encoding"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/http"
-	"time"
+	"reflect"
+	"slices"
+	"sort"
+	"strings"
 
-	"github.com/omec-project/openapi/Namf_Communication"
-	"github.com/omec-project/openapi/Npcf_PolicyAuthorization"
-	"github.com/omec-project/openapi/Npcf_SMPolicyControl"
-	"github.com/omec-project/openapi/Nudr_DataRepository"
-	"github.com/omec-project/openapi/models"
+	"github.com/omec-project/openapi/v2/Nudr_DR"
+	"github.com/omec-project/openapi/v2/models"
 	"github.com/omec-project/pcf/context"
 )
 
-const TimeFormat = time.RFC3339
-
-// Path of HTTP2 key and log file
 var (
 	PCF_BASIC_PATH                               = "https://localhost:29507"
 	ERROR_REQUEST_PARAMETERS                     = "ERROR_REQUEST_PARAMETERS"
@@ -54,52 +53,37 @@ var (
 	}
 )
 
-func GetNpcfSMPolicyCallbackClient() *Npcf_SMPolicyControl.APIClient {
-	configuration := Npcf_SMPolicyControl.NewConfiguration()
-	client := Npcf_SMPolicyControl.NewAPIClient(configuration)
-	return client
-}
-
-func GetNpcfPolicyAuthorizationCallbackClient() *Npcf_PolicyAuthorization.APIClient {
-	configuration := Npcf_PolicyAuthorization.NewConfiguration()
-	client := Npcf_PolicyAuthorization.NewAPIClient(configuration)
-	return client
-}
-
-func GetNudrClient(uri string) *Nudr_DataRepository.APIClient {
-	configuration := Nudr_DataRepository.NewConfiguration()
-	configuration.SetBasePath(uri)
-	client := Nudr_DataRepository.NewAPIClient(configuration)
-	return client
-}
-
-func GetNamfClient(uri string) *Namf_Communication.APIClient {
-	configuration := Namf_Communication.NewConfiguration()
-	configuration.SetBasePath(uri)
-	client := Namf_Communication.NewAPIClient(configuration)
-	return client
-}
-
-// Return ProblemDatail, errString represent Detail, cause represent Cause of the fields
-func GetProblemDetail(errString, cause string) models.ProblemDetails {
-	return models.ProblemDetails{
-		Status: PcpErrHttpStatusMap[cause],
-		Detail: errString,
-		Cause:  cause,
+func GetNudrClient(uri string) *Nudr_DR.APIClient {
+	configuration := Nudr_DR.NewConfiguration()
+	serverConfig := &configuration.Servers[0]
+	if apiRootVar, exists := serverConfig.Variables["apiRoot"]; exists {
+		apiRootVar.DefaultValue = uri
+		serverConfig.Variables["apiRoot"] = apiRootVar
 	}
+	client := Nudr_DR.NewAPIClient(configuration)
+	return client
+}
+
+// Return ProblemDetail; errString represents Detail and cause represents Cause.
+func GetProblemDetail(errString, cause string) *models.ProblemDetails {
+	problemDetails := models.NewProblemDetails()
+	problemDetails.SetStatus(PcpErrHttpStatusMap[cause])
+	problemDetails.SetDetail(errString)
+	problemDetails.SetCause(cause)
+	return problemDetails
 }
 
 // GetSMPolicyDnnData returns SMPolicyDnnData derived from SmPolicy data which snssai and dnn match
-func GetSMPolicyDnnData(data models.SmPolicyData, snssai *models.Snssai, dnn string) (result *models.SmPolicyDnnData) {
-	if snssai == nil || dnn == "" || data.SmPolicySnssaiData == nil {
+func GetSMPolicyDnnData(data models.SmPolicyData, snssai models.Snssai, dnn string) (result *models.SmPolicyDnnData) {
+	if snssai.GetSst() < 0 || snssai.GetSst() > 255 || dnn == "" || data.SmPolicySnssaiData == nil {
 		return
 	}
-	snssaiString := SnssaiModelsToHex(*snssai)
+	snssaiString := SnssaiModelsToHex(snssai)
 	if snssaiData, exist := data.SmPolicySnssaiData[snssaiString]; exist {
 		if snssaiData.SmPolicyDnnData == nil {
 			return
 		}
-		if dnnInfo, exist := snssaiData.SmPolicyDnnData[dnn]; exist {
+		if dnnInfo, exist := snssaiData.GetSmPolicyDnnData()[dnn]; exist {
 			result = &dnnInfo
 			return
 		}
@@ -108,10 +92,10 @@ func GetSMPolicyDnnData(data models.SmPolicyData, snssai *models.Snssai, dnn str
 }
 
 var serviceUriMap = map[models.ServiceName]string{
-	models.ServiceName_NPCF_AM_POLICY_CONTROL:   "policies",
-	models.ServiceName_NPCF_SMPOLICYCONTROL:     "sm-policies",
-	models.ServiceName_NPCF_BDTPOLICYCONTROL:    "bdtpolicies",
-	models.ServiceName_NPCF_POLICYAUTHORIZATION: "app-sessions",
+	models.SERVICENAME_NPCF_AM_POLICY_CONTROL:   "policies",
+	models.SERVICENAME_NPCF_SMPOLICYCONTROL:     "sm-policies",
+	models.SERVICENAME_NPCF_BDTPOLICYCONTROL:    "bdtpolicies",
+	models.SERVICENAME_NPCF_POLICYAUTHORIZATION: "app-sessions",
 }
 
 // Get Resource Uri (location Header) with param id string
@@ -139,10 +123,163 @@ func CheckSuppFeat(suppFeat string, number int) bool {
 func CheckPolicyControlReqTrig(
 	triggers []models.PolicyControlRequestTrigger, reqTrigger models.PolicyControlRequestTrigger,
 ) bool {
-	for _, trigger := range triggers {
-		if trigger == reqTrigger {
-			return true
+	return slices.Contains(triggers, reqTrigger)
+}
+
+func DeepCopyViaJSON(src, dst any) error {
+	data, err := json.Marshal(src)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(data, dst)
+}
+
+func CompareViaJSON(expected, actual any) bool {
+	expectedJSON, err1 := json.Marshal(normalizeForJSON(expected))
+	actualJSON, err2 := json.Marshal(normalizeForJSON(actual))
+
+	if err1 != nil || err2 != nil {
+		return false
+	}
+
+	return string(expectedJSON) == string(actualJSON)
+}
+
+type normalizedMapEntry struct {
+	Key   any
+	Value any
+}
+
+func normalizeForJSON(value any) any {
+	return normalizeReflectValueForJSON(reflect.ValueOf(value))
+}
+
+func normalizeReflectValueForJSON(value reflect.Value) any {
+	if !value.IsValid() {
+		return nil
+	}
+
+	switch value.Kind() {
+	case reflect.Interface, reflect.Pointer:
+		if value.IsNil() {
+			return nil
+		}
+		return normalizeReflectValueForJSON(value.Elem())
+	case reflect.Struct:
+		normalized := make(map[string]any, value.NumField())
+		for i := 0; i < value.NumField(); i++ {
+			field := value.Type().Field(i)
+			if !field.IsExported() {
+				continue
+			}
+
+			fieldName, omitEmpty, skip := jsonFieldName(field)
+			if skip {
+				continue
+			}
+
+			fieldValue := value.Field(i)
+			if omitEmpty && isJSONEmpty(fieldValue) {
+				continue
+			}
+
+			normalized[fieldName] = normalizeReflectValueForJSON(fieldValue)
+		}
+		return normalized
+	case reflect.Slice, reflect.Array:
+		normalized := make([]any, value.Len())
+		for i := 0; i < value.Len(); i++ {
+			normalized[i] = normalizeReflectValueForJSON(value.Index(i))
+		}
+		return normalized
+	case reflect.Map:
+		if value.IsNil() {
+			return nil
+		}
+
+		if value.Type().Key().Kind() == reflect.String {
+			normalized := make(map[string]any, value.Len())
+			for _, key := range value.MapKeys() {
+				normalized[key.String()] = normalizeReflectValueForJSON(value.MapIndex(key))
+			}
+			return normalized
+		}
+
+		entries := make([]normalizedMapEntry, 0, value.Len())
+		for _, key := range value.MapKeys() {
+			entries = append(entries, normalizedMapEntry{
+				Key:   normalizeReflectValueForJSON(key),
+				Value: normalizeReflectValueForJSON(value.MapIndex(key)),
+			})
+		}
+
+		sort.Slice(entries, func(i, j int) bool {
+			return stableJSON(entries[i].Key) < stableJSON(entries[j].Key)
+		})
+
+		return entries
+	default:
+		return value.Interface()
+	}
+}
+
+func jsonFieldName(field reflect.StructField) (name string, omitEmpty, skip bool) {
+	tag := field.Tag.Get("json")
+	if tag == "-" {
+		return "", false, true
+	}
+
+	name = field.Name
+	if tag == "" {
+		return name, false, false
+	}
+
+	parts := strings.Split(tag, ",")
+	if parts[0] != "" {
+		name = parts[0]
+	}
+	for _, option := range parts[1:] {
+		if option == "omitempty" {
+			omitEmpty = true
 		}
 	}
-	return false
+
+	return name, omitEmpty, false
+}
+
+func isJSONEmpty(value reflect.Value) bool {
+	if !value.IsValid() {
+		return true
+	}
+
+	switch value.Kind() {
+	case reflect.Array, reflect.Map, reflect.Slice, reflect.String:
+		return value.Len() == 0
+	case reflect.Bool:
+		return !value.Bool()
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return value.Int() == 0
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return value.Uint() == 0
+	case reflect.Float32, reflect.Float64:
+		return value.Float() == 0
+	case reflect.Interface, reflect.Pointer:
+		return value.IsNil()
+	case reflect.Struct:
+		if marshaler, ok := value.Interface().(encoding.TextMarshaler); ok {
+			text, err := marshaler.MarshalText()
+			return err == nil && len(text) == 0
+		}
+		return value.IsZero()
+	default:
+		return value.IsZero()
+	}
+}
+
+func stableJSON(value any) string {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Sprintf("%#v", value)
+	}
+	return string(data)
 }

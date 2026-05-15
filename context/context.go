@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/omec-project/openapi"
-	"github.com/omec-project/openapi/models"
+	"github.com/omec-project/openapi/v2"
+	"github.com/omec-project/openapi/v2/models"
 	"github.com/omec-project/pcf/factory"
 	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/util/idgenerator"
@@ -26,12 +26,12 @@ var pcfCtx *PCFContext
 func init() {
 	pcfCtx = new(PCFContext)
 	pcfCtx.Name = "pcf"
-	pcfCtx.UriScheme = models.UriScheme_HTTPS
+	pcfCtx.UriScheme = models.URISCHEME_HTTPS
 	pcfCtx.TimeFormat = "2006-01-02 15:04:05"
 	pcfCtx.DefaultBdtRefId = "BdtPolicyId-"
-	pcfCtx.NfService = make(map[models.ServiceName]models.NfService)
+	pcfCtx.NfService = make(map[models.ServiceName]models.NFService)
 	pcfCtx.PcfServiceUris = make(map[models.ServiceName]string)
-	pcfCtx.PcfSuppFeats = make(map[models.ServiceName]openapi.SupportedFeature)
+	pcfCtx.PcfSuppFeats = make(map[models.ServiceName]SupportedFeature)
 	pcfCtx.BdtPolicyIDGenerator = idgenerator.NewGenerator(1, math.MaxInt64)
 }
 
@@ -45,9 +45,9 @@ type PCFContext struct {
 	PEM             string
 	TimeFormat      string
 	DefaultBdtRefId string
-	NfService       map[models.ServiceName]models.NfService
+	NfService       map[models.ServiceName]models.NFService
 	PcfServiceUris  map[models.ServiceName]string
-	PcfSuppFeats    map[models.ServiceName]openapi.SupportedFeature
+	PcfSuppFeats    map[models.ServiceName]SupportedFeature
 	NrfUri          string
 	DefaultUdrURI   string
 	// UePool          map[string]*UeContext
@@ -82,7 +82,7 @@ type AppSessionData struct {
 	// related Session
 	SmPolicyData *UeSmPolicyData
 	// EventSubscription
-	Events   map[models.AfEvent]models.AfNotifMethod
+	Events   map[models.AfEventPcf]models.AfNotifMethod
 	EventUri string
 
 	AppSessionId string
@@ -116,26 +116,24 @@ func (c *PCFContext) InitNFService(serviceList []factory.Service, version string
 	versionUri := "v" + tmpVersion[0]
 	for index, service := range serviceList {
 		name := models.ServiceName(service.ServiceName)
-		c.NfService[name] = models.NfService{
+		ipEndPoints := models.NewIpEndPoint()
+		ipEndPoints.SetIpv4Address(c.RegisterIPv4)
+		ipEndPoints.SetTransport(models.TRANSPORTPROTOCOL_TCP)
+		ipEndPoints.SetPort(int32(c.SBIPort))
+		c.NfService[name] = models.NFService{
 			ServiceInstanceId: strconv.Itoa(index),
 			ServiceName:       name,
-			Versions: &[]models.NfServiceVersion{
+			Versions: []models.NFServiceVersion{
 				{
 					ApiFullVersion:  version,
 					ApiVersionInUri: versionUri,
 				},
 			},
-			Scheme:          c.UriScheme,
-			NfServiceStatus: models.NfServiceStatus_REGISTERED,
-			ApiPrefix:       c.GetIPv4Uri(),
-			IpEndPoints: &[]models.IpEndPoint{
-				{
-					Ipv4Address: c.RegisterIPv4,
-					Transport:   models.TransportProtocol_TCP,
-					Port:        int32(c.SBIPort),
-				},
-			},
-			SupportedFeatures: service.SuppFeat,
+			Scheme:            c.UriScheme,
+			NfServiceStatus:   models.NFSERVICESTATUS_REGISTERED,
+			ApiPrefix:         openapi.PtrString(c.GetIPv4Uri()),
+			IpEndPoints:       []models.IpEndPoint{*ipEndPoints},
+			SupportedFeatures: openapi.PtrString(service.SuppFeat),
 		}
 	}
 }
@@ -235,15 +233,15 @@ func ueSMPolicyFindByAppSessionContext(ue *UeContext, req *models.AppSessionCont
 	var policy *UeSmPolicyData
 	var err error
 
-	if req.UeIpv4 != "" {
-		policy = ue.SMPolicyFindByIdentifiersIpv4(req.UeIpv4, req.SliceInfo, req.Dnn, req.IpDomain)
+	if req.GetUeIpv4() != "" {
+		policy = ue.SMPolicyFindByIdentifiersIpv4(req.GetUeIpv4(), req.SliceInfo, req.GetDnn(), req.GetIpDomain())
 		if policy == nil {
-			err = fmt.Errorf("can't find Ue with Ipv4[%s]", req.UeIpv4)
+			err = fmt.Errorf("can't find Ue with Ipv4[%s]", req.GetUeIpv4())
 		}
-	} else if req.UeIpv6 != "" {
-		policy = ue.SMPolicyFindByIdentifiersIpv6(req.UeIpv6, req.SliceInfo, req.Dnn)
+	} else if req.GetUeIpv6() != "" {
+		policy = ue.SMPolicyFindByIdentifiersIpv6(req.GetUeIpv6(), req.SliceInfo, req.GetDnn())
 		if policy == nil {
-			err = fmt.Errorf("can't find Ue with Ipv6 prefix[%s]", req.UeIpv6)
+			err = fmt.Errorf("can't find Ue with Ipv6 prefix[%s]", req.GetUeIpv6())
 		}
 	} else {
 		// TODO: find by MAC address
@@ -258,21 +256,20 @@ func (c *PCFContext) SessionBinding(req *models.AppSessionContextReqData) (*UeSm
 	var policy *UeSmPolicyData
 	var err error
 
-	if req.Supi != "" {
+	if req.GetSupi() != "" {
 		if val, exist := c.UePool.Load(req.Supi); exist {
 			selectedUE = val.(*UeContext)
 		}
 	}
 
-	if req.Gpsi != "" && selectedUE == nil {
+	if req.GetGpsi() != "" && selectedUE == nil {
 		c.UePool.Range(func(key, value interface{}) bool {
 			ue := value.(*UeContext)
-			if ue.Gpsi == req.Gpsi {
+			if ue.Gpsi == req.GetGpsi() {
 				selectedUE = ue
 				return false
-			} else {
-				return true
 			}
+			return true
 		})
 	}
 

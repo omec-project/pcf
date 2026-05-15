@@ -9,8 +9,9 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/omec-project/openapi"
-	"github.com/omec-project/openapi/models"
+	"github.com/omec-project/openapi/v2"
+	"github.com/omec-project/openapi/v2/models"
+	"github.com/omec-project/openapi/v2/utils"
 	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/pcf/producer"
 	"github.com/omec-project/util/httpwrapper"
@@ -22,25 +23,16 @@ func HTTPNudrNotify(c *gin.Context) {
 
 	requestBody, err := c.GetRawData()
 	if err != nil {
-		problemDetail := models.ProblemDetails{
-			Title:  "System failure",
-			Status: http.StatusInternalServerError,
-			Detail: err.Error(),
-			Cause:  "SYSTEM_FAILURE",
-		}
+		problemDetail := utils.ProblemDetailsSystemFailure(err.Error())
 		logger.CallbackLog.Errorf("Get Request Body error: %+v", err)
 		c.JSON(http.StatusInternalServerError, problemDetail)
 		return
 	}
 
-	err = openapi.Deserialize(&policyDataChangeNotification, requestBody, "application/json")
+	err = openapi.Decode(&policyDataChangeNotification, requestBody, "application/json")
 	if err != nil {
 		problemDetail := "[Request Body] " + err.Error()
-		rsp := models.ProblemDetails{
-			Title:  "Malformed request syntax",
-			Status: http.StatusBadRequest,
-			Detail: problemDetail,
-		}
+		rsp := utils.ProblemDetailsMalformedRequestSyntax(problemDetail)
 		logger.CallbackLog.Errorln(problemDetail)
 		c.JSON(http.StatusBadRequest, rsp)
 		return
@@ -51,16 +43,12 @@ func HTTPNudrNotify(c *gin.Context) {
 
 	rsp := producer.HandleSmPolicyNotify(req)
 
-	responseBody, err := openapi.Serialize(rsp.Body, "application/json")
+	responseBody, err := openapi.SetBody(rsp.Body, "application/json")
 	if err != nil {
 		logger.CallbackLog.Errorln(err)
-		problemDetails := models.ProblemDetails{
-			Status: http.StatusInternalServerError,
-			Cause:  "SYSTEM_FAILURE",
-			Detail: err.Error(),
-		}
+		problemDetails := utils.ProblemDetailsSystemFailure(err.Error())
 		c.JSON(http.StatusInternalServerError, problemDetails)
 	} else {
-		c.Data(rsp.Status, "application/json", responseBody)
+		c.Data(rsp.Status, "application/json", responseBody.Bytes())
 	}
 }

@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Intel Corporation
 // SPDX-FileCopyrightText: 2025 Canonical Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
@@ -15,7 +16,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/omec-project/openapi/models"
+	"github.com/omec-project/openapi/v2"
+	"github.com/omec-project/openapi/v2/models"
 	"github.com/omec-project/pcf/consumer"
 )
 
@@ -94,8 +96,8 @@ func TestNfRegistrationService_WhenConfigChanged_ThenRegisterNFSuccessAndStartTi
 	}()
 
 	registrations := []consumer.NfProfileDynamicConfig{}
-	consumer.SendRegisterNFInstance = func(nfProfileDynamicConfig consumer.NfProfileDynamicConfig) (models.NfProfile, string, error) {
-		profile := models.NfProfile{HeartBeatTimer: 60}
+	consumer.SendRegisterNFInstance = func(nfProfileDynamicConfig consumer.NfProfileDynamicConfig) (*models.NFProfile, string, error) {
+		profile := &models.NFProfile{HeartBeatTimer: openapi.PtrInt32(60)}
 		registrations = append(registrations, nfProfileDynamicConfig)
 		return profile, "", nil
 	}
@@ -127,6 +129,89 @@ func TestNfRegistrationService_WhenConfigChanged_ThenRegisterNFSuccessAndStartTi
 	}
 }
 
+func TestNfRegistrationService_WhenEmptyConfig_ThenContinuesListeningForUpdates(t *testing.T) {
+	originalDeregisterNF := consumer.SendDeregisterNFInstance
+	originalRegisterNF := registerNF
+	originalDiscoverUdr := consumer.DiscoverUdr
+	defer func() {
+		consumer.SendDeregisterNFInstance = originalDeregisterNF
+		registerNF = originalRegisterNF
+		consumer.DiscoverUdr = originalDiscoverUdr
+		if keepAliveTimer != nil {
+			keepAliveTimer.Stop()
+			keepAliveTimer = nil
+		}
+	}()
+
+	deregisterCalls := 0
+	consumer.SendDeregisterNFInstance = func() error {
+		deregisterCalls++
+		return nil
+	}
+	consumer.DiscoverUdr = func() {}
+
+	registered := make(chan consumer.NfProfileDynamicConfig, 1)
+	registerNF = func(registerCtx context.Context, newNfProfileConfig consumer.NfProfileDynamicConfig) {
+		registered <- newNfProfileConfig
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	ch := make(chan consumer.NfProfileDynamicConfig, 2)
+	go StartNfRegistrationService(ctx, ch)
+
+	ch <- consumer.NfProfileDynamicConfig{}
+	ch <- consumer.NfProfileDynamicConfig{
+		Plmns: map[models.PlmnId]struct{}{{Mcc: "001", Mnc: "01"}: {}},
+		Dnns:  map[string]struct{}{},
+	}
+
+	select {
+	case got := <-registered:
+		if len(got.Plmns) != 1 {
+			t.Fatalf("expected one PLMN in follow-up registration, got %+v", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected registration service to continue after empty config")
+	}
+
+	if deregisterCalls != 1 {
+		t.Fatalf("expected one deregistration call, got %d", deregisterCalls)
+	}
+}
+
+func TestNfRegistrationService_WhenConfigChannelClosed_ThenStopsService(t *testing.T) {
+	keepAliveTimer = time.NewTimer(60 * time.Second)
+	originalRegisterNF := registerNF
+	defer func() {
+		registerNF = originalRegisterNF
+		if keepAliveTimer != nil {
+			keepAliveTimer.Stop()
+			keepAliveTimer = nil
+		}
+	}()
+
+	registerCalled := false
+	registerNF = func(registerCtx context.Context, newNfProfileConfig consumer.NfProfileDynamicConfig) {
+		registerCalled = true
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	ch := make(chan consumer.NfProfileDynamicConfig)
+	go StartNfRegistrationService(ctx, ch)
+	close(ch)
+
+	time.Sleep(100 * time.Millisecond)
+
+	if registerCalled {
+		t.Fatal("expected registerNF not to be called after channel close")
+	}
+	if keepAliveTimer != nil {
+		t.Fatal("expected keepAliveTimer to be cleared after channel close")
+	}
+}
+
 func TestNfRegistrationService_ConfigChanged_RetryIfRegisterNFFails(t *testing.T) {
 	originalSendRegisterNFInstance := consumer.SendRegisterNFInstance
 	originalDiscoverUdr := consumer.DiscoverUdr
@@ -139,8 +224,8 @@ func TestNfRegistrationService_ConfigChanged_RetryIfRegisterNFFails(t *testing.T
 	}()
 
 	called := 0
-	consumer.SendRegisterNFInstance = func(nfProfileDynamicConfig consumer.NfProfileDynamicConfig) (models.NfProfile, string, error) {
-		profile := models.NfProfile{HeartBeatTimer: 60}
+	consumer.SendRegisterNFInstance = func(nfProfileDynamicConfig consumer.NfProfileDynamicConfig) (*models.NFProfile, string, error) {
+		profile := &models.NFProfile{HeartBeatTimer: openapi.PtrInt32(60)}
 		called++
 		return profile, "", errors.New("mock error")
 	}
@@ -251,12 +336,12 @@ func TestHeartbeatNF_Success(t *testing.T) {
 		}
 	}()
 
-	consumer.SendUpdateNFInstance = func(patchItem []models.PatchItem) (models.NfProfile, *models.ProblemDetails, error) {
-		return models.NfProfile{}, nil, nil
+	consumer.SendUpdateNFInstance = func(patchItem []models.PatchItem) (*models.NFProfile, *models.ProblemDetails, error) {
+		return &models.NFProfile{}, nil, nil
 	}
-	consumer.SendRegisterNFInstance = func(nfProfileDynamicConfig consumer.NfProfileDynamicConfig) (models.NfProfile, string, error) {
+	consumer.SendRegisterNFInstance = func(nfProfileDynamicConfig consumer.NfProfileDynamicConfig) (*models.NFProfile, string, error) {
 		calledRegister = true
-		profile := models.NfProfile{HeartBeatTimer: 60}
+		profile := &models.NFProfile{HeartBeatTimer: openapi.PtrInt32(60)}
 		return profile, "", nil
 	}
 	nfProfileConfig := consumer.NfProfileDynamicConfig{}
@@ -283,12 +368,12 @@ func TestHeartbeatNF_WhenNfUpdateFails_ThenNfRegistersIsCalled(t *testing.T) {
 		}
 	}()
 
-	consumer.SendUpdateNFInstance = func(patchItem []models.PatchItem) (models.NfProfile, *models.ProblemDetails, error) {
-		return models.NfProfile{}, nil, errors.New("mock error")
+	consumer.SendUpdateNFInstance = func(patchItem []models.PatchItem) (*models.NFProfile, *models.ProblemDetails, error) {
+		return &models.NFProfile{}, nil, errors.New("mock error")
 	}
 
-	consumer.SendRegisterNFInstance = func(nfProfileDynamicConfig consumer.NfProfileDynamicConfig) (models.NfProfile, string, error) {
-		profile := models.NfProfile{HeartBeatTimer: 60}
+	consumer.SendRegisterNFInstance = func(nfProfileDynamicConfig consumer.NfProfileDynamicConfig) (*models.NFProfile, string, error) {
+		profile := &models.NFProfile{HeartBeatTimer: openapi.PtrInt32(60)}
 		calledRegister = true
 		return profile, "", nil
 	}
