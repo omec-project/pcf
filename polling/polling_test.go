@@ -17,6 +17,7 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -29,17 +30,54 @@ import (
 
 const applicationJson = "application/json"
 
+func startTestPollingService(ctx context.Context, webuiURI string, nfProfileConfigChan chan<- consumer.NfProfileDynamicConfig) (context.CancelFunc, <-chan struct{}) {
+	testCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		StartPollingService(testCtx, webuiURI, nfProfileConfigChan)
+	}()
+	return cancel, done
+}
+
+func waitForPollingServiceStop(t *testing.T, cancel context.CancelFunc, done <-chan struct{}) {
+	t.Helper()
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for polling service to stop")
+	}
+}
+
+func waitForPollingCondition(t *testing.T, timeout time.Duration, condition func() bool, failureMessage string) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if condition() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !condition() {
+		t.Fatal(failureMessage)
+	}
+}
+
 func TestStartPollingService_Success(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
 	originalFetchPolicyControlConfig := fetchPolicyControlConfig
 	originalPollingIntervalAfter := pollingIntervalAfter
 	originalPccPolicies := pccPolicies
+	pollingChan := make(chan consumer.NfProfileDynamicConfig, 1)
+	var cancel context.CancelFunc
+	var done <-chan struct{}
 	defer func() {
-		cancel()
+		waitForPollingServiceStop(t, cancel, done)
 		fetchPolicyControlConfig = originalFetchPolicyControlConfig
 		pollingIntervalAfter = originalPollingIntervalAfter
 		pccPolicies = originalPccPolicies
 	}()
+
 	tick := make(chan time.Time, 1)
 	pollingIntervalAfter = func(time.Duration) <-chan time.Time {
 		return tick
@@ -60,12 +98,7 @@ func TestStartPollingService_Success(t *testing.T) {
 		Plmns: map[models.PlmnId]struct{}{{Mcc: "001", Mnc: "01"}: {}},
 		Dnns:  map[string]struct{}{},
 	}
-	pollingChan := make(chan consumer.NfProfileDynamicConfig, 1)
-	done := make(chan struct{})
-	go func() {
-		StartPollingService(ctx, "http://dummy", pollingChan)
-		close(done)
-	}()
+	cancel, done = startTestPollingService(t.Context(), "http://dummy", pollingChan)
 	tick <- time.Now()
 
 	select {
@@ -77,25 +110,27 @@ func TestStartPollingService_Success(t *testing.T) {
 		t.Errorf("Timeout waiting for PLMN config")
 	}
 
-	if len(pccPolicies) == 0 {
-		t.Errorf("expected pccPolicies to be updated")
-	}
+	waitForPollingServiceStop(t, cancel, done)
+	cancel = func() {}
 
-	cancel()
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("polling service did not stop")
+	configLock.RLock()
+	hasPolicies := len(pccPolicies) != 0
+	configLock.RUnlock()
+	if !hasPolicies {
+		t.Errorf("expected pccPolicies to be updated")
 	}
 }
 
 func TestStartPollingService_RetryAfterFailure(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
 	originalFetchPolicyControlConfig := fetchPolicyControlConfig
 	originalPollingIntervalAfter := pollingIntervalAfter
 	originalPccPolicies := pccPolicies
+	pollingChan := make(chan consumer.NfProfileDynamicConfig, 1)
+	var cancel context.CancelFunc
+	var done <-chan struct{}
 
 	defer func() {
+		waitForPollingServiceStop(t, cancel, done)
 		fetchPolicyControlConfig = originalFetchPolicyControlConfig
 		pollingIntervalAfter = originalPollingIntervalAfter
 		pccPolicies = originalPccPolicies
@@ -105,43 +140,28 @@ func TestStartPollingService_RetryAfterFailure(t *testing.T) {
 		return tick
 	}
 
-	callCount := 0
-	fetchCalled := make(chan struct{}, 2)
+	var callCount atomic.Int32
 	fetchPolicyControlConfig = func(p *nfConfigPoller, endpoint string) ([]nfConfigApi.PolicyControl, error) {
-		callCount++
-		fetchCalled <- struct{}{}
+		callCount.Add(1)
 		return nil, errors.New("mock failure")
 	}
-	pollingChan := make(chan consumer.NfProfileDynamicConfig, 1)
-	done := make(chan struct{})
-	go func() {
-		StartPollingService(ctx, "http://dummy", pollingChan)
-		close(done)
-	}()
+	cancel, done = startTestPollingService(context.Background(), "http://dummy", pollingChan)
 
 	tick <- time.Now()
-	select {
-	case <-fetchCalled:
-	case <-time.After(time.Second):
-		t.Fatal("polling service did not process first retry tick")
-	}
+	waitForPollingCondition(t, time.Second, func() bool {
+		return callCount.Load() >= 1
+	}, "polling service did not process first retry tick")
 	tick <- time.Now()
-	select {
-	case <-fetchCalled:
-	case <-time.After(time.Second):
-		t.Fatal("polling service did not process second retry tick")
-	}
-	cancel()
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("polling service did not stop")
-	}
+	waitForPollingCondition(t, time.Second, func() bool {
+		return callCount.Load() >= 2
+	}, "polling service did not process second retry tick")
+	waitForPollingServiceStop(t, cancel, done)
+	cancel = func() {}
 
-	if callCount < 2 {
+	if callCount.Load() < 2 {
 		t.Error("Expected to retry after failure")
 	}
-	t.Logf("Tried %v times", callCount)
+	t.Logf("Tried %v times", callCount.Load())
 }
 
 func TestHandlePolledPolicyControl_ExpectChannelNotToBeUpdated(t *testing.T) {
