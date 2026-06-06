@@ -73,6 +73,8 @@ func RegisterNotifyDispatcher() error {
 }
 
 func DispatchSendSMPolicyUpdateNotifyEvent(uri string, request *models.SmPolicyNotification) {
+	uri = fmt.Sprintf("%s/update", uri)
+	logger.NotifyEventLog.Debugf("DispatchSendSMPolicyUpdateNotifyEvent uri [%s]", uri)
 	if notifyDispatcher == nil {
 		logger.NotifyEventLog.Errorf("notifyDispatcher is nil")
 		return

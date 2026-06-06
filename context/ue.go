@@ -434,21 +434,28 @@ func (ue *UeContext) SMPolicyFindByIpv6(v6 string) *UeSmPolicyData {
 func (ue *UeContext) SMPolicyFindByIdentifiersIpv4(
 	v4 string, sNssai *models.Snssai, dnn string, ipDomain string,
 ) *UeSmPolicyData {
-	for _, smPolicy := range ue.SmPolicyData {
+	for id, smPolicy := range ue.SmPolicyData {
 		policyContext := smPolicy.PolicyContext
-		if policyContext.GetIpv4Address() == v4 {
-			if dnn != "" && policyContext.Dnn != dnn {
-				continue
-			}
-			if ipDomain != "" && policyContext.GetIpDomain() != "" && policyContext.GetIpDomain() != ipDomain {
-				continue
-			}
-			if sNssai != nil && !reflect.DeepEqual(sNssai, policyContext.SliceInfo) {
-				continue
-			}
-			return smPolicy
+		if policyContext.GetIpv4Address() != v4 {
+			continue
 		}
+		if dnn != "" && policyContext.GetDnn() != dnn {
+			continue
+		}
+		if ipDomain != "" && policyContext.GetIpDomain() != "" && policyContext.GetIpDomain() != ipDomain {
+			continue
+		}
+		if sNssai != nil && !reflect.DeepEqual(sNssai, policyContext.SliceInfo) {
+			continue
+		}
+
+		logger.CtxLog.Infof("SMPolicy[%s] matched for IPv4: %s", id, v4)
+		return smPolicy
 	}
+
+	logger.CtxLog.Infof(
+		"No matching SMPolicy found for IPv4: %s, DNN: %s, IPDomain: %s, S-NSSAI: %+v",
+		v4, dnn, ipDomain, sNssai)
 	return nil
 }
 
