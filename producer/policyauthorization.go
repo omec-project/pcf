@@ -241,8 +241,8 @@ func handleMediaSubComponent(smPolicy *pcfContext.UeSmPolicyData, medComp *model
 
 		smPolicy.PccRuleIdGenarator++
 	} else {
-		logger.PolicyAuthorizationlog.Debugf("Found existing PCC Rule ID [%s] for FlowInfos", pccRule.GetPccRuleId())
 		pccRule = &existingPccRule
+		logger.PolicyAuthorizationlog.Debugf("Found existing PCC Rule ID [%s] for FlowInfos", pccRule.GetPccRuleId())
 		for _, qosID := range pccRule.RefQosData {
 			qosData := (*smPolicy.PolicyDecision.QosDecs)[qosID]
 			if qosData.GetVar5qi() == var5qi && qosData.GetVar5qi() <= 4 {
@@ -559,11 +559,6 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 			// include QoS data
 			for _, qosID := range pccRule.RefQosData {
 				if qos, ok := (*smPolicy.PolicyDecision.QosDecs)[qosID]; ok {
-					// TODO: SM
-					logger.PolicyAuthorizationlog.Warnf("SM: priority level: %d", *qos.GetArp().PriorityLevel.Get())
-					//qos.Arp.SetPreemptCap(models.PREEMPTIONCAPABILITY_MAY_PREEMPT)
-					//qos.Arp.SetPreemptVuln(models.PREEMPTIONVULNERABILITY_NOT_PREEMPTABLE)
-					//
 					qosDecs[qosID] = qos
 				}
 			}
@@ -622,8 +617,8 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 		SmPolicyData:      smPolicy,
 	}
 	logger.PolicyAuthorizationlog.Infof("Created/updated AppSession with ID [%s]", appSessID)
-	logger.PolicyAuthorizationlog.Infof("AppSession Context: %+v", appSessCtx)
-	logger.PolicyAuthorizationlog.Infof("SM Policy associated with AppSession [%s]: %+v", appSessID, smPolicy)
+	logger.PolicyAuthorizationlog.Debugf("AppSession Context: %+v", appSessCtx)
+	logger.PolicyAuthorizationlog.Debugf("SM Policy associated with AppSession [%s]: %+v", appSessID, smPolicy)
 	if len(relatedPccRuleIds) > 0 {
 		data.RelatedPccRuleIds = relatedPccRuleIds
 		data.PccRuleIdMapToCompId = reverseStringMap(relatedPccRuleIds)
@@ -711,12 +706,16 @@ func handleCombinedMediaSubComponents(
 
 		// Print Qos IDs linked to this PCC Rule
 		if len(rule.RefQosData) > 0 {
-			for _, qosRef := range rule.RefQosData {
-				qosData, ok := (*smPolicy.PolicyDecision.QosDecs)[qosRef]
-				if ok {
-					logger.PolicyAuthorizationlog.Debugf("  QosData ID: [%s]", qosData.GetQosId())
-				} else {
-					logger.PolicyAuthorizationlog.Warnf("  QosData reference [%s] not found", qosRef)
+			if smPolicy.PolicyDecision.QosDecs == nil {
+				logger.PolicyAuthorizationlog.Warnf("  QosDecs is nil; cannot resolve RefQosData for PCC Rule [%s]", id)
+			} else {
+				for _, qosRef := range rule.RefQosData {
+					qosData, ok := (*smPolicy.PolicyDecision.QosDecs)[qosRef]
+					if ok {
+						logger.PolicyAuthorizationlog.Debugf("  QosData ID: [%s]", qosData.GetQosId())
+					} else {
+						logger.PolicyAuthorizationlog.Warnf("  QosData reference [%s] not found", qosRef)
+					}
 				}
 			}
 		}
@@ -767,7 +766,11 @@ func handleCombinedMediaSubComponents(
 			smPolicy.PackFiltIdGenarator++
 		}
 		pccRule.FlowInfos = flowInfos
-		tcData := util.CreateTcData(smPolicy.PccRuleIdGenarator, "", medSubComps[0].GetFStatus())
+		flowStatus := medComp.GetFStatus()
+		if len(medSubComps) > 0 {
+			flowStatus = medSubComps[0].GetFStatus()
+		}
+		tcData := util.CreateTcData(smPolicy.PccRuleIdGenarator, "", flowStatus)
 		util.SetPccRuleRelatedData(smPolicy.PolicyDecision, pccRule, tcData, &qosData, nil, nil)
 		smPolicy.PccRuleIdGenarator++
 		logger.PolicyAuthorizationlog.Debugf("PCC Rule ID [%s]", pccRule.GetPccRuleId())
@@ -2123,7 +2126,6 @@ func provisioningOfTrafficRoutingInfo(smPolicy *pcfContext.UeSmPolicyData, appID
 			}
 		} else {
 			// tcID's number equals to pccRuleID's number
-			tcID = strings.ReplaceAll(pccRule.PccRuleId, "PccRule", "Tc")
 			tcData = util.CreateTcData(0, tcID, fStatus)
 			pccRule.RefTcData = []string{tcID}
 		}

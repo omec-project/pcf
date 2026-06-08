@@ -449,11 +449,11 @@ func (ue *UeContext) SMPolicyFindByIdentifiersIpv4(
 			continue
 		}
 
-		logger.CtxLog.Infof("SMPolicy[%s] matched for IPv4: %s", id, v4)
+		logger.CtxLog.Debugf("SMPolicy[%s] matched for IPv4: %s", id, v4)
 		return smPolicy
 	}
 
-	logger.CtxLog.Infof(
+	logger.CtxLog.Debugf(
 		"No matching SMPolicy found for IPv4: %s, DNN: %s, IPDomain: %s, S-NSSAI: %+v",
 		v4, dnn, ipDomain, sNssai)
 	return nil

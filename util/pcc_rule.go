@@ -49,7 +49,7 @@ func GetUmId(sponId, aspId string) string {
 	return fmt.Sprintf("umId-%s-%s", sponId, aspId)
 }
 
-// Get Packet Filter Identity(PackFiltId-%d)
+// Get Packet Filter Id returns the Packet filter Id as a plain numeric string.
 func GetPackFiltId(id int32) string {
 	return fmt.Sprintf("%d", id)
 }

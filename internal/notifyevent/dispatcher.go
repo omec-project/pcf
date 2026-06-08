@@ -73,7 +73,12 @@ func RegisterNotifyDispatcher() error {
 }
 
 func DispatchSendSMPolicyUpdateNotifyEvent(uri string, request *models.SmPolicyNotification) {
-	uri = fmt.Sprintf("%s/update", uri)
+	if len(uri) > 0 && uri[len(uri)-1] == '/' {
+		uri = uri[:len(uri)-1]
+	}
+	if len(uri) < 7 || uri[len(uri)-7:] != "/update" {
+		uri = fmt.Sprintf("%s/update", uri)
+	}
 	logger.NotifyEventLog.Debugf("DispatchSendSMPolicyUpdateNotifyEvent uri [%s]", uri)
 	if notifyDispatcher == nil {
 		logger.NotifyEventLog.Errorf("notifyDispatcher is nil")
