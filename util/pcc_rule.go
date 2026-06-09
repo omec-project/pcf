@@ -64,9 +64,8 @@ func CreatePccRule(id, precedence int32, flowInfo []models.FlowInformation, appI
 }
 
 func CreateQosData(id, var5qi, arp int32) models.QosData {
-	qosId := GetQosId(id)
 	return models.QosData{
-		QosId:  qosId,
+		QosId:  GetQosId(id),
 		Var5qi: openapi.PtrInt32(var5qi),
 		Arp: &models.Arp{
 			PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(arp)),

@@ -403,7 +403,7 @@ func (ue *UeContext) AllocUeAppSessionId(context *PCFContext) string {
 	var allocID int64
 	var err error
 	if allocID, err = ue.AppSessionIDGenerator.Allocate(); err != nil {
-		logger.CtxLog.Warnf("Allocate AppSessionId error: %+v", err)
+		logger.CtxLog.Warnf("allocate AppSessionId error: %+v", err)
 		return ""
 	}
 	appSessionID := fmt.Sprintf("%s-%d", ue.Supi, allocID)
@@ -449,12 +449,12 @@ func (ue *UeContext) SMPolicyFindByIdentifiersIpv4(
 			continue
 		}
 
-		logger.CtxLog.Debugf("SMPolicy[%s] matched for IPv4: %s", id, v4)
+		logger.CtxLog.Debugf("smPolicy[%s] matched for IPv4: %s", id, v4)
 		return smPolicy
 	}
 
 	logger.CtxLog.Debugf(
-		"No matching SMPolicy found for IPv4: %s, DNN: %s, IPDomain: %s, S-NSSAI: %+v",
+		"no matching SMPolicy found for IPv4: %s, DNN: %s, IPDomain: %s, S-NSSAI: %+v",
 		v4, dnn, ipDomain, sNssai)
 	return nil
 }
