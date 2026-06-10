@@ -73,7 +73,11 @@ func RegisterNotifyDispatcher() error {
 }
 
 func DispatchSendSMPolicyUpdateNotifyEvent(uri string, request *models.SmPolicyNotification) {
-	if len(uri) > 0 && uri[len(uri)-1] == '/' {
+	if uri == "" {
+		logger.NotifyEventLog.Errorf("DispatchSendSMPolicyUpdateNotifyEvent: empty uri")
+		return
+	}
+	if uri[len(uri)-1] == '/' {
 		uri = uri[:len(uri)-1]
 	}
 	if len(uri) < 7 || uri[len(uri)-7:] != "/update" {

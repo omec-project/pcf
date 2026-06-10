@@ -447,8 +447,8 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 				maxPrecedence++
 				logger.PolicyAuthorizationlog.Debugf("new PCC Rule created: RuleID: %s, AppID: %s, QosID: %s", pccRule.GetPccRuleId(), appID, qosData.GetQosId())
 			} else {
-				logger.PolicyAuthorizationlog.Debugf("found existing PCC Rule for AppID: %s, RuleID: %s", appID, pccRule.GetPccRuleId())
 				pccRule = &existingPccRule
+				logger.PolicyAuthorizationlog.Debugf("found existing PCC Rule for AppID: %s, RuleID: %s", appID, pccRule.GetPccRuleId())
 				// update pccRule's qos
 				for _, qosID := range pccRule.RefQosData {
 					qosData := (*smPolicy.PolicyDecision.QosDecs)[qosID]
@@ -800,7 +800,7 @@ func handleCombinedMediaSubComponents(
 		for _, nf := range flowInfos {
 			found := false
 			for _, ef := range pccRule.FlowInfos {
-				if ef.FlowDescription == nf.FlowDescription {
+				if ef.GetFlowDescription() == nf.GetFlowDescription() {
 					found = true
 					break
 				}
@@ -2126,6 +2126,7 @@ func provisioningOfTrafficRoutingInfo(smPolicy *pcfContext.UeSmPolicyData, appID
 			}
 		} else {
 			// tcID's number equals to pccRuleID's number
+			tcID = strings.ReplaceAll(pccRule.PccRuleId, "PccRule", "Tc")
 			tcData = util.CreateTcData(0, tcID, fStatus)
 			pccRule.RefTcData = []string{tcID}
 		}
