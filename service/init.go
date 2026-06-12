@@ -40,8 +40,6 @@ import (
 	"github.com/omec-project/util/http2_util"
 	utilLogger "github.com/omec-project/util/logger"
 	"github.com/urfave/cli/v3"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 type PCF struct{}
@@ -94,41 +92,15 @@ func (pcf *PCF) Initialize(c *cli.Command) error {
 }
 
 func (pcf *PCF) setLogLevel() {
-	if factory.PcfConfig.Logger == nil {
+	cfgLogger := factory.PcfConfig.Logger
+	if cfgLogger == nil {
 		logger.InitLog.Warnln("PCF config without log level setting")
 		return
 	}
 
-	if factory.PcfConfig.Logger.PCF != nil {
-		if factory.PcfConfig.Logger.PCF.DebugLevel != "" {
-			if level, err := zapcore.ParseLevel(factory.PcfConfig.Logger.PCF.DebugLevel); err != nil {
-				logger.InitLog.Warnf("PCF Log level [%s] is invalid, set to [info] level",
-					factory.PcfConfig.Logger.PCF.DebugLevel)
-				logger.SetLogLevel(zap.InfoLevel)
-			} else {
-				logger.InitLog.Infof("PCF Log level is set to [%s] level", level)
-				logger.SetLogLevel(level)
-			}
-		} else {
-			logger.InitLog.Infoln("PCF Log level is default set to [info] level")
-			logger.SetLogLevel(zap.InfoLevel)
-		}
-	}
-
-	if factory.PcfConfig.Logger.OpenApi != nil {
-		if factory.PcfConfig.Logger.OpenApi.DebugLevel != "" {
-			if level, err := zapcore.ParseLevel(factory.PcfConfig.Logger.OpenApi.DebugLevel); err != nil {
-				openapiLogger.OpenapiLog.Warnf("OpenAPI Log level [%s] is invalid, set to [info] level",
-					factory.PcfConfig.Logger.OpenApi.DebugLevel)
-				openapiLogger.SetLogLevel(zap.InfoLevel)
-			} else {
-				openapiLogger.SetLogLevel(level)
-			}
-		} else {
-			openapiLogger.OpenapiLog.Warnln("OpenAPI Log level not set. Default set to [info] level")
-			openapiLogger.SetLogLevel(zap.InfoLevel)
-		}
-	}
+	utilLogger.ApplyLogSetting("PCF", cfgLogger.PCF, logger.InitLog, logger.SetLogLevel)
+	utilLogger.ApplyLogSetting("OpenApi", cfgLogger.OpenApi, openapiLogger.OpenapiLog, openapiLogger.SetLogLevel)
+	utilLogger.ApplyLogSetting("Util", cfgLogger.Util, utilLogger.UtilLog, utilLogger.SetLogLevel)
 }
 
 func (pcf *PCF) Start() {
