@@ -205,7 +205,7 @@ func handleMediaSubComponent(smPolicy *pcfContext.UeSmPolicyData, medComp *model
 		logger.PolicyAuthorizationlog.Debugf("no existing PCC Rule found for FlowInfos. Creating new PCC Rule for FNum [%d]", medSubComp.GetFNum())
 		maxPrecedence := getMaxPrecedence(smPolicy.PolicyDecision.GetPccRules())
 		pccRule = util.CreatePccRule(smPolicy.PccRuleIdGenarator, maxPrecedence+1, nil, "")
-		logger.PolicyAuthorizationlog.Debugf("created new PCC Rule ID [%s]", pccRule.PccRuleId)
+		logger.PolicyAuthorizationlog.Debugf("created new PCC Rule ID [%s]", pccRule.GetPccRuleId())
 
 		// Create QoS Data
 		qosData := util.CreateQosData(smPolicy.PccRuleIdGenarator, var5qi, arp)
@@ -217,7 +217,7 @@ func handleMediaSubComponent(smPolicy *pcfContext.UeSmPolicyData, medComp *model
 			logger.PolicyAuthorizationlog.Debugf("updated QoS Data (UL: %v, DL: %v)", ul, dl)
 
 			if problemDetails := modifyRemainBitRate(smPolicy, &qosData, ul, dl); problemDetails != nil {
-				logger.PolicyAuthorizationlog.Errorln("modifyRemainBitRate failed:", problemDetails.Detail)
+				logger.PolicyAuthorizationlog.Errorln("modifyRemainBitRate failed:", problemDetails.GetDetail())
 				return nil, problemDetails
 			}
 		}
@@ -250,7 +250,7 @@ func handleMediaSubComponent(smPolicy *pcfContext.UeSmPolicyData, medComp *model
 				qosData, ul, dl = updateQosInMedSubComp(&qosData, medComp, medSubComp)
 				logger.PolicyAuthorizationlog.Debugf("updating existing QoS ID [%s] (UL: %v, DL: %v)", qosData.GetQosId(), ul, dl)
 				if problemDetails := modifyRemainBitRate(smPolicy, &qosData, ul, dl); problemDetails != nil {
-					logger.PolicyAuthorizationlog.Errorf("modifyRemainBitRate failed for existing QoS ID [%s]: %s", qosData.QosId, problemDetails.Detail)
+					logger.PolicyAuthorizationlog.Errorf("modifyRemainBitRate failed for existing QoS ID [%s]: %s", qosData.GetQosId(), problemDetails.GetDetail())
 					return nil, problemDetails
 				}
 				(*smPolicy.PolicyDecision.QosDecs)[qosData.GetQosId()] = qosData
@@ -319,12 +319,12 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 		return appSessCtx, locationHeader, nil
 	}
 	if ascReqData.Get().GetUeIpv4() == "" && ascReqData.Get().GetUeIpv6() == "" && ascReqData.Get().GetUeMac() == "" {
-		logger.PolicyAuthorizationlog.Error("UE address identifiers are all empty (IPv4/IPv6/MAC)")
+		logger.PolicyAuthorizationlog.Errorln("UE address identifiers are all empty (IPv4/IPv6/MAC)")
 		problemDetail := util.GetProblemDetail("Ue UeIpv4 and UeIpv6 and UeMac are all empty", util.ERROR_REQUEST_PARAMETERS)
 		return nil, "", problemDetail
 	}
 	if ascReqData.Get().AfRoutReq != nil && ascReqData.Get().GetDnn() == "" {
-		logger.PolicyAuthorizationlog.Error("DNN missing when AF Routing Requirement is provided")
+		logger.PolicyAuthorizationlog.Errorln("DNN missing when AF Routing Requirement is provided")
 		problemDetail := util.GetProblemDetail("DNN shall be present", util.ERROR_REQUEST_PARAMETERS)
 		return nil, "", problemDetail
 	}
@@ -461,7 +461,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 							logger.PolicyAuthorizationlog.Errorf("failed to modify remaining bitrate during QoS update: %v", problemDetails)
 							return nil, "", problemDetails
 						}
-						(*smPolicy.PolicyDecision.QosDecs)[qosData.QosId] = qosData
+						(*smPolicy.PolicyDecision.QosDecs)[qosData.GetQosId()] = qosData
 						logger.PolicyAuthorizationlog.Debugf("QoS Data updated: QosID: %s", qosData.GetQosId())
 					}
 				}
@@ -823,7 +823,7 @@ func handleCombinedMediaSubComponents(
 	}
 	logger.PolicyAuthorizationlog.Debugf("RefQosData:")
 	for _, qosRef := range pccRule.RefQosData {
-		qosData, ok := (*smPolicy.PolicyDecision.QosDecs)[qosRef]
+		qosData, ok := (smPolicy.PolicyDecision.GetQosDecs())[qosRef]
 		if ok {
 			logger.PolicyAuthorizationlog.Debugf("QosId: %s, 5QI: %d", qosData.GetQosId(), qosData.GetVar5qi())
 		} else {

@@ -64,6 +64,9 @@ func (d *Dispatcher) Dispatch(eventName string, data any) error {
 
 var notifyDispatcher *Dispatcher
 
+// Notify uri doesnt have /update by default, so add before sending request
+const updateNotifyuri = "/update"
+
 func RegisterNotifyDispatcher() error {
 	notifyDispatcher = NewDispatcher()
 	if err := notifyDispatcher.Register(NotifyListener{}, SendSMpolicyUpdateNotifyEventName); err != nil {
@@ -80,8 +83,8 @@ func DispatchSendSMPolicyUpdateNotifyEvent(uri string, request *models.SmPolicyN
 	if uri[len(uri)-1] == '/' {
 		uri = uri[:len(uri)-1]
 	}
-	if len(uri) < 7 || uri[len(uri)-7:] != "/update" {
-		uri = fmt.Sprintf("%s/update", uri)
+	if len(uri) < 7 || uri[len(uri)-7:] != updateNotifyuri {
+		uri = fmt.Sprintf("%s%s", uri, updateNotifyuri)
 	}
 	logger.NotifyEventLog.Debugf("DispatchSendSMPolicyUpdateNotifyEvent uri [%s]", uri)
 	if notifyDispatcher == nil {
