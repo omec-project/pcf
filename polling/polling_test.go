@@ -619,6 +619,12 @@ func TestFetchPlmnConfig(t *testing.T) {
 		t.Fail()
 	}
 
+	var expectedPolicyControl []nfConfigApi.PolicyControl
+	err = json.Unmarshal(validJson, &expectedPolicyControl)
+	if err != nil {
+		t.Fatalf("failed to unmarshal expectedPolicyControl: %v", err)
+	}
+
 	tests := []struct {
 		name           string
 		statusCode     int
@@ -633,7 +639,7 @@ func TestFetchPlmnConfig(t *testing.T) {
 			contentType:    applicationJson,
 			responseBody:   string(validJson),
 			expectedError:  "",
-			expectedResult: validPolicyControl,
+			expectedResult: expectedPolicyControl,
 		},
 		{
 			name:          "200 OK with invalid Content-Type",
