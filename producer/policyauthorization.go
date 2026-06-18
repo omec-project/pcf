@@ -663,10 +663,11 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 		logger.PolicyAuthorizationlog.Debugf("AccessType and RatType set for ACCESS_TYPE_CHANGE")
 	}
 	if evsNotif.EvNotifs == nil {
-		evsNotif = models.EventsNotification{}
+		appSessCtx.EvsNotif = nil
 		logger.PolicyAuthorizationlog.Debugln("no event notifications to include in App Session Context")
+	} else {
+		appSessCtx.SetEvsNotif(evsNotif)
 	}
-	appSessCtx.SetEvsNotif(evsNotif)
 	pcfSelf.AppSessionPool.Store(appSessID, &data)
 	locationHeader := util.GetResourceUri(models.SERVICENAME_NPCF_POLICYAUTHORIZATION, appSessID)
 	logger.PolicyAuthorizationlog.Infof("app session Id[%s] Create", appSessID)
@@ -681,7 +682,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 		if err != nil {
 			logger.PolicyAuthorizationlog.Errorf("failed to marshal SmPolicyDecision: %+v", err)
 		} else {
-			logger.PolicyAuthorizationlog.Infof("smPolicyDecision data: %s", string(decisionJSON))
+			logger.PolicyAuthorizationlog.Debugf("smPolicyDecision data: %s", string(decisionJSON))
 		}
 		notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(smPolicy.PolicyContext.NotificationUri, &notification)
 	}
@@ -695,6 +696,7 @@ func handleCombinedMediaSubComponents(
 	var5qi int32,
 	flowInfos []models.FlowInformation,
 ) (*models.PccRule, *models.ProblemDetails) {
+	/* //Below section used for debug purpose
 	// Print all existing PCC Rule IDs before creating new ones
 	for id, rule := range smPolicy.PolicyDecision.PccRules {
 		logger.PolicyAuthorizationlog.Debugf("existing PCC Rule ID: [%s]", id)
@@ -720,6 +722,7 @@ func handleCombinedMediaSubComponents(
 			}
 		}
 	}
+	*/
 
 	// Step 1: Try to find an existing PCC Rule that matches the given FlowInfos
 	_, existingPccRule, found := util.GetPccRuleByFlowInfos(smPolicy.PolicyDecision.PccRules, flowInfos)

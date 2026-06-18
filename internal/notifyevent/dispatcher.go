@@ -64,7 +64,7 @@ func (d *Dispatcher) Dispatch(eventName string, data any) error {
 
 var notifyDispatcher *Dispatcher
 
-// Notify uri doesnt have /update by default, so add before sending request
+// Notify URI doesn't have /update by default, so add it before sending the request
 const updateNotifyuri = "/update"
 
 func RegisterNotifyDispatcher() error {
