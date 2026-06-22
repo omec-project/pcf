@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"reflect"
 
-	"github.com/mohae/deepcopy"
 	"github.com/omec-project/openapi/v2"
 	"github.com/omec-project/openapi/v2/models"
 	"github.com/omec-project/openapi/v2/utils"
@@ -227,7 +226,12 @@ func PostPoliciesProcedure(polAssoId string,
 	}
 	ue.UdrUri = udrUri
 
-	response.Request = deepcopy.Copy(&policyAssociationRequest).(*models.PolicyAssociationRequest)
+	var reqCopy models.PolicyAssociationRequest
+	if err := util.DeepCopyViaJSON(policyAssociationRequest, &reqCopy); err != nil {
+		logger.AMpolicylog.Errorf("failed to copy policy association request: %v", err)
+		return nil, "", utils.ProblemDetailsSystemFailure("failed to copy policy association request")
+	}
+	response.Request = &reqCopy
 	assolId := fmt.Sprintf("%s-%d", ue.Supi, ue.PolAssociationIDGenerator)
 	amPolicy := ue.AMPolicyData[assolId]
 

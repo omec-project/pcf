@@ -15,7 +15,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mohae/deepcopy"
 	"github.com/omec-project/openapi/v2"
 	"github.com/omec-project/openapi/v2/models"
 	"github.com/omec-project/openapi/v2/utils"
@@ -270,13 +269,28 @@ func initSmPolicyDecisionFromPccPolicy(pccPolicy *polling.PccPolicy) models.SmPo
 	traffContDecs := make(map[string]models.TrafficControlData)
 	decision := models.NewSmPolicyDecision()
 	for id, rule := range pccPolicy.PccRules {
-		pccRules[id] = deepcopy.Copy(*rule).(models.PccRule)
+		var cp models.PccRule
+		if err := util.DeepCopyViaJSON(*rule, &cp); err != nil {
+			logger.SMpolicylog.Errorf("failed to copy PCC rule %s: %v", id, err)
+			continue
+		}
+		pccRules[id] = cp
 	}
 	for id, qos := range pccPolicy.QosDecs {
-		qosDecs[id] = deepcopy.Copy(*qos).(models.QosData)
+		var cp models.QosData
+		if err := util.DeepCopyViaJSON(*qos, &cp); err != nil {
+			logger.SMpolicylog.Errorf("failed to copy QoS data %s: %v", id, err)
+			continue
+		}
+		qosDecs[id] = cp
 	}
 	for id, tc := range pccPolicy.TraffContDecs {
-		traffContDecs[id] = deepcopy.Copy(*tc).(models.TrafficControlData)
+		var cp models.TrafficControlData
+		if err := util.DeepCopyViaJSON(*tc, &cp); err != nil {
+			logger.SMpolicylog.Errorf("failed to copy traffic control data %s: %v", id, err)
+			continue
+		}
+		traffContDecs[id] = cp
 	}
 	decision.SetSessRules(sessRules) // This is just to initialize the map/pointer
 	decision.SetPccRules(pccRules)
