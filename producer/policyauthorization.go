@@ -557,16 +557,20 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 			pccRules[pccRuleID] = pccRule
 
 			// include QoS data
-			for _, qosID := range pccRule.RefQosData {
-				if qos, ok := (*smPolicy.PolicyDecision.QosDecs)[qosID]; ok {
-					qosDecs[qosID] = qos
+			if smPolicy.PolicyDecision.QosDecs != nil {
+				for _, qosID := range pccRule.RefQosData {
+					if qos, ok := (*smPolicy.PolicyDecision.QosDecs)[qosID]; ok {
+						qosDecs[qosID] = qos
+					}
 				}
 			}
 
 			// include Traffic Control data
-			for _, tcID := range pccRule.RefTcData {
-				if tc, ok := (*smPolicy.PolicyDecision.TraffContDecs)[tcID]; ok {
-					traffContDecs[tcID] = tc
+			if smPolicy.PolicyDecision.TraffContDecs != nil {
+				for _, tcID := range pccRule.RefTcData {
+					if tc, ok := (*smPolicy.PolicyDecision.TraffContDecs)[tcID]; ok {
+						traffContDecs[tcID] = tc
+					}
 				}
 			}
 		}
@@ -785,14 +789,17 @@ func handleCombinedMediaSubComponents(
 		logger.PolicyAuthorizationlog.Infof("found existing PCC Rule ID [%s]", pccRule.GetPccRuleId())
 
 		if len(pccRule.RefQosData) > 0 {
-			for _, qosRef := range pccRule.RefQosData {
-				qosData, ok := (*smPolicy.PolicyDecision.QosDecs)[qosRef]
-				if ok {
-					logger.PolicyAuthorizationlog.Debugf("existing PCC Rule [%s] has QosData ID [%s]",
-						pccRule.GetPccRuleId(), qosData.GetQosId())
-				} else {
-					logger.PolicyAuthorizationlog.Warnf("existing PCC Rule [%s] has RefQosData [%s] but not found in QosDecs",
-						pccRule.GetPccRuleId(), qosRef)
+			if smPolicy.PolicyDecision.QosDecs == nil {
+				logger.PolicyAuthorizationlog.Warnf("existing PCC Rule [%s] has RefQosData but QosDecs is nil", pccRule.GetPccRuleId())
+			} else {
+				for _, qosRef := range pccRule.RefQosData {
+					if qosData, ok := (*smPolicy.PolicyDecision.QosDecs)[qosRef]; ok {
+						logger.PolicyAuthorizationlog.Debugf("existing PCC Rule [%s] has QosData ID [%s]",
+							pccRule.GetPccRuleId(), qosData.GetQosId())
+					} else {
+						logger.PolicyAuthorizationlog.Warnf("existing PCC Rule [%s] has RefQosData [%s] but not found in QosDecs",
+							pccRule.GetPccRuleId(), qosRef)
+					}
 				}
 			}
 		} else {
