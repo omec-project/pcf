@@ -47,7 +47,7 @@ func getBDTPolicyContextProcedure(bdtPolicyID string) (
 		return bdtPolicy, nil
 	} else {
 		// not found
-		problemDetail := util.GetProblemDetail("Can't find bdtPolicyID related resource", util.CONTEXT_NOT_FOUND)
+		problemDetail := utils.ProblemDetailsContextNotFound("Cannot find bdtPolicyID related resource")
 		logger.Bdtpolicylog.Warnln(problemDetail.GetDetail())
 		return nil, problemDetail
 	}
@@ -81,7 +81,7 @@ func updateBDTPolicyContextProcedure(request models.BdtPolicyDataPatch, bdtPolic
 		bdtPolicy = value.(*models.BdtPolicy)
 	} else {
 		// not found
-		problemDetail := util.GetProblemDetail("Can't find bdtPolicyID related resource", util.CONTEXT_NOT_FOUND)
+		problemDetail := utils.ProblemDetailsContextNotFound("Cannot find bdtPolicyID related resource")
 		logger.Bdtpolicylog.Warnln(problemDetail.GetDetail())
 		return nil, problemDetail
 	}
@@ -118,10 +118,9 @@ func updateBDTPolicyContextProcedure(request models.BdtPolicyDataPatch, bdtPolic
 			return bdtPolicy, nil
 		}
 	}
-	problemDetail := util.GetProblemDetail(
-		fmt.Sprintf("Can't find TransPolicyId[%d] in TransfPolicies with bdtPolicyID[%s]",
-			request.SelTransPolicyId, bdtPolicyID),
-		util.CONTEXT_NOT_FOUND)
+	problemDetail := utils.ProblemDetailsContextNotFound(
+		fmt.Sprintf("Cannot find TransPolicyId[%d] in TransfPolicies with bdtPolicyID[%s]",
+			request.SelTransPolicyId, bdtPolicyID))
 	logger.Bdtpolicylog.Warnln(problemDetail.GetDetail())
 	return nil, problemDetail
 }
@@ -151,10 +150,7 @@ func createBDTPolicyContextProcedure(request *models.BdtReqData) (
 	udrUri := getDefaultUdrUri(pcfSelf)
 	if udrUri == "" {
 		// Can't find any UDR support this Ue
-		problemDetails = models.NewProblemDetails()
-		problemDetails.SetStatus(http.StatusServiceUnavailable)
-		problemDetails.SetCause("UDR_NOT_FOUND")
-		problemDetails.SetDetail("Cannot find any UDR that supports this PCF")
+		problemDetails = utils.ProblemDetailsWithCause("UDR not found", http.StatusServiceUnavailable, "Cannot find any UDR that supports this PCF", utils.CauseUdrNotFound)
 		logger.Bdtpolicylog.Warnln(problemDetails.GetDetail())
 		return nil, nil, problemDetails
 	}
@@ -165,16 +161,15 @@ func createBDTPolicyContextProcedure(request *models.BdtReqData) (
 	apiReadBdtDataRequest := client.BdtDataStoreAPI.ReadBdtData(context.Background())
 	bdtDatas, httpResponse, err := client.BdtDataStoreAPI.ReadBdtDataExecute(apiReadBdtDataRequest)
 	if err != nil || httpResponse == nil || httpResponse.StatusCode != http.StatusOK {
-		problemDetails = models.NewProblemDetails()
-		problemDetails.SetStatus(http.StatusServiceUnavailable)
-		problemDetails.SetCause("UDR_QUERY_FAILED")
+		var detail string
 		if err != nil {
-			problemDetails.SetDetail(err.Error())
+			detail = err.Error()
 		} else if httpResponse == nil {
-			problemDetails.SetDetail("Query to UDR failed: no response")
+			detail = "Query to UDR failed: no response"
 		} else {
-			problemDetails.SetDetail(fmt.Sprintf("Query to UDR failed: unexpected status %s", httpResponse.Status))
+			detail = fmt.Sprintf("Query to UDR failed: unexpected status %s", httpResponse.Status)
 		}
+		problemDetails = utils.ProblemDetailsWithCause("UDR query failed", http.StatusServiceUnavailable, detail, utils.CauseUdrQueryFailed)
 		logger.Bdtpolicylog.Warnln("query to UDR failed")
 		return nil, nil, problemDetails
 	}
@@ -217,10 +212,7 @@ func createBDTPolicyContextProcedure(request *models.BdtReqData) (
 	response.BdtPolData = &bdtPolicyData
 	bdtPolicyID, err := pcfSelf.AllocBdtPolicyID()
 	if err != nil {
-		problemDetails = models.NewProblemDetails()
-		problemDetails.SetStatus(http.StatusServiceUnavailable)
-		problemDetails.SetCause("ALLOC_BDT_POLICY_ID_FAILED")
-		problemDetails.SetDetail("Allocate bdtPolicyID failed")
+		problemDetails = utils.ProblemDetailsWithCause("Allocation failed", http.StatusServiceUnavailable, "Allocate bdtPolicyID failed", utils.CauseAllocBdtPolicyIdFailed)
 		logger.Bdtpolicylog.Warnln("allocate bdtPolicyID failed")
 		return nil, nil, problemDetails
 	}
