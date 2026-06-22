@@ -83,7 +83,7 @@ func DispatchSendSMPolicyUpdateNotifyEvent(uri string, request *models.SmPolicyN
 	if uri[len(uri)-1] == '/' {
 		uri = uri[:len(uri)-1]
 	}
-	if len(uri) < 7 || uri[len(uri)-7:] != updateNotifyuri {
+	if len(uri) < len(updateNotifyuri) || uri[len(uri)-len(updateNotifyuri):] != updateNotifyuri {
 		uri = fmt.Sprintf("%s%s", uri, updateNotifyuri)
 	}
 	logger.NotifyEventLog.Debugf("DispatchSendSMPolicyUpdateNotifyEvent uri [%s]", uri)

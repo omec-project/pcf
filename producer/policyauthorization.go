@@ -364,8 +364,8 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 		// Handle Pcc rules
 		var arp int32 = 1
 		maxPrecedence := getMaxPrecedence(smPolicy.PolicyDecision.PccRules)
+		logger.PolicyAuthorizationlog.Infof("processing %d MediaComponents", len(ascReqData.Get().GetMedComponents()))
 		for _, medComp := range ascReqData.Get().GetMedComponents() {
-			logger.PolicyAuthorizationlog.Infof("processing %d MediaComponents", len(ascReqData.Get().GetMedComponents()))
 			var pccRule *models.PccRule
 			var appID string
 			var routeReq *models.AfRoutingRequirement
@@ -374,7 +374,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 			if medComp.GetMedType() != "" {
 				var5qi = util.MediaTypeTo5qiMap[medComp.GetMedType()]
 			}
-			logger.PolicyAuthorizationlog.Infof("processing Media Component[%d]: AppID=%s", medComp.GetMedCompN(), appID)
+			logger.PolicyAuthorizationlog.Infof("processing Media Component[%d]", medComp.GetMedCompN())
 			if medComp.MedSubComps != nil {
 				logger.PolicyAuthorizationlog.Infof("handling Media Component [%d] with %d sub-components", medComp.MedCompN, len(medComp.GetMedSubComps()))
 				var allFlowInfos []models.FlowInformation
