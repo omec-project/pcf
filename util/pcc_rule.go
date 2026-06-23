@@ -39,7 +39,7 @@ func GetTcId(id int32) string {
 	return fmt.Sprintf("%d", id)
 }
 
-// GetChgId Charging Identity(ChgId-%d)
+// GetChgId returns the Charging ID in the format "ChgId-<id>".
 func GetChgId(id int32) string {
 	return fmt.Sprintf("ChgId-%d", id)
 }

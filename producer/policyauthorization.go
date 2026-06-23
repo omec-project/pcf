@@ -327,7 +327,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 	}
 	if ascReqData.Get().GetUeIpv4() == "" && ascReqData.Get().GetUeIpv6() == "" && ascReqData.Get().GetUeMac() == "" {
 		logger.PolicyAuthorizationlog.Errorln("UE address identifiers are all empty (IPv4/IPv6/MAC)")
-		problemDetail := util.GetProblemDetail("Ue UeIpv4 and UeIpv6 and UeMac are all empty", util.ERROR_REQUEST_PARAMETERS)
+		problemDetail := util.GetProblemDetail("UE address identifiers are all empty (IPv4/IPv6/MAC)", util.ERROR_REQUEST_PARAMETERS)
 		return nil, "", problemDetail
 	}
 	if ascReqData.Get().AfRoutReq != nil && ascReqData.Get().GetDnn() == "" {
