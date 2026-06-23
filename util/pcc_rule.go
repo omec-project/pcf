@@ -39,22 +39,22 @@ func GetTcId(id int32) string {
 	return fmt.Sprintf("%d", id)
 }
 
-// Get Charging Identity(ChgId-%d)
+// GetChgId Charging Identity(ChgId-%d)
 func GetChgId(id int32) string {
 	return fmt.Sprintf("ChgId-%d", id)
 }
 
-// Get Charging Identity(ChgId-%d)
+// GetUmId Um Identity(ChgId-%d)
 func GetUmId(sponId, aspId string) string {
 	return fmt.Sprintf("umId-%s-%s", sponId, aspId)
 }
 
-// Get Packet Filter Id returns the Packet filter Id as a plain numeric string.
+// GetPackFiltId returns the Packet filter Id as a plain numeric string.
 func GetPackFiltId(id int32) string {
 	return fmt.Sprintf("%d", id)
 }
 
-// Create Pcc Rule with param id, precedence, flow information, appID
+// CreatePccRule with param id, precedence, flow information, appID
 func CreatePccRule(id, precedence int32, flowInfo []models.FlowInformation, appID string) *models.PccRule {
 	rule := models.NewPccRule(GetPccRuleId(id))
 	rule.SetAppId(appID)
