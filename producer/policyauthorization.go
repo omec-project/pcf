@@ -259,7 +259,8 @@ func handleMediaSubComponent(smPolicy *pcfContext.UeSmPolicyData, medComp *model
 				}
 			} else {
 				logger.PolicyAuthorizationlog.Errorf("PolicyDecision.QosDecs is nil")
-				return nil, nil
+				problemDetail := util.GetProblemDetail("PolicyDecision.QosDecs is nil", util.PDU_SESSION_NOT_AVAILABLE)
+				return nil, problemDetail
 			}
 		}
 	}
@@ -474,7 +475,8 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 						}
 					} else {
 						logger.PolicyAuthorizationlog.Errorf("smPolicy.PolicyDecision.QosDecs is nil")
-						return nil, "", nil
+						problemDetail := util.GetProblemDetail("smPolicy.PolicyDecision.QosDecs is nil", util.PDU_SESSION_NOT_AVAILABLE)
+						return nil, "", problemDetail
 					}
 				}
 			}
