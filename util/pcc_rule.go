@@ -44,9 +44,10 @@ func GetChgId(id int32) string {
 	return fmt.Sprintf("ChgId-%d", id)
 }
 
-// GetUmId Um Identity(ChgId-%d)
-func GetUmId(sponId, aspId string) string {
-	return fmt.Sprintf("umId-%s-%s", sponId, aspId)
+// GetUmId returns the Usage Monitoring ID for sponsored connectivity.
+// Format: "umId-<aspId>-<sponId>".
+func GetUmId(aspId, sponId string) string {
+	return fmt.Sprintf("umId-%s-%s", aspId, sponId)
 }
 
 // GetPackFiltId returns the Packet filter Id as a plain numeric string.

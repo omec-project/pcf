@@ -608,7 +608,11 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 		}
 		umID := util.GetUmId(ascReqData.Get().GetAspId(), ascReqData.Get().GetSponId())
 		var umData *models.UsageMonitoringData
-		if tempUmData, err := extractUmData(umID, eventSubs, ascReqData.Get().GetEvSubsc().UsgThres); err != nil {
+		var threshold *models.UsageThreshold
+		if ascReqData.Get().EvSubsc != nil {
+			threshold = ascReqData.Get().GetEvSubsc().UsgThres
+		}
+		if tempUmData, err := extractUmData(umID, eventSubs, threshold); err != nil {
 			problemDetail := util.GetProblemDetail(err.Error(), util.REQUESTED_SERVICE_NOT_AUTHORIZED)
 			logger.PolicyAuthorizationlog.Errorf("error extracting UsageMonitoringData: %v", err)
 			return nil, "", problemDetail
