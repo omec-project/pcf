@@ -226,7 +226,7 @@ func handleMediaSubComponent(smPolicy *pcfContext.UeSmPolicyData, medComp *model
 		for i := range flowInfos {
 			flowInfos[i].SetPackFiltId(util.GetPackFiltId(smPolicy.PackFiltIdGenarator))
 			smPolicy.PackFiltMapToPccRuleId[flowInfos[i].GetPackFiltId()] = pccRule.PccRuleId
-			logger.PolicyAuthorizationlog.Infof("assigned PackFiltId [%s] to PCC Rule ID [%s]", flowInfos[i].GetPackFiltId(), pccRule.GetPccRuleId())
+			logger.PolicyAuthorizationlog.Debugf("assigned PackFiltId [%s] to PCC Rule ID [%s]", flowInfos[i].GetPackFiltId(), pccRule.GetPccRuleId())
 			smPolicy.PackFiltIdGenarator++
 		}
 
@@ -244,16 +244,18 @@ func handleMediaSubComponent(smPolicy *pcfContext.UeSmPolicyData, medComp *model
 		pccRule = &existingPccRule
 		logger.PolicyAuthorizationlog.Debugf("found existing PCC Rule ID [%s] for FlowInfos", pccRule.GetPccRuleId())
 		for _, qosID := range pccRule.RefQosData {
-			qosData := (*smPolicy.PolicyDecision.QosDecs)[qosID]
-			if qosData.GetVar5qi() == var5qi && qosData.GetVar5qi() <= 4 {
-				var ul, dl bool
-				qosData, ul, dl = updateQosInMedSubComp(&qosData, medComp, medSubComp)
-				logger.PolicyAuthorizationlog.Debugf("updating existing QoS ID [%s] (UL: %v, DL: %v)", qosData.GetQosId(), ul, dl)
-				if problemDetails := modifyRemainBitRate(smPolicy, &qosData, ul, dl); problemDetails != nil {
-					logger.PolicyAuthorizationlog.Errorf("modifyRemainBitRate failed for existing QoS ID [%s]: %s", qosData.GetQosId(), problemDetails.GetDetail())
-					return nil, problemDetails
+			if smPolicy.PolicyDecision.QosDecs != nil {
+				qosData := (*smPolicy.PolicyDecision.QosDecs)[qosID]
+				if qosData.GetVar5qi() == var5qi && qosData.GetVar5qi() <= 4 {
+					var ul, dl bool
+					qosData, ul, dl = updateQosInMedSubComp(&qosData, medComp, medSubComp)
+					logger.PolicyAuthorizationlog.Debugf("updating existing QoS ID [%s] (UL: %v, DL: %v)", qosData.GetQosId(), ul, dl)
+					if problemDetails := modifyRemainBitRate(smPolicy, &qosData, ul, dl); problemDetails != nil {
+						logger.PolicyAuthorizationlog.Errorf("modifyRemainBitRate failed for existing QoS ID [%s]: %s", qosData.GetQosId(), problemDetails.GetDetail())
+						return nil, problemDetails
+					}
+					(*smPolicy.PolicyDecision.QosDecs)[qosData.GetQosId()] = qosData
 				}
-				(*smPolicy.PolicyDecision.QosDecs)[qosData.GetQosId()] = qosData
 			}
 		}
 	}
@@ -626,16 +628,8 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 	if len(relatedPccRuleIds) > 0 {
 		data.RelatedPccRuleIds = relatedPccRuleIds
 		data.PccRuleIdMapToCompId = reverseStringMap(relatedPccRuleIds)
-		if relatedJSON, err := json.MarshalIndent(relatedPccRuleIds, "", "  "); err != nil {
-			logger.PolicyAuthorizationlog.Errorf("failed to marshal RelatedPccRuleIds: %v", err)
-		} else {
-			logger.PolicyAuthorizationlog.Debugf("relatedPccRuleIds (pretty): %s", string(relatedJSON))
-		}
-		if reversedJSON, err := json.MarshalIndent(data.PccRuleIdMapToCompId, "", "  "); err != nil {
-			logger.PolicyAuthorizationlog.Errorf("failed to marshal PccRuleIdMapToCompId: %v", err)
-		} else {
-			logger.PolicyAuthorizationlog.Debugf("PccRuleIdMapToCompId (pretty): %s", string(reversedJSON))
-		}
+		logger.PolicyAuthorizationlog.Debugw("relatedPccRuleIds", "value", relatedPccRuleIds)
+		logger.PolicyAuthorizationlog.Debugw("PccRuleIdMapToCompId", "value", data.PccRuleIdMapToCompId)
 	}
 
 	evsNotif := models.EventsNotification{}
@@ -682,12 +676,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 			ResourceUri:      openapi.PtrString(util.GetResourceUri(models.SERVICENAME_NPCF_SMPOLICYCONTROL, smPolicyID)),
 			SmPolicyDecision: filteredDecision,
 		}
-		decisionJSON, err := json.MarshalIndent(filteredDecision, "", "  ")
-		if err != nil {
-			logger.PolicyAuthorizationlog.Errorf("failed to marshal SmPolicyDecision: %+v", err)
-		} else {
-			logger.PolicyAuthorizationlog.Debugf("smPolicyDecision data: %s", string(decisionJSON))
-		}
+		logger.PolicyAuthorizationlog.Debugw("smPolicyDecision data", "decision", filteredDecision)
 		notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(smPolicy.PolicyContext.NotificationUri, &notification)
 	}
 	return appSessCtx, locationHeader, nil
@@ -769,7 +758,7 @@ func handleCombinedMediaSubComponents(
 		for i := range flowInfos {
 			flowInfos[i].SetPackFiltId(util.GetPackFiltId(smPolicy.PackFiltIdGenarator))
 			smPolicy.PackFiltMapToPccRuleId[flowInfos[i].GetPackFiltId()] = pccRule.PccRuleId
-			logger.PolicyAuthorizationlog.Infof("assigned PackFiltId [%s] to PCC Rule ID [%s]", flowInfos[i].GetPackFiltId(), pccRule.GetPccRuleId())
+			logger.PolicyAuthorizationlog.Debugf("assigned PackFiltId [%s] to PCC Rule ID [%s]", flowInfos[i].GetPackFiltId(), pccRule.GetPccRuleId())
 			smPolicy.PackFiltIdGenarator++
 		}
 		pccRule.FlowInfos = flowInfos
@@ -840,12 +829,7 @@ func handleCombinedMediaSubComponents(
 			logger.PolicyAuthorizationlog.Warnf("    QosData reference [%s] not found", qosRef)
 		}
 	}
-	pccRuleJSON, err := json.MarshalIndent(pccRule, "", "  ")
-	if err != nil {
-		logger.PolicyAuthorizationlog.Errorf("failed to marshal PCC Rule [%s]: %+v", pccRule.GetPccRuleId(), err)
-	} else {
-		logger.PolicyAuthorizationlog.Debugf("pcc Rule [%s] Full Snapshot:\n%s", pccRule.GetPccRuleId(), string(pccRuleJSON))
-	}
+	logger.PolicyAuthorizationlog.Debugw("pcc rule full snapshot", "pccRuleId", pccRule.GetPccRuleId(), "pccRule", pccRule)
 	return pccRule, nil
 }
 
