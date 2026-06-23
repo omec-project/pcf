@@ -713,8 +713,10 @@ func TestFetchPlmnConfig(t *testing.T) {
 				if err != nil {
 					t.Errorf("expected no error, got `%v`", err)
 				}
-				if marshalJSONForCompare(t, tc.expectedResult) != marshalJSONForCompare(t, fetchedConfig) {
-					t.Errorf("error in fetched config: expected `%v`, got `%v`", tc.expectedResult, fetchedConfig)
+				expectedJSON := marshalJSONForCompare(t, tc.expectedResult)
+				gotJSON := marshalJSONForCompare(t, fetchedConfig)
+				if expectedJSON != gotJSON {
+					t.Errorf("error in fetched config: expected %s, got %s", expectedJSON, gotJSON)
 				}
 			} else {
 				if err == nil {

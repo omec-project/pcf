@@ -761,6 +761,9 @@ func handleCombinedMediaSubComponents(
 		if var5qi <= 4 {
 			var finalUL, finalDL bool
 			for _, medSubComp := range medSubComps {
+				if medSubComp.GetFStatus() == models.FLOWSTATUS_REMOVED {
+					continue
+				}
 				var ul, dl bool
 				qosData, ul, dl = updateQosInMedSubComp(&qosData, medComp, &medSubComp)
 				finalUL = finalUL || ul
@@ -780,8 +783,15 @@ func handleCombinedMediaSubComponents(
 		}
 		pccRule.FlowInfos = flowInfos
 		flowStatus := medComp.GetFStatus()
-		if len(medSubComps) > 0 {
-			flowStatus = medSubComps[0].GetFStatus()
+		for _, sc := range medSubComps {
+			st := sc.GetFStatus()
+			if st == "" {
+				continue
+			}
+			flowStatus = st
+			if st != models.FLOWSTATUS_REMOVED {
+				break
+			}
 		}
 		tcData := util.CreateTcData(smPolicy.PccRuleIdGenarator, "", flowStatus)
 		util.SetPccRuleRelatedData(smPolicy.PolicyDecision, pccRule, tcData, &qosData, nil, nil)
