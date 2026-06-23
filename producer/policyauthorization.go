@@ -245,17 +245,21 @@ func handleMediaSubComponent(smPolicy *pcfContext.UeSmPolicyData, medComp *model
 		logger.PolicyAuthorizationlog.Debugf("found existing PCC Rule ID [%s] for FlowInfos", pccRule.GetPccRuleId())
 		for _, qosID := range pccRule.RefQosData {
 			if smPolicy.PolicyDecision.QosDecs != nil {
-				qosData := (*smPolicy.PolicyDecision.QosDecs)[qosID]
-				if qosData.GetVar5qi() == var5qi && qosData.GetVar5qi() <= 4 {
-					var ul, dl bool
-					qosData, ul, dl = updateQosInMedSubComp(&qosData, medComp, medSubComp)
-					logger.PolicyAuthorizationlog.Debugf("updating existing QoS ID [%s] (UL: %v, DL: %v)", qosData.GetQosId(), ul, dl)
-					if problemDetails := modifyRemainBitRate(smPolicy, &qosData, ul, dl); problemDetails != nil {
-						logger.PolicyAuthorizationlog.Errorf("modifyRemainBitRate failed for existing QoS ID [%s]: %s", qosData.GetQosId(), problemDetails.GetDetail())
-						return nil, problemDetails
+				if qosData, ok := (*smPolicy.PolicyDecision.QosDecs)[qosID]; ok {
+					if qosData.GetVar5qi() == var5qi && qosData.GetVar5qi() <= 4 {
+						var ul, dl bool
+						qosData, ul, dl = updateQosInMedSubComp(&qosData, medComp, medSubComp)
+						logger.PolicyAuthorizationlog.Debugf("updating existing QoS ID [%s] (UL: %v, DL: %v)", qosData.GetQosId(), ul, dl)
+						if problemDetails := modifyRemainBitRate(smPolicy, &qosData, ul, dl); problemDetails != nil {
+							logger.PolicyAuthorizationlog.Errorf("modifyRemainBitRate failed for existing QoS ID [%s]: %s", qosData.GetQosId(), problemDetails.GetDetail())
+							return nil, problemDetails
+						}
+						(*smPolicy.PolicyDecision.QosDecs)[qosData.GetQosId()] = qosData
 					}
-					(*smPolicy.PolicyDecision.QosDecs)[qosData.GetQosId()] = qosData
 				}
+			} else {
+				logger.PolicyAuthorizationlog.Errorf("PolicyDecision.QosDecs is nil")
+				return nil, nil
 			}
 		}
 	}
@@ -453,18 +457,24 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 				logger.PolicyAuthorizationlog.Debugf("found existing PCC Rule for AppID: %s, RuleID: %s", appID, pccRule.GetPccRuleId())
 				// update pccRule's qos
 				for _, qosID := range pccRule.RefQosData {
-					qosData := (*smPolicy.PolicyDecision.QosDecs)[qosID]
-					logger.PolicyAuthorizationlog.Debugf("evaluating existing QoS Data for update: QosID: %s, Var5QI: %d", qosData.GetQosId(), qosData.GetVar5qi())
-					if qosData.GetVar5qi() == var5qi && qosData.GetVar5qi() <= 4 {
-						var ul, dl bool
-						qosData, ul, dl = updateQosInMedComp((*smPolicy.PolicyDecision.QosDecs)[qosID], &medComp)
-						logger.PolicyAuthorizationlog.Infof("QoS Update check passed: QosID: %s, UL changed: %v, DL changed: %v", qosData.GetQosId(), ul, dl)
-						if problemDetails := modifyRemainBitRate(smPolicy, &qosData, ul, dl); problemDetails != nil {
-							logger.PolicyAuthorizationlog.Errorf("failed to modify remaining bitrate during QoS update: %v", problemDetails)
-							return nil, "", problemDetails
+					if smPolicy.PolicyDecision.QosDecs != nil {
+						if qosData, ok := (*smPolicy.PolicyDecision.QosDecs)[qosID]; ok {
+							logger.PolicyAuthorizationlog.Debugf("evaluating existing QoS Data for update: QosID: %s, Var5QI: %d", qosData.GetQosId(), qosData.GetVar5qi())
+							if qosData.GetVar5qi() == var5qi && qosData.GetVar5qi() <= 4 {
+								var ul, dl bool
+								qosData, ul, dl = updateQosInMedComp((*smPolicy.PolicyDecision.QosDecs)[qosID], &medComp)
+								logger.PolicyAuthorizationlog.Infof("QoS Update check passed: QosID: %s, UL changed: %v, DL changed: %v", qosData.GetQosId(), ul, dl)
+								if problemDetails := modifyRemainBitRate(smPolicy, &qosData, ul, dl); problemDetails != nil {
+									logger.PolicyAuthorizationlog.Errorf("failed to modify remaining bitrate during QoS update: %v", problemDetails)
+									return nil, "", problemDetails
+								}
+								(*smPolicy.PolicyDecision.QosDecs)[qosData.GetQosId()] = qosData
+								logger.PolicyAuthorizationlog.Debugf("QoS Data updated: QosID: %s", qosData.GetQosId())
+							}
 						}
-						(*smPolicy.PolicyDecision.QosDecs)[qosData.GetQosId()] = qosData
-						logger.PolicyAuthorizationlog.Debugf("QoS Data updated: QosID: %s", qosData.GetQosId())
+					} else {
+						logger.PolicyAuthorizationlog.Errorf("smPolicy.PolicyDecision.QosDecs is nil")
+						return nil, "", nil
 					}
 				}
 			}
@@ -520,11 +530,13 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 				for _, pccRuleID := range relatedPccRuleIds {
 					pccRule := smPolicy.PolicyDecision.PccRules[pccRuleID]
 					for _, qosID := range pccRule.RefQosData {
-						if qosData, ok := (*smPolicy.PolicyDecision.QosDecs)[qosID]; ok {
-							qosData.Qnc = openapi.PtrBool(true)
-							(*smPolicy.PolicyDecision.QosDecs)[qosID] = qosData
-						} else {
-							logger.PolicyAuthorizationlog.Warnf("  QoS Data reference [%s] not found in PolicyDecision", qosID)
+						if smPolicy.PolicyDecision.QosDecs != nil {
+							if qosData, ok := (*smPolicy.PolicyDecision.QosDecs)[qosID]; ok {
+								qosData.Qnc = openapi.PtrBool(true)
+								(*smPolicy.PolicyDecision.QosDecs)[qosID] = qosData
+							} else {
+								logger.PolicyAuthorizationlog.Warnf("  QoS Data reference [%s] not found in PolicyDecision", qosID)
+							}
 						}
 					}
 				}
@@ -636,7 +648,6 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 	// Set Event Subsciption related Data
 	if len(eventSubs) > 0 {
 		data.Events = eventSubs
-		// data.EventUri = *ascReqData.Get().EvSubsc.NotifUri
 		data.EventUri = ascReqData.Get().EvSubsc.GetNotifUri()
 		logger.PolicyAuthorizationlog.Debugf("registered Evt Sub for App Session ID: %s-NotifUri:[%s]", appSessID, data.EventUri)
 		if _, exist := eventSubs[models.AFEVENTPCF_PLMN_CHG]; exist {
