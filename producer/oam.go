@@ -67,9 +67,7 @@ func OAMGetAmPolicyProcedure(supi string) (response *UEAmPolicys, problemDetails
 		}
 		return response, nil
 	} else {
-		problemDetails = models.NewProblemDetails()
-		problemDetails.SetStatus(http.StatusNotFound)
-		problemDetails.SetCause("CONTEXT_NOT_FOUND")
+		problemDetails = utils.ProblemDetailsContextNotFound("")
 		return nil, problemDetails
 	}
 }
