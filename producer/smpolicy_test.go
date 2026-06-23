@@ -429,3 +429,44 @@ func TestBuildSmPolicyDecision_FallbackToDefault(t *testing.T) {
 		})
 	}
 }
+
+// TestInitSmPolicyDecisionPreservesNullableFields guards against silent loss of openapi
+// Nullable* fields when the cached PccPolicy is copied into the SmPolicyDecision. The
+// QoS max-bitrates (NullableString) and ARP priority (NullableInt32) must survive the
+// JSON deep copy used in initSmPolicyDecisionFromPccPolicy.
+func TestInitSmPolicyDecisionPreservesNullableFields(t *testing.T) {
+	qos := &models.QosData{
+		QosId:   "qos1",
+		MaxbrUl: *openapi.NewNullableString(openapi.PtrString("100 Mbps")),
+		MaxbrDl: *openapi.NewNullableString(openapi.PtrString("200 Mbps")),
+		Arp: &models.Arp{
+			PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(5)),
+			PreemptCap:    models.PREEMPTIONCAPABILITY_NOT_PREEMPT,
+			PreemptVuln:   models.PREEMPTIONVULNERABILITY_NOT_PREEMPTABLE,
+		},
+	}
+	pccPolicy := &polling.PccPolicy{
+		PccRules:      map[string]*models.PccRule{},
+		QosDecs:       map[string]*models.QosData{"qos1": qos},
+		TraffContDecs: map[string]*models.TrafficControlData{},
+	}
+
+	decision := initSmPolicyDecisionFromPccPolicy(pccPolicy)
+
+	got, ok := decision.GetQosDecs()["qos1"]
+	if !ok {
+		t.Fatal("qos1 missing from decision QosDecs")
+	}
+	if v := got.MaxbrUl.Get(); v == nil || *v != "100 Mbps" {
+		t.Errorf("MaxbrUl lost in copy: got %v, want \"100 Mbps\"", v)
+	}
+	if v := got.MaxbrDl.Get(); v == nil || *v != "200 Mbps" {
+		t.Errorf("MaxbrDl lost in copy: got %v, want \"200 Mbps\"", v)
+	}
+	if got.Arp == nil {
+		t.Fatal("Arp lost in copy")
+	}
+	if v := got.Arp.PriorityLevel.Get(); v == nil || *v != 5 {
+		t.Errorf("Arp.PriorityLevel lost in copy: got %v, want 5", v)
+	}
+}
