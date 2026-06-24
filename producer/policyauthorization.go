@@ -1607,7 +1607,27 @@ func getMaxPrecedence(pccRules map[string]models.PccRule) (maxVaule int32) {
 }
 
 func getMaxPccRuleIdNum(pccRules map[string]models.PccRule) int32 {
-	return int32(len(pccRules))
+	var maxVal int32
+	for id := range pccRules {
+		var n int32
+		if _, err := fmt.Sscanf(id, "%d", &n); err == nil {
+			if n > maxVal {
+				maxVal = n
+			}
+			continue
+		}
+		const legacyPrefix = "PccRuleId-"
+		if strings.HasPrefix(id, legacyPrefix) {
+			if _, err := fmt.Sscanf(strings.TrimPrefix(id, legacyPrefix), "%d", &n); err == nil && n > maxVal {
+				maxVal = n
+			}
+		}
+	}
+	if maxVal == 0 {
+		return int32(len(pccRules))
+	} else {
+		return maxVal
+	}
 }
 
 /*
