@@ -11,7 +11,6 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	"github.com/mohae/deepcopy"
 	"github.com/omec-project/openapi/v2"
 	"github.com/omec-project/openapi/v2/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/v2/models"
@@ -179,7 +178,12 @@ func createBDTPolicyContextProcedure(request *models.BdtReqData) (
 		}
 	}()
 	// TODO: decide BDT Policy from other bdt policy data
-	response.BdtReqData = deepcopy.Copy(&request).(*models.BdtReqData)
+	var reqCopy models.BdtReqData
+	if err = util.DeepCopyViaJSON(*request, &reqCopy); err != nil {
+		logger.Bdtpolicylog.Errorf("failed to copy BDT request data: %v", err)
+		return nil, nil, utils.ProblemDetailsSystemFailure("failed to copy BDT request data")
+	}
+	response.BdtReqData = &reqCopy
 	var bdtData *models.BdtData
 	var bdtPolicyData models.BdtPolicyData
 	for _, data := range bdtDatas {
