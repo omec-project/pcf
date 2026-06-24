@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -333,6 +334,12 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 	if ascReqData.Get().AfRoutReq != nil && ascReqData.Get().GetDnn() == "" {
 		logger.PolicyAuthorizationlog.Errorln("DNN missing when AF Routing Requirement is provided")
 		problemDetail := util.GetProblemDetail("DNN shall be present", util.ERROR_REQUEST_PARAMETERS)
+		return nil, "", problemDetail
+	}
+	if ascReqData.Get().EvSubsc != nil && len(ascReqData.Get().GetEvSubsc().Events) > 0 &&
+		ascReqData.Get().EvSubsc.GetNotifUri() == "" {
+		logger.PolicyAuthorizationlog.Errorln("NotifUri missing when AF Event Subscription is provided")
+		problemDetail := util.GetProblemDetail("NotifUri shall be present when AF Event Subscription is provided", util.ERROR_REQUEST_PARAMETERS)
 		return nil, "", problemDetail
 	}
 	var smPolicy *pcfContext.UeSmPolicyData
@@ -1608,47 +1615,38 @@ func getMaxPrecedence(pccRules map[string]models.PccRule) (maxVaule int32) {
 
 func getMaxPccRuleIdNum(pccRules map[string]models.PccRule) int32 {
 	var maxVal int32
+	foundNumericID := false
 	for id := range pccRules {
-		var n int32
-		if _, err := fmt.Sscanf(id, "%d", &n); err == nil {
-			if n > maxVal {
-				maxVal = n
-			}
+		n, ok := parsePccRuleID(id)
+		if !ok {
 			continue
 		}
-		const legacyPrefix = "PccRuleId-"
-		if strings.HasPrefix(id, legacyPrefix) {
-			if _, err := fmt.Sscanf(strings.TrimPrefix(id, legacyPrefix), "%d", &n); err == nil && n > maxVal {
-				maxVal = n
-			}
+		foundNumericID = true
+		if n > maxVal {
+			maxVal = n
 		}
 	}
-	if maxVal == 0 {
+	if !foundNumericID {
 		return int32(len(pccRules))
-	} else {
-		return maxVal
 	}
+	return maxVal
 }
 
-/*
 func parsePccRuleID(id string) (int32, bool) {
-	// Try plain integer
-	if n, err := strconv.Atoi(id); err == nil {
+	if n, err := strconv.ParseInt(id, 10, 32); err == nil {
 		return int32(n), true
 	}
 
-	// Legacy format: "PccRuleId-<n>"
 	const legacyPrefix = "PccRuleId-"
-	if strings.HasPrefix(id, legacyPrefix) {
-		numPart := strings.TrimPrefix(id, legacyPrefix)
-		if n, err := strconv.Atoi(numPart); err == nil {
+	if trimmedID, found := strings.CutPrefix(id, legacyPrefix); found {
+		if n, err := strconv.ParseInt(trimmedID, 10, 32); err == nil {
 			return int32(n), true
 		}
 	}
 
 	return 0, false
 }
-*/
+
 /*
 func getFlowInfos(comp models.MediaComponent) (flows []models.FlowInformation, err error) {
 	for _, subComp := range comp.MedSubComps {
