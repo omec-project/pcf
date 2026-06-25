@@ -204,6 +204,10 @@ func handleMediaSubComponent(smPolicy *pcfContext.UeSmPolicyData, medComp *model
 	var pccRule *models.PccRule
 	if !found {
 		logger.PolicyAuthorizationlog.Debugf("no existing PCC Rule found for FlowInfos. Creating new PCC Rule for FNum [%d]", medSubComp.GetFNum())
+		maxExisting := getMaxPccRuleIdNum(smPolicy.PolicyDecision.GetPccRules())
+		if smPolicy.PccRuleIdGenarator <= maxExisting {
+			smPolicy.PccRuleIdGenarator = maxExisting + 1
+		}
 		maxPrecedence := getMaxPrecedence(smPolicy.PolicyDecision.GetPccRules())
 		pccRule = util.CreatePccRule(smPolicy.PccRuleIdGenarator, maxPrecedence+1, nil, "")
 		logger.PolicyAuthorizationlog.Debugf("created new PCC Rule ID [%s]", pccRule.GetPccRuleId())
@@ -430,6 +434,10 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 			_, existingPccRule, found := util.GetPccRuleByAfAppId(smPolicy.PolicyDecision.PccRules, appID)
 			if !found {
 				logger.PolicyAuthorizationlog.Infof("no existing PCC Rule found for AppID: %s, creating a new one", appID)
+				maxExisting := getMaxPccRuleIdNum(smPolicy.PolicyDecision.PccRules)
+				if smPolicy.PccRuleIdGenarator <= maxExisting {
+					smPolicy.PccRuleIdGenarator = maxExisting + 1
+				}
 				pccRule = util.CreatePccRule(smPolicy.PccRuleIdGenarator, maxPrecedence+1, nil, appID)
 
 				// Set QoS Data
