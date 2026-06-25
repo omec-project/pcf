@@ -336,12 +336,6 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 		problemDetail := util.GetProblemDetail("DNN shall be present", util.ERROR_REQUEST_PARAMETERS)
 		return nil, "", problemDetail
 	}
-	if ascReqData.Get().EvSubsc != nil && len(ascReqData.Get().GetEvSubsc().Events) > 0 &&
-		ascReqData.Get().EvSubsc.GetNotifUri() == "" {
-		logger.PolicyAuthorizationlog.Errorln("NotifUri missing when AF Event Subscription is provided")
-		problemDetail := util.GetProblemDetail("NotifUri shall be present when AF Event Subscription is provided", util.ERROR_REQUEST_PARAMETERS)
-		return nil, "", problemDetail
-	}
 	var smPolicy *pcfContext.UeSmPolicyData
 	if tempSmPolicy, err := pcfSelf.SessionBinding(ascReqData.Get()); err != nil {
 		problemDetail := util.GetProblemDetail(fmt.Sprintf("Session Binding failed[%s]",
@@ -598,10 +592,6 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 			}
 		}
 	}
-	filteredDecision := models.NewSmPolicyDecision()
-	filteredDecision.SetPccRules(pccRules)
-	filteredDecision.SetQosDecs(qosDecs)
-	filteredDecision.SetTraffContDecs(traffContDecs)
 
 	// Initial provisioning of sponsored connectivity information
 	if ascReqData.Get().GetAspId() != "" && ascReqData.Get().GetSponId() != "" {
@@ -693,6 +683,11 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 	pcfSelf.AppSessionPool.Store(appSessID, &data)
 	locationHeader := util.GetResourceUri(models.SERVICENAME_NPCF_POLICYAUTHORIZATION, appSessID)
 	logger.PolicyAuthorizationlog.Infof("app session Id[%s] Create", appSessID)
+
+	filteredDecision := models.NewSmPolicyDecision()
+	filteredDecision.SetPccRules(pccRules)
+	filteredDecision.SetQosDecs(qosDecs)
+	filteredDecision.SetTraffContDecs(traffContDecs)
 	// Send Notification to SMF
 	if updateSMpolicy {
 		smPolicyID := fmt.Sprintf("%s-%d", ue.Supi, smPolicy.PolicyContext.PduSessionId)

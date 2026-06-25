@@ -104,29 +104,6 @@ func TestSendAppSessionTerminationUsesExactCallbackURI(t *testing.T) {
 	}
 }
 
-func TestPostAppSessCtxProcedureRejectsEventSubscriptionWithoutNotifURI(t *testing.T) {
-	appSessionContext := models.NewAppSessionContext()
-	ascReqData := models.NewAppSessionContextReqData("", "")
-	ascReqData.SetUeIpv4("10.0.0.1")
-	ascReqData.EvSubsc = &models.EventsSubscReqData{
-		Events: []models.AfEventSubscription{
-			{Event: models.AFEVENTPCF_ACCESS_TYPE_CHANGE},
-		},
-	}
-	appSessionContext.SetAscReqData(*ascReqData)
-
-	_, _, problemDetails := postAppSessCtxProcedure(appSessionContext)
-	if problemDetails == nil {
-		t.Fatal("expected missing NotifUri to be rejected")
-	}
-	if got, want := problemDetails.GetCause(), util.ERROR_REQUEST_PARAMETERS; got != want {
-		t.Fatalf("unexpected cause %q, want %q", got, want)
-	}
-	if got := problemDetails.GetDetail(); got != "NotifUri shall be present when AF Event Subscription is provided" {
-		t.Fatalf("unexpected detail %q", got)
-	}
-}
-
 func TestHandleCombinedMediaSubComponentsCreatesRuleAndUsesActiveStatus(t *testing.T) {
 	smPolicy := newCombinedMediaTestPolicy()
 	medComp := &models.MediaComponent{FStatus: models.FLOWSTATUS_REMOVED.Ptr()}
