@@ -130,7 +130,7 @@ func TestHandleCombinedMediaSubComponentsCreatesRuleAndUsesActiveStatus(t *testi
 		t.Fatalf("unexpected flow count %d, want %d", got, len(flowInfos))
 	}
 	for index, flowInfo := range pccRule.FlowInfos {
-		if got, want := flowInfo.GetPackFiltId(), string(rune('1'+index)); got != want {
+		if got, want := flowInfo.GetPackFiltId(), util.GetPackFiltId(int32(1+index)); got != want {
 			t.Fatalf("unexpected PackFiltId at index %d: %q, want %q", index, got, want)
 		}
 		if got := smPolicy.PackFiltMapToPccRuleId[flowInfo.GetPackFiltId()]; got != pccRule.GetPccRuleId() {

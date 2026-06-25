@@ -565,33 +565,6 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 	} else {
 		logger.PolicyAuthorizationlog.Infof("no AF Event Subscriptions present in request")
 	}
-	pccRules := make(map[string]models.PccRule)
-	qosDecs := make(map[string]models.QosData)
-	traffContDecs := make(map[string]models.TrafficControlData)
-
-	for _, pccRuleID := range relatedPccRuleIds {
-		if pccRule, ok := smPolicy.PolicyDecision.PccRules[pccRuleID]; ok {
-			pccRules[pccRuleID] = pccRule
-
-			// include QoS data
-			if smPolicy.PolicyDecision.QosDecs != nil {
-				for _, qosID := range pccRule.RefQosData {
-					if qos, ok := (*smPolicy.PolicyDecision.QosDecs)[qosID]; ok {
-						qosDecs[qosID] = qos
-					}
-				}
-			}
-
-			// include Traffic Control data
-			if smPolicy.PolicyDecision.TraffContDecs != nil {
-				for _, tcID := range pccRule.RefTcData {
-					if tc, ok := (*smPolicy.PolicyDecision.TraffContDecs)[tcID]; ok {
-						traffContDecs[tcID] = tc
-					}
-				}
-			}
-		}
-	}
 
 	// Initial provisioning of sponsored connectivity information
 	if ascReqData.Get().GetAspId() != "" && ascReqData.Get().GetSponId() != "" {
@@ -684,6 +657,33 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 	locationHeader := util.GetResourceUri(models.SERVICENAME_NPCF_POLICYAUTHORIZATION, appSessID)
 	logger.PolicyAuthorizationlog.Infof("app session Id[%s] Create", appSessID)
 
+	pccRules := make(map[string]models.PccRule)
+	qosDecs := make(map[string]models.QosData)
+	traffContDecs := make(map[string]models.TrafficControlData)
+
+	for _, pccRuleID := range relatedPccRuleIds {
+		if pccRule, ok := smPolicy.PolicyDecision.PccRules[pccRuleID]; ok {
+			pccRules[pccRuleID] = pccRule
+
+			// include QoS data
+			if smPolicy.PolicyDecision.QosDecs != nil {
+				for _, qosID := range pccRule.RefQosData {
+					if qos, ok := (*smPolicy.PolicyDecision.QosDecs)[qosID]; ok {
+						qosDecs[qosID] = qos
+					}
+				}
+			}
+
+			// include Traffic Control data
+			if smPolicy.PolicyDecision.TraffContDecs != nil {
+				for _, tcID := range pccRule.RefTcData {
+					if tc, ok := (*smPolicy.PolicyDecision.TraffContDecs)[tcID]; ok {
+						traffContDecs[tcID] = tc
+					}
+				}
+			}
+		}
+	}
 	filteredDecision := models.NewSmPolicyDecision()
 	filteredDecision.SetPccRules(pccRules)
 	filteredDecision.SetQosDecs(qosDecs)
