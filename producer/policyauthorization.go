@@ -185,95 +185,6 @@ func transferMedCompRmToMedComp(medCompRm *models.MediaComponentRm) *models.Medi
 	return &medComp
 }
 
-// Handle Create/ Modify  Media SubComponent
-func handleMediaSubComponent(smPolicy *pcfContext.UeSmPolicyData, medComp *models.MediaComponent,
-	medSubComp *models.MediaSubComponent, var5qi int32,
-) (*models.PccRule, *models.ProblemDetails) {
-	logger.PolicyAuthorizationlog.Debugf("handling MediaSubComponent: FNum [%d], FStatus [%s]", medSubComp.GetFNum(), medSubComp.GetFStatus())
-	var flowInfos []models.FlowInformation
-	var arp int32 = 1
-	if tempFlowInfos, err := getFlowInfos(medSubComp); err != nil {
-		logger.PolicyAuthorizationlog.Errorf("failed to get FlowInfos for FNum [%d]: %v", medSubComp.GetFNum(), err)
-		problemDetail := util.GetProblemDetail(err.Error(), util.REQUESTED_SERVICE_NOT_AUTHORIZED)
-		return nil, problemDetail
-	} else {
-		flowInfos = tempFlowInfos
-		logger.PolicyAuthorizationlog.Debugf("extracted %d FlowInfos for FNum [%d]", len(flowInfos), medSubComp.GetFNum())
-	}
-	_, existingPccRule, found := util.GetPccRuleByFlowInfos(smPolicy.PolicyDecision.GetPccRules(), flowInfos)
-	var pccRule *models.PccRule
-	if !found {
-		logger.PolicyAuthorizationlog.Debugf("no existing PCC Rule found for FlowInfos. Creating new PCC Rule for FNum [%d]", medSubComp.GetFNum())
-		maxExisting := getMaxPccRuleIdNum(smPolicy.PolicyDecision.GetPccRules())
-		if smPolicy.PccRuleIdGenarator <= maxExisting {
-			smPolicy.PccRuleIdGenarator = maxExisting + 1
-		}
-		maxPrecedence := getMaxPrecedence(smPolicy.PolicyDecision.GetPccRules())
-		pccRule = util.CreatePccRule(smPolicy.PccRuleIdGenarator, maxPrecedence+1, nil, "")
-		logger.PolicyAuthorizationlog.Debugf("created new PCC Rule ID [%s]", pccRule.GetPccRuleId())
-
-		// Create QoS Data
-		qosData := util.CreateQosData(smPolicy.PccRuleIdGenarator, var5qi, arp)
-		logger.PolicyAuthorizationlog.Debugf("created QosData ID [%s] with Var5qi [%d]", qosData.GetQosId(), var5qi)
-
-		if var5qi <= 4 {
-			var ul, dl bool
-			qosData, ul, dl = updateQosInMedSubComp(&qosData, medComp, medSubComp)
-			logger.PolicyAuthorizationlog.Debugf("updated QoS Data (UL: %v, DL: %v)", ul, dl)
-
-			if problemDetails := modifyRemainBitRate(smPolicy, &qosData, ul, dl); problemDetails != nil {
-				logger.PolicyAuthorizationlog.Errorln("modifyRemainBitRate failed:", problemDetails.GetDetail())
-				return nil, problemDetails
-			}
-		}
-
-		// Assign PackFiltId to flows
-		for i := range flowInfos {
-			flowInfos[i].SetPackFiltId(util.GetPackFiltId(smPolicy.PackFiltIdGenarator))
-			smPolicy.PackFiltMapToPccRuleId[flowInfos[i].GetPackFiltId()] = pccRule.PccRuleId
-			logger.PolicyAuthorizationlog.Debugf("assigned PackFiltId [%s] to PCC Rule ID [%s]", flowInfos[i].GetPackFiltId(), pccRule.GetPccRuleId())
-			smPolicy.PackFiltIdGenarator++
-		}
-
-		pccRule.FlowInfos = flowInfos
-
-		// Create Traffic Control Data
-		tcData := util.CreateTcData(smPolicy.PccRuleIdGenarator, "", medSubComp.GetFStatus())
-		logger.PolicyAuthorizationlog.Debugf("created TcData ID [%s] with FStatus [%s]", tcData.GetTcId(), medSubComp.GetFStatus())
-		// Set related data
-		util.SetPccRuleRelatedData(smPolicy.PolicyDecision, pccRule, tcData, &qosData, nil, nil)
-		logger.PolicyAuthorizationlog.Debugf("set related data for PCC Rule ID [%s]", pccRule.GetPccRuleId())
-
-		smPolicy.PccRuleIdGenarator++
-	} else {
-		pccRule = &existingPccRule
-		logger.PolicyAuthorizationlog.Debugf("found existing PCC Rule ID [%s] for FlowInfos", pccRule.GetPccRuleId())
-		for _, qosID := range pccRule.RefQosData {
-			if smPolicy.PolicyDecision.QosDecs != nil {
-				if qosData, ok := (*smPolicy.PolicyDecision.QosDecs)[qosID]; ok {
-					if qosData.GetVar5qi() == var5qi && qosData.GetVar5qi() <= 4 {
-						var ul, dl bool
-						qosData, ul, dl = updateQosInMedSubComp(&qosData, medComp, medSubComp)
-						logger.PolicyAuthorizationlog.Debugf("updating existing QoS ID [%s] (UL: %v, DL: %v)", qosData.GetQosId(), ul, dl)
-						if problemDetails := modifyRemainBitRate(smPolicy, &qosData, ul, dl); problemDetails != nil {
-							logger.PolicyAuthorizationlog.Errorf("modifyRemainBitRate failed for existing QoS ID [%s]: %s", qosData.GetQosId(), problemDetails.GetDetail())
-							return nil, problemDetails
-						}
-						(*smPolicy.PolicyDecision.QosDecs)[qosData.GetQosId()] = qosData
-					}
-				}
-			} else {
-				logger.PolicyAuthorizationlog.Errorf("PolicyDecision.QosDecs is nil")
-				problemDetail := util.GetProblemDetail("PolicyDecision.QosDecs is nil", util.PDU_SESSION_NOT_AVAILABLE)
-				return nil, problemDetail
-			}
-		}
-	}
-	smPolicy.PolicyDecision.PccRules[pccRule.GetPccRuleId()] = *pccRule
-	logger.PolicyAuthorizationlog.Infof("pcc Rule ID [%s] stored successfully in PolicyDecision", pccRule.GetPccRuleId())
-	return pccRule, nil
-}
-
 // HandlePostAppSessionsContext - Creates a new Individual Application Session Context resource
 // Initial provisioning of service information (DONE)
 // Gate control (DONE)
@@ -665,39 +576,9 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 	locationHeader := util.GetResourceUri(models.SERVICENAME_NPCF_POLICYAUTHORIZATION, appSessID)
 	logger.PolicyAuthorizationlog.Infof("app session Id[%s] Create", appSessID)
 
-	pccRules := make(map[string]models.PccRule)
-	qosDecs := make(map[string]models.QosData)
-	traffContDecs := make(map[string]models.TrafficControlData)
-
-	for _, pccRuleID := range relatedPccRuleIds {
-		if pccRule, ok := smPolicy.PolicyDecision.PccRules[pccRuleID]; ok {
-			pccRules[pccRuleID] = pccRule
-
-			// include QoS data
-			if smPolicy.PolicyDecision.QosDecs != nil {
-				for _, qosID := range pccRule.RefQosData {
-					if qos, ok := (*smPolicy.PolicyDecision.QosDecs)[qosID]; ok {
-						qosDecs[qosID] = qos
-					}
-				}
-			}
-
-			// include Traffic Control data
-			if smPolicy.PolicyDecision.TraffContDecs != nil {
-				for _, tcID := range pccRule.RefTcData {
-					if tc, ok := (*smPolicy.PolicyDecision.TraffContDecs)[tcID]; ok {
-						traffContDecs[tcID] = tc
-					}
-				}
-			}
-		}
-	}
-	filteredDecision := models.NewSmPolicyDecision()
-	filteredDecision.SetPccRules(pccRules)
-	filteredDecision.SetQosDecs(qosDecs)
-	filteredDecision.SetTraffContDecs(traffContDecs)
 	// Send Notification to SMF
 	if updateSMpolicy {
+		filteredDecision := buildRelatedSmPolicyDecision(smPolicy.PolicyDecision, relatedPccRuleIds)
 		smPolicyID := fmt.Sprintf("%s-%d", ue.Supi, smPolicy.PolicyContext.PduSessionId)
 		notification := models.SmPolicyNotification{
 			ResourceUri:      openapi.PtrString(util.GetResourceUri(models.SERVICENAME_NPCF_SMPOLICYCONTROL, smPolicyID)),
@@ -870,6 +751,79 @@ func handleCombinedMediaSubComponents(
 	return pccRule, nil
 }
 
+func buildRelatedSmPolicyDecision(
+	policyDecision *models.SmPolicyDecision,
+	relatedPccRuleIds map[string]string,
+) *models.SmPolicyDecision {
+	if policyDecision == nil || len(relatedPccRuleIds) == 0 {
+		return policyDecision
+	}
+
+	filteredDecision := *policyDecision
+	pccRules := make(map[string]models.PccRule)
+	qosDecs := make(map[string]models.QosData)
+	traffContDecs := make(map[string]models.TrafficControlData)
+	chgDecs := make(map[string]models.ChargingData)
+	umDecs := make(map[string]models.UsageMonitoringData)
+
+	for _, pccRuleID := range relatedPccRuleIds {
+		pccRule, ok := policyDecision.PccRules[pccRuleID]
+		if !ok {
+			continue
+		}
+		pccRules[pccRuleID] = pccRule
+
+		if policyDecision.QosDecs != nil {
+			for _, qosID := range pccRule.RefQosData {
+				if qos, ok := (*policyDecision.QosDecs)[qosID]; ok {
+					qosDecs[qosID] = qos
+				}
+			}
+		}
+		if policyDecision.TraffContDecs != nil {
+			for _, tcID := range pccRule.RefTcData {
+				if tc, ok := (*policyDecision.TraffContDecs)[tcID]; ok {
+					traffContDecs[tcID] = tc
+				}
+			}
+		}
+		for _, chgID := range pccRule.RefChgData {
+			if chg, ok := policyDecision.ChgDecs[chgID]; ok {
+				chgDecs[chgID] = chg
+			}
+		}
+		for _, umID := range pccRule.RefUmData {
+			if um, ok := policyDecision.UmDecs[umID]; ok {
+				umDecs[umID] = um
+			}
+		}
+	}
+
+	filteredDecision.PccRules = pccRules
+	if len(qosDecs) > 0 {
+		filteredDecision.QosDecs = &qosDecs
+	} else {
+		filteredDecision.QosDecs = nil
+	}
+	if len(traffContDecs) > 0 {
+		filteredDecision.TraffContDecs = &traffContDecs
+	} else {
+		filteredDecision.TraffContDecs = nil
+	}
+	if len(chgDecs) > 0 {
+		filteredDecision.ChgDecs = chgDecs
+	} else {
+		filteredDecision.ChgDecs = nil
+	}
+	if len(umDecs) > 0 {
+		filteredDecision.UmDecs = umDecs
+	} else {
+		filteredDecision.UmDecs = nil
+	}
+
+	return &filteredDecision
+}
+
 // HandleDeleteAppSession - Deletes an existing Individual Application Session Context
 func HandleDeleteAppSessionContext(request *httpwrapper.Request) *httpwrapper.Response {
 	eventsSubscReqData := request.Body.(*models.EventsSubscReqData)
@@ -1040,17 +994,28 @@ func ModAppSessionContextProcedure(appSessID string,
 				var5qi = util.MediaTypeTo5qiMap[medComp.GetMedType()]
 			}
 			if medComp.MedSubComps != nil {
+				var allFlowInfos []models.FlowInformation
+				var medSubCompsList []models.MediaSubComponent
 				for _, medSubComp := range *medComp.MedSubComps {
-					if tempPccRule, problemDetail := handleMediaSubComponent(smPolicy, medComp,
-						&medSubComp, var5qi); problemDetail != nil {
+					if flowInfos, err := getFlowInfos(&medSubComp); err != nil {
+						problemDetail := util.GetProblemDetail(err.Error(), util.REQUESTED_SERVICE_NOT_AUTHORIZED)
 						return problemDetail, nil
 					} else {
-						pccRule = tempPccRule
+						allFlowInfos = append(allFlowInfos, flowInfos...)
+						medSubCompsList = append(medSubCompsList, medSubComp)
 					}
+				}
+				if tempPccRule, problemDetail := handleCombinedMediaSubComponents(smPolicy, medComp,
+					medSubCompsList, var5qi, allFlowInfos); problemDetail != nil {
+					return problemDetail, nil
+				} else {
+					pccRule = tempPccRule
+				}
+				for _, medSubComp := range medSubCompsList {
 					key := fmt.Sprintf("%d-%d", medComp.MedCompN, medSubComp.FNum)
 					relatedPccRuleIds[key] = pccRule.PccRuleId
-					updateSMpolicy = true
 				}
+				updateSMpolicy = true
 				continue
 			} else if medComp.GetAfAppId() != "" {
 				// if medComp.AfAppId has value -> find pccRule by reqData.AfAppId, otherwise create a new pcc rule

@@ -122,6 +122,7 @@ func TestHandleCombinedMediaSubComponentsCreatesRuleAndUsesActiveStatus(t *testi
 	}
 	if pccRule == nil {
 		t.Fatal("expected a PCC rule to be created")
+		return
 	}
 	if got, want := pccRule.GetPccRuleId(), "1"; got != want {
 		t.Fatalf("unexpected PCC rule ID %q, want %q", got, want)
