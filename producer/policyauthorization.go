@@ -303,7 +303,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 				var allFlowInfos []models.FlowInformation
 				var medSubCompsList []models.MediaSubComponent
 				for _, medSubComp := range medComp.GetMedSubComps() {
-					logger.PolicyAuthorizationlog.Infof("extracting FlowInfos for FNum [%d]", medSubComp.GetFNum())
+					logger.PolicyAuthorizationlog.Debugf("extracting FlowInfos for FNum [%d]", medSubComp.GetFNum())
 
 					if flowInfos, err := getFlowInfos(&medSubComp); err != nil {
 						logger.PolicyAuthorizationlog.Errorf("failed to get FlowInfos for FNum [%d]: %v", medSubComp.GetFNum(), err)
