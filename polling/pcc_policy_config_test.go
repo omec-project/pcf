@@ -170,7 +170,7 @@ func TestCreatePccPolicies_OnePolicyControlElement(t *testing.T) {
 							PccRuleId:  "1",
 							Precedence: openapi.PtrInt32(255),
 							RefQosData: []string{"1"},
-							RefTcData:  []string{"TcId-2"},
+							RefTcData:  []string{"2"},
 							FlowInfos: []models.FlowInformation{{
 								FlowDescription: openapi.PtrString("permit out ip from any to any"),
 								PackFiltId:      openapi.PtrString("2"),
@@ -192,8 +192,8 @@ func TestCreatePccPolicies_OnePolicyControlElement(t *testing.T) {
 						},
 					},
 					TraffContDecs: map[string]*models.TrafficControlData{
-						"TcId-2": {
-							TcId:       "TcId-2",
+						"2": {
+							TcId:       "2",
 							FlowStatus: models.FLOWSTATUS_ENABLED.Ptr(),
 						},
 					},
@@ -290,7 +290,7 @@ func TestCreatePccPolicies_MultiplePolicyControlElement(t *testing.T) {
 					PccRuleId:  "1",
 					Precedence: openapi.PtrInt32(10),
 					RefQosData: []string{"1"},
-					RefTcData:  []string{"TcId-2", "TcId-3"},
+					RefTcData:  []string{"2", "3"},
 					FlowInfos: []models.FlowInformation{
 						{
 							FlowDescription: openapi.PtrString("flow-A1"),
@@ -320,12 +320,12 @@ func TestCreatePccPolicies_MultiplePolicyControlElement(t *testing.T) {
 				},
 			},
 			TraffContDecs: map[string]*models.TrafficControlData{
-				"TcId-2": {
-					TcId:       "TcId-2",
+				"2": {
+					TcId:       "2",
 					FlowStatus: models.FLOWSTATUS_ENABLED.Ptr(),
 				},
-				"TcId-3": {
-					TcId:       "TcId-3",
+				"3": {
+					TcId:       "3",
 					FlowStatus: models.FLOWSTATUS_DISABLED.Ptr(),
 				},
 			},
@@ -336,7 +336,7 @@ func TestCreatePccPolicies_MultiplePolicyControlElement(t *testing.T) {
 					PccRuleId:  "4",
 					Precedence: openapi.PtrInt32(20),
 					RefQosData: []string{"4"},
-					RefTcData:  []string{"TcId-5"},
+					RefTcData:  []string{"5"},
 					FlowInfos: []models.FlowInformation{{
 						FlowDescription: openapi.PtrString("flow-B1"),
 						PackFiltId:      openapi.PtrString("5"),
@@ -356,8 +356,8 @@ func TestCreatePccPolicies_MultiplePolicyControlElement(t *testing.T) {
 				},
 			},
 			TraffContDecs: map[string]*models.TrafficControlData{
-				"TcId-5": {
-					TcId:       "TcId-5",
+				"5": {
+					TcId:       "5",
 					FlowStatus: models.FLOWSTATUS_ENABLED_DOWNLINK.Ptr(),
 				},
 			},

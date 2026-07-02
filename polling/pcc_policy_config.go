@@ -212,7 +212,7 @@ func makeFlowInfosAndTrafficContDesc(idGenerator *idgenerator.IDGenerator, pccFl
 
 		// traffic control info set based on flow at present
 		tcData := models.TrafficControlData{
-			TcId:       "TcId-" + strconv.FormatInt(id, 10),
+			TcId:       strconv.FormatInt(id, 10),
 			FlowStatus: status.Ptr(),
 		}
 		parsedTrafficControl = append(parsedTrafficControl, tcData)
