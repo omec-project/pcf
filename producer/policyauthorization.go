@@ -325,6 +325,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 					logger.PolicyAuthorizationlog.Debugf("mapped PCC Rule ID [%s] to MediaSubComp Key [%s]", pccRule.GetPccRuleId(), key)
 				}
 				updateSMpolicy = true
+				maxPrecedence = getMaxPrecedence(smPolicy.PolicyDecision.PccRules)
 				continue
 			} else if medComp.GetAfAppId() != "" {
 				appID = medComp.GetAfAppId()
@@ -1016,6 +1017,7 @@ func ModAppSessionContextProcedure(appSessID string,
 					relatedPccRuleIds[key] = pccRule.PccRuleId
 				}
 				updateSMpolicy = true
+				maxPrecedence = getMaxPrecedence(smPolicy.PolicyDecision.PccRules)
 				continue
 			} else if medComp.GetAfAppId() != "" {
 				// if medComp.AfAppId has value -> find pccRule by reqData.AfAppId, otherwise create a new pcc rule
