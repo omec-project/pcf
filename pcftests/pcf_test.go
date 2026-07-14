@@ -337,10 +337,12 @@ func TestCreateSubscriptionFail(t *testing.T) {
 		ProtoMinor: 0,
 		Body:       stringReadCloser,
 	}
-	serverErrorProblem := models.NewProblemDetails()
-	serverErrorProblem.SetStatus(http.StatusInternalServerError)
-	serverErrorProblem.SetCause("Server Error")
-	serverErrorProblem.SetDetail("")
+	serverErrorProblem := utils.ProblemDetailsWithCause(
+		"Server Error",
+		http.StatusInternalServerError,
+		"",
+		utils.CauseServerError,
+	)
 	callCountSendCreateSubscription := 0
 	origStoreApiSearchNFInstances := consumer.StoreApiSearchNFInstances
 	origCreateSubscription := consumer.CreateSubscription
@@ -380,7 +382,7 @@ func TestCreateSubscriptionFail(t *testing.T) {
 			httpResponseSuccess,
 			nil,
 			nil,
-			errors.New("SendCreateSubscription to NRF failed: Server Error"),
+			fmt.Errorf("SendCreateSubscription to NRF failed: %s", utils.CauseServerError),
 			serverErrorProblem,
 			emptyNrfSubscriptionData,
 			searchResult,
