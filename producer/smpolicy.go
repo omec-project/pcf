@@ -31,7 +31,7 @@ var getSlicePccPolicy = polling.GetSlicePccPolicy
 
 // SmPoliciesPost -
 func HandleCreateSmPolicyRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.SMpolicylog.Infoln("handle CreateSmPolicy")
+	logger.SMpolicylog.Debugln("handle CreateSmPolicy")
 	requestDataType := request.Body.(models.SmPolicyContextData)
 	header, response, problemDetails := createSMPolicyProcedure(requestDataType)
 	if response != nil {
@@ -76,6 +76,9 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 		problemDetail := util.GetProblemDetail("Can't find corresponding UDR with UE", util.USER_UNKNOWN)
 		logger.SMpolicylog.Warnf("can not find corresponding UDR with UE[%s]", ue.Supi)
 		return nil, nil, problemDetail
+	}
+	if ue.UdrUri == "" {
+		ue.UdrUri = udrUri
 	}
 	var smData *models.SmPolicyData
 	smPolicyID := fmt.Sprintf("%s-%d", ue.Supi, request.PduSessionId)
@@ -223,7 +226,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 		"Location": {locationHeader},
 	}
 	logger.SMpolicylog.Debugf("SMPolicy PduSessionId[%d] Create", request.PduSessionId)
-	logger.SMpolicylog.Infof("SM Policy Decision Sent to SMF: %v", decision)
+	logger.SMpolicylog.Debugf("SM Policy Decision Sent to SMF: %v", decision)
 
 	return header, decision, nil
 }

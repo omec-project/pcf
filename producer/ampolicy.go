@@ -179,7 +179,7 @@ func UpdatePostPoliciesPolAssoIdProcedure(polAssoId string,
 
 // HandlePostPolicies Create AM Policy
 func HandlePostPolicies(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.AMpolicylog.Infoln("handle AM Policy Create Request")
+	logger.AMpolicylog.Debugln("handle AM Policy Create Request")
 
 	polAssoId := request.Params["polAssoId"]
 	policyAssociationRequest := request.Body.(models.PolicyAssociationRequest)
@@ -323,5 +323,8 @@ func PostPoliciesProcedure(polAssoId string,
 
 // returns UDR Uri of Ue, if ue.UdrUri dose not exist, query NRF to get supported Udr Uri
 func getUdrUri(ue *pcfContext.UeContext) string {
+	if ue.UdrUri != "" {
+		return ue.UdrUri
+	}
 	return consumer.SendNFInstancesUDR(pcfContext.PCF_Self().NrfUri, ue.Supi)
 }

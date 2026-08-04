@@ -15,6 +15,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/omec-project/openapi/v2/Nudr_DR"
 	"github.com/omec-project/openapi/v2/models"
@@ -53,15 +54,27 @@ var (
 	}
 )
 
+var (
+	nudrClientMu     sync.Mutex
+	cachedNudrClient *Nudr_DR.APIClient
+	cachedNudrUri    string
+)
+
 func GetNudrClient(uri string) *Nudr_DR.APIClient {
+	nudrClientMu.Lock()
+	defer nudrClientMu.Unlock()
+	if cachedNudrClient != nil && cachedNudrUri == uri {
+		return cachedNudrClient
+	}
 	configuration := Nudr_DR.NewConfiguration()
 	serverConfig := &configuration.Servers[0]
 	if apiRootVar, exists := serverConfig.Variables["apiRoot"]; exists {
 		apiRootVar.DefaultValue = uri
 		serverConfig.Variables["apiRoot"] = apiRootVar
 	}
-	client := Nudr_DR.NewAPIClient(configuration)
-	return client
+	cachedNudrClient = Nudr_DR.NewAPIClient(configuration)
+	cachedNudrUri = uri
+	return cachedNudrClient
 }
 
 // Return ProblemDetail; errString represents Detail and cause represents Cause.
