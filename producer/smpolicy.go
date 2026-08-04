@@ -77,9 +77,6 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 		logger.SMpolicylog.Warnf("can not find corresponding UDR with UE[%s]", ue.Supi)
 		return nil, nil, problemDetail
 	}
-	if ue.UdrUri == "" {
-		ue.UdrUri = udrUri
-	}
 	var smData *models.SmPolicyData
 	smPolicyID := fmt.Sprintf("%s-%d", ue.Supi, request.PduSessionId)
 	smPolicyData := ue.SmPolicyData[smPolicyID]

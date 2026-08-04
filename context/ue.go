@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/omec-project/openapi/v2/models"
 	"github.com/omec-project/pcf/logger"
@@ -20,7 +21,8 @@ import (
 // key is supi
 type UeContext struct {
 	// Udr Ref
-	UdrUri string
+	UdrUri   string
+	UdrUriMu sync.RWMutex
 	// SMPolicy
 	SmPolicyData map[string]*UeSmPolicyData // use smPolicyId(ue.Supi-pduSessionId) as key
 	// App Session Related

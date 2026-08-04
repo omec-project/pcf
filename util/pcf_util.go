@@ -55,14 +55,23 @@ var (
 )
 
 var (
-	nudrClientMu     sync.Mutex
+	nudrClientMu     sync.RWMutex
 	cachedNudrClient *Nudr_DR.APIClient
 	cachedNudrUri    string
 )
 
 func GetNudrClient(uri string) *Nudr_DR.APIClient {
+	nudrClientMu.RLock()
+	if cachedNudrClient != nil && cachedNudrUri == uri {
+		client := cachedNudrClient
+		nudrClientMu.RUnlock()
+		return client
+	}
+	nudrClientMu.RUnlock()
+
 	nudrClientMu.Lock()
 	defer nudrClientMu.Unlock()
+	// double-checked: another goroutine may have updated the cache between the RUnlock and Lock
 	if cachedNudrClient != nil && cachedNudrUri == uri {
 		return cachedNudrClient
 	}
