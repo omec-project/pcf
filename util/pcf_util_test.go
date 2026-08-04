@@ -73,3 +73,29 @@ func TestDeepCopyViaJSONPreservesNullableField(t *testing.T) {
 		t.Errorf("Arp.PriorityLevel (NullableInt32) lost in copy: got %v, want 5", v)
 	}
 }
+
+func resetNudrClientCache() {
+	nudrClientMu.Lock()
+	defer nudrClientMu.Unlock()
+	cachedNudrClient = nil
+	cachedNudrUri = ""
+}
+
+func TestGetNudrClientReturnsSamePointerForSameURI(t *testing.T) {
+	resetNudrClientCache()
+	const uri = "https://udr.example:29504"
+	c1 := GetNudrClient(uri)
+	c2 := GetNudrClient(uri)
+	if c1 != c2 {
+		t.Error("expected the same *APIClient pointer for repeated calls with the same URI")
+	}
+}
+
+func TestGetNudrClientReturnsDifferentPointerForDifferentURI(t *testing.T) {
+	resetNudrClientCache()
+	c1 := GetNudrClient("https://udr1.example:29504")
+	c2 := GetNudrClient("https://udr2.example:29504")
+	if c1 == c2 {
+		t.Error("expected a different *APIClient pointer when the URI changes")
+	}
+}

@@ -179,7 +179,7 @@ func UpdatePostPoliciesPolAssoIdProcedure(polAssoId string,
 
 // HandlePostPolicies Create AM Policy
 func HandlePostPolicies(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.AMpolicylog.Infoln("handle AM Policy Create Request")
+	logger.AMpolicylog.Debugln("handle AM Policy Create Request")
 
 	polAssoId := request.Params["polAssoId"]
 	policyAssociationRequest := request.Body.(models.PolicyAssociationRequest)
@@ -224,7 +224,6 @@ func PostPoliciesProcedure(polAssoId string,
 		logger.AMpolicylog.Errorf("Ue[%s] is not supported in PCF", ue.Supi)
 		return nil, "", problemDetail
 	}
-	ue.UdrUri = udrUri
 
 	var reqCopy models.PolicyAssociationRequest
 	if err := util.DeepCopyViaJSON(policyAssociationRequest, &reqCopy); err != nil {
@@ -321,7 +320,21 @@ func PostPoliciesProcedure(polAssoId string,
 	return &response, locationHeader, nil
 }
 
-// returns UDR Uri of Ue, if ue.UdrUri dose not exist, query NRF to get supported Udr Uri
+// returns UDR Uri of Ue, caching it on the UeContext after first discovery
 func getUdrUri(ue *pcfContext.UeContext) string {
-	return consumer.SendNFInstancesUDR(pcfContext.PCF_Self().NrfUri, ue.Supi)
+	ue.UdrUriMu.RLock()
+	uri := ue.UdrUri
+	ue.UdrUriMu.RUnlock()
+	if uri != "" {
+		return uri
+	}
+	uri = consumer.SendNFInstancesUDR(pcfContext.PCF_Self().NrfUri, ue.Supi)
+	if uri != "" {
+		ue.UdrUriMu.Lock()
+		if ue.UdrUri == "" {
+			ue.UdrUri = uri
+		}
+		ue.UdrUriMu.Unlock()
+	}
+	return uri
 }
