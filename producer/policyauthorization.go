@@ -325,8 +325,10 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 			var routeReq *models.AfRoutingRequirement
 			// TODO: use specific algorithm instead of default, details in subsclause 7.3.3 of TS 29513
 			var var5qi int32 = 9
-			if medComp.GetMedType() != "" {
-				var5qi = util.MediaTypeTo5qiMap[medComp.GetMedType()]
+			// Checked lookup: an unmapped media type must keep the default above rather than
+			// becoming a 5QI of 0, which is not an assigned value.
+			if mapped, ok := util.MediaTypeTo5qiMap[medComp.GetMedType()]; ok {
+				var5qi = mapped
 			}
 			logger.PolicyAuthorizationLog.Infof("processing Media Component[%d]", medComp.GetMedCompN())
 			if medComp.HasMedSubComps() {
@@ -388,7 +390,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 				qosData := util.CreateQosData(smPolicy.PccRuleIdGenarator, var5qi, arp)
 				logger.PolicyAuthorizationLog.Debugf("created QoS Data with QosID: %s, 5QI: %d, ARP: %d", qosData.GetQosId(), qosData.GetVar5qi(), qosData.Arp.GetPriorityLevel())
 
-				if var5qi <= 4 {
+				if pcfContext.IsStandardisedGbr5QI(var5qi) {
 					// update QoS Data according to request BitRate
 					var ul, dl bool
 					qosData, ul, dl = updateQosInMedComp(qosData, &medComp)
@@ -421,7 +423,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 						continue
 					}
 					logger.PolicyAuthorizationLog.Debugf("evaluating existing QoS Data for update: QosID: %s, Var5QI: %d", qosData.GetQosId(), qosData.GetVar5qi())
-					if qosData.GetVar5qi() != var5qi || var5qi > 4 {
+					if qosData.GetVar5qi() != var5qi || !pcfContext.IsStandardisedGbr5QI(var5qi) {
 						continue
 					}
 
@@ -697,8 +699,8 @@ func handleCombinedMediaSubComponents(
 		qosData.Arp.SetPreemptVuln(models.PREEMPTIONVULNERABILITY_NOT_PREEMPTABLE)
 		logger.PolicyAuthorizationLog.Infof("created QosData ID [%s] (5QI=%d)", qosData.GetQosId(), var5qi)
 
-		// If var5qi <= 4 (GBR flows), update QoS according to MediaSubComponents
-		if var5qi <= 4 {
+		// For a GBR flow, update QoS according to MediaSubComponents
+		if pcfContext.IsStandardisedGbr5QI(var5qi) {
 			var anyUL, anyDL bool
 			for _, medSubComp := range medSubComps {
 				if medSubComp.GetFStatus() == models.FLOWSTATUS_REMOVED {
@@ -1063,8 +1065,10 @@ func ModAppSessionContextProcedure(appSessID string,
 			var routeReq *models.AfRoutingRequirement
 			// TODO: use specific algorithm instead of default, details in subsclause 7.3.3 of TS 29513
 			var var5qi int32 = 9
-			if medComp.GetMedType() != "" {
-				var5qi = util.MediaTypeTo5qiMap[medComp.GetMedType()]
+			// Checked lookup: an unmapped media type must keep the default above rather than
+			// becoming a 5QI of 0, which is not an assigned value.
+			if mapped, ok := util.MediaTypeTo5qiMap[medComp.GetMedType()]; ok {
+				var5qi = mapped
 			}
 			if medComp.HasMedSubComps() {
 				var allFlowInfos []models.FlowInformation
@@ -1110,7 +1114,7 @@ func ModAppSessionContextProcedure(appSessID string,
 				// Set QoS Data
 				// TODO: use real arp
 				qosData := util.CreateQosData(smPolicy.PccRuleIdGenarator, var5qi, 8)
-				if var5qi <= 4 {
+				if pcfContext.IsStandardisedGbr5QI(var5qi) {
 					// update Qos Data according to request BitRate
 					var ul, dl bool
 					qosData, ul, dl = updateQosInMedComp(qosData, medComp)
@@ -1126,7 +1130,7 @@ func ModAppSessionContextProcedure(appSessID string,
 				// update qos
 				for _, qosID := range pccRule.GetRefQosData() {
 					qosData := *(*smPolicy.PolicyDecision.QosDecs)[qosID]
-					if qosData.GetVar5qi() == var5qi && qosData.GetVar5qi() <= 4 {
+					if qosData.GetVar5qi() == var5qi && pcfContext.IsStandardisedGbr5QI(qosData.GetVar5qi()) {
 						var ul, dl bool
 						qosData, ul, dl = updateQosInMedComp(qosData, medComp)
 						if problemDetail := modifyRemainBitRate(smPolicy, &qosData, ul, dl); problemDetail != nil {
