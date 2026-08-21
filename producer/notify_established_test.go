@@ -11,6 +11,7 @@ import (
 	"github.com/omec-project/openapi/v2/models"
 	pcfContext "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/polling"
+	"github.com/omec-project/pcf/util"
 )
 
 func decisionWithArp(levels ...int32) *models.SmPolicyDecision {
@@ -118,6 +119,15 @@ func establishedSession(t *testing.T, sessionAmbr *models.Ambr, given *models.Sm
 			PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(8)),
 		}},
 	}
+	// Stamped the way createSmPolicyContextProcedure stamps it. These fields are per-session and
+	// no rebuild from configuration can reproduce them: SuppFeat is the result of negotiating with
+	// the SMF that created the session, PolicyCtrlReqTriggers is what that SMF reports on, and
+	// Online came from the subscriber's UDR record. A fixture holding an empty decision cannot see
+	// them being dropped, which is exactly how it was missed.
+	given.SuppFeat = openapi.PtrString("0f")
+	given.PolicyCtrlReqTriggers = util.PolicyControlReqTrigToArray(0x40780f)
+	given.Online = openapi.PtrBool(true)
+
 	smPolicy := &pcfContext.UeSmPolicyData{PolicyContext: ctx, PolicyDecision: given}
 	ue.SmPolicyData[smPolicyID] = smPolicy
 	pcfContext.PCF_Self().UePool.Store(supi, ue)
@@ -204,5 +214,106 @@ func TestSessionAmbrIsNotChangedByAPolicyEdit(t *testing.T) {
 			t.Errorf("session AMBR = %s/%s, want the subscribed value: a policy edit cannot change it",
 				ambr.Uplink, ambr.Downlink)
 		}
+	}
+}
+
+// The decision a session holds is not only the slice policy: the create path negotiates supported
+// features with the SMF, tells it which triggers to report, and carries charging flags from the
+// subscriber's UDR record. A policy edit must leave all of that standing.
+//
+// Rebuilding the whole decision from configuration drops every one of these, and because the
+// stored decision always has them and a rebuild never does, it also makes each session differ from
+// itself on every edit — so the "did anything change" test stops meaning anything and every
+// session gets notified with a downgraded policy.
+func TestPerSessionDecisionStateSurvivesAPolicyEdit(t *testing.T) {
+	original := getSlicePccPolicy
+	t.Cleanup(func() { getSlicePccPolicy = original })
+
+	getSlicePccPolicy = func(models.Snssai) *polling.PccPolicy {
+		return &polling.PccPolicy{
+			PccRules: map[string]*models.PccRule{"rule1": {PccRuleId: "rule1", Precedence: openapi.PtrInt32(200)}},
+			QosDecs:  map[string]*models.QosData{"qos1": {QosId: "qos1", Var5qi: openapi.PtrInt32(10)}},
+		}
+	}
+
+	smPolicy := establishedSession(t, nil, &models.SmPolicyDecision{})
+	wantTriggers := len(smPolicy.PolicyDecision.PolicyCtrlReqTriggers)
+
+	if pending := recomputeChangedSessions(); len(pending) != 1 {
+		t.Fatalf("pending = %d, want the slice policy change to be seen", len(pending))
+	}
+
+	got := smPolicy.PolicyDecision
+	if got.GetSuppFeat() != "0f" {
+		t.Errorf("SuppFeat = %q, want it preserved: it was negotiated with the SMF, not derived from configuration", got.GetSuppFeat())
+	}
+	if len(got.PolicyCtrlReqTriggers) != wantTriggers {
+		t.Errorf("PolicyCtrlReqTriggers = %d, want %d preserved: dropping them stops the SMF reporting the events this element relies on",
+			len(got.PolicyCtrlReqTriggers), wantTriggers)
+	}
+	if !got.GetOnline() {
+		t.Error("Online was lost, so the session's charging flags were reset by an unrelated policy edit")
+	}
+	// And the slice-derived part did move, so this is not passing by doing nothing.
+	if len(got.GetPccRules()) == 0 {
+		t.Error("the new slice policy did not reach the session")
+	}
+}
+
+// A session an application function is managing is left alone. The AF installs its own PCC rules
+// into the same decision and nothing records which entries are the AF's, so replacing the
+// slice-derived part would take them with it — stranding an app-session that still references them.
+func TestAfManagedSessionIsLeftAlone(t *testing.T) {
+	original := getSlicePccPolicy
+	t.Cleanup(func() { getSlicePccPolicy = original })
+
+	getSlicePccPolicy = func(models.Snssai) *polling.PccPolicy {
+		return &polling.PccPolicy{
+			PccRules: map[string]*models.PccRule{"rule1": {PccRuleId: "rule1"}},
+			QosDecs:  map[string]*models.QosData{"qos1": {QosId: "qos1"}},
+		}
+	}
+
+	afRule := map[string]models.PccRule{"af-installed": {PccRuleId: "af-installed", AppId: openapi.PtrString("ims")}}
+	given := &models.SmPolicyDecision{}
+	given.SetPccRules(afRule)
+	smPolicy := establishedSession(t, nil, given)
+	smPolicy.AppSessions = map[string]bool{"app-session-1": true}
+
+	pending := recomputeChangedSessions()
+
+	if len(pending) != 0 {
+		t.Errorf("pending = %d, want 0: an AF-managed session must not be recomputed", len(pending))
+	}
+	if _, ok := smPolicy.PolicyDecision.GetPccRules()["af-installed"]; !ok {
+		t.Error("the AF-installed PCC rule was removed by an operator policy edit")
+	}
+}
+
+// A session with no notification URI must be left untouched rather than updated and skipped. If
+// its stored decision moved and no notification could be sent, the next comparison would match and
+// the discrepancy would never be visible again — the session would sit on a policy it was never
+// told about, and nothing would say so.
+func TestSessionWithNoNotificationUriIsNotSilentlyUpdated(t *testing.T) {
+	original := getSlicePccPolicy
+	t.Cleanup(func() { getSlicePccPolicy = original })
+
+	getSlicePccPolicy = func(models.Snssai) *polling.PccPolicy {
+		return &polling.PccPolicy{
+			PccRules: map[string]*models.PccRule{"rule1": {PccRuleId: "rule1"}},
+			QosDecs:  map[string]*models.QosData{"qos1": {QosId: "qos1"}},
+		}
+	}
+
+	smPolicy := establishedSession(t, nil, &models.SmPolicyDecision{})
+	smPolicy.PolicyContext.NotificationUri = ""
+
+	pending := recomputeChangedSessions()
+
+	if len(pending) != 0 {
+		t.Errorf("pending = %d, want 0", len(pending))
+	}
+	if len(smPolicy.PolicyDecision.GetPccRules()) != 0 {
+		t.Error("the stored decision was updated for a session that cannot be notified, so the change is now invisible")
 	}
 }
