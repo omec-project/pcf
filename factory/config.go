@@ -46,6 +46,15 @@ type Configuration struct {
 	ServiceList              []Service `yaml:"serviceList,omitempty"`
 	EnableNrfCaching         bool      `yaml:"enableNrfCaching"`
 	NrfCacheEvictionInterval int       `yaml:"nrfCacheEvictionInterval,omitempty"`
+
+	// PolicyNotificationRate bounds how many policy update notifications are sent per second
+	// when a configuration change affects sessions that are already established.
+	//
+	// The constraint is not this element's throughput. Each notification ends in a radio
+	// reconfiguration for one subscriber, and on a constrained air interface a change that
+	// reconfigures every session on a slice at once is itself a fault — one the core cannot
+	// detect, because from the core's side the work completed. Zero or unset applies the default.
+	PolicyNotificationRate int `yaml:"policyNotificationRate,omitempty"`
 }
 
 type Service struct {

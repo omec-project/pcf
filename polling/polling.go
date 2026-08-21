@@ -125,6 +125,10 @@ func (p *nfConfigPoller) handlePolledPolicyControl(newPolicyControlConfig []nfCo
 	}
 	if havePccRulesChanged(p.currentPolicyControl, newPolicyControlConfig) {
 		updatePccPolicy(newPolicyControlConfig)
+		// The cache now describes the new policy, but sessions already running still hold the
+		// decisions they were given. Bring them over rather than leaving the same subscriber on
+		// the same slice treated differently depending on when they attached.
+		notifyPolicyControlChanged()
 	}
 	p.currentPolicyControl = newPolicyControlConfig
 	logger.PollConfigLog.Infof("policy control config changed. New Policy control config: %+v", p.currentPolicyControl)
