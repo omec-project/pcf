@@ -368,7 +368,9 @@ func (policy *UeSmPolicyData) IncreaseRemainGBR(qosId string) (origUl, origDl *f
 		return
 	}
 	if qos, exist := (*decision.QosDecs)[qosId]; exist {
-		if qos.GetVar5qi() <= 4 {
+		// The mirror of DecreaseRemainGBR. Both directions have to read the same table, or a
+		// guaranteed rate budgeted for a GBR 5QI above 4 is never given back.
+		if IsStandardisedGbr5QI(qos.GetVar5qi()) {
 			// Add GBR
 			origUl = IncreaseRamainBitRate(policy.RemainGbrUL, qos.GetGbrUl())
 			origDl = IncreaseRamainBitRate(policy.RemainGbrDL, qos.GetGbrDl())
@@ -395,7 +397,9 @@ func (policy *UeSmPolicyData) DecreaseRemainGBR(req *models.RequestedQos) (gbrDl
 	if req == nil {
 		return "", "", nil
 	}
-	if req.Var5qi <= 4 {
+	// A guaranteed rate is budgeted for a GBR flow. The 5QI here is derived from the AF's media
+	// type, so the standardised set settles it.
+	if IsStandardisedGbr5QI(req.Var5qi) {
 		err = DecreaseRamainBitRate(policy.RemainGbrDL, req.GetGbrDl())
 		if err != nil {
 			return

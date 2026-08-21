@@ -233,3 +233,47 @@ func TestGetMaxPccRuleIdNum(t *testing.T) {
 		})
 	}
 }
+
+// 5QI 66 is a GBR resource type in TS 23.501 table 5.7.4-1 but fails a 5QI <= 4 test, so the
+// QoS data for such a flow was created and stored with no rates at all: the media component's
+// requested bandwidth was never read and no guaranteed rate was authorised.
+func TestHandleCombinedMediaSubComponentsAuthorisesGbr5QIAboveFour(t *testing.T) {
+	smPolicy := newCombinedMediaTestPolicy()
+	medComp := &models.MediaComponent{
+		FStatus: models.FLOWSTATUS_ENABLED.Ptr(),
+		MarBwUl: openapi.PtrString("1 Mbps"),
+		MarBwDl: openapi.PtrString("2 Mbps"),
+	}
+	medSubComps := []models.MediaSubComponent{{
+		FNum:    1,
+		FStatus: models.FLOWSTATUS_ENABLED.Ptr(),
+		FDescs: []string{
+			"permit out ip from any to 10.0.0.1",
+			"permit in ip from 10.0.0.1 to any",
+		},
+	}}
+	flowInfos := []models.FlowInformation{
+		{FlowDescription: openapi.PtrString("permit out ip from any to 10.0.0.1")},
+	}
+
+	pccRule, problemDetails := handleCombinedMediaSubComponents(smPolicy, medComp, medSubComps, 66, flowInfos)
+	if problemDetails != nil {
+		t.Fatalf("unexpected problem details: %+v", problemDetails)
+	}
+	if pccRule == nil || len(pccRule.RefQosData) == 0 {
+		t.Fatal("expected a PCC rule referencing QoS data")
+		return
+	}
+	if smPolicy.PolicyDecision.QosDecs == nil {
+		t.Fatal("expected QoS decisions to be created")
+		return
+	}
+	qosData, ok := (*smPolicy.PolicyDecision.QosDecs)[pccRule.RefQosData[0]]
+	if !ok {
+		t.Fatalf("expected QoS data %q to exist", pccRule.RefQosData[0])
+	}
+	if qosData.GetGbrUl() == "" || qosData.GetGbrDl() == "" {
+		t.Errorf("a GBR 5QI must be authorised a guaranteed rate, got UL %q and DL %q",
+			qosData.GetGbrUl(), qosData.GetGbrDl())
+	}
+}
