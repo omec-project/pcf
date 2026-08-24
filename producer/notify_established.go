@@ -212,6 +212,22 @@ func mergeSliceDerived(stored, recomputed *models.SmPolicyDecision) models.SmPol
 }
 
 // dispatchPaced sends the notifications within the configured rate bound.
+//
+// Delivery is fire-and-forget: the dispatcher queues the event and a failure is logged by the
+// sender, with no path back here. A session whose notification is dropped therefore keeps a
+// stored decision the SMF never received, and because recomputeChangedSessions compares against
+// that stored decision, the next poll sees no difference and never retries. The change is then
+// invisible.
+//
+// The application function path stores and dispatches the same way, so this is not new — but the
+// consequence is worse here, and that difference is the point. An application function whose
+// notification is lost can post its app-session again; a poll-driven trigger that suppresses
+// repeats has no equivalent, because the thing that would trigger a repeat is the very
+// difference that has just been erased.
+//
+// Fixing it means knowing what was delivered rather than what was computed, which is a change to
+// how the decision is recorded. Until then a dropped notification is a silent divergence, and the
+// first step is to make it countable rather than only logged.
 func dispatchPaced(pending []pendingNotification) {
 	rate := factory.PcfConfig.Configuration.PolicyNotificationRate
 	if rate <= 0 {
