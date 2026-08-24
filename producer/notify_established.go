@@ -53,15 +53,22 @@ type pendingNotification struct {
 // a session's authorized parameters alone costs nothing to skip and a radio reconfiguration to
 // send.
 func NotifyEstablishedSessions() {
-	pending := recomputeChangedSessions()
-	if len(pending) == 0 {
-		logger.SMpolicylog.Debugln("policy changed but no established session's decision moved")
+	// The guard is taken before recomputing, not after.
+	//
+	// Recomputing writes each changed session's new decision into the context. Doing that and
+	// then finding the guard already held would leave the sessions holding decisions the SMF was
+	// never told about, and the next comparison would match — so the change would be invisible
+	// from then on, and the reassurance that it "will be picked up by the next change" would be
+	// exactly wrong.
+	if !inFlight.CompareAndSwap(false, true) {
+		logger.SMpolicylog.Warnf("a policy notification fan-out is already running; this change will be recomputed when it finishes")
 		return
 	}
 
-	if !inFlight.CompareAndSwap(false, true) {
-		logger.SMpolicylog.Warnf("a policy notification fan-out is already running; %d sessions will be picked up by the next change",
-			len(pending))
+	pending := recomputeChangedSessions()
+	if len(pending) == 0 {
+		logger.SMpolicylog.Debugln("policy changed but no established session's decision moved")
+		inFlight.Store(false)
 		return
 	}
 
@@ -116,7 +123,18 @@ func recomputeChangedSessions() []pendingNotification {
 			return true
 		}
 
-		for smPolicyID, smPolicy := range ue.SmPolicyData {
+		// Snapshot the map under its lock, then work outside it. Iterating while a session is
+		// created or released elsewhere is a fatal runtime error, and the work below is long
+		// enough — recomputing a decision per session — that holding the lock across it would
+		// stall session setup for every subscriber on this UE.
+		ue.SmPolicyDataMu.RLock()
+		sessions := make(map[string]*pcfContext.UeSmPolicyData, len(ue.SmPolicyData))
+		for id, smPolicy := range ue.SmPolicyData {
+			sessions[id] = smPolicy
+		}
+		ue.SmPolicyDataMu.RUnlock()
+
+		for smPolicyID, smPolicy := range sessions {
 			if smPolicy == nil || smPolicy.PolicyContext == nil {
 				continue
 			}

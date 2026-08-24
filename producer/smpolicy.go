@@ -121,7 +121,9 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 		ue.Pei = request.GetPei()
 	}
 	if smPolicyData != nil {
+		ue.SmPolicyDataMu.Lock()
 		delete(ue.SmPolicyData, smPolicyID)
+		ue.SmPolicyDataMu.Unlock()
 	}
 	smPolicyData = ue.NewUeSmPolicyData(smPolicyID, request, smData)
 
@@ -372,7 +374,9 @@ func deleteSmPolicyContextProcedure(smPolicyID string) *models.ProblemDetails {
 	smPolicy := ue.SmPolicyData[smPolicyID]
 
 	// Unsubscrice UDR
+	ue.SmPolicyDataMu.Lock()
 	delete(ue.SmPolicyData, smPolicyID)
+	ue.SmPolicyDataMu.Unlock()
 	logger.SMpolicylog.Debugf("SMPolicy smPolicyID[%s] DELETE", smPolicyID)
 
 	// Release related App Session

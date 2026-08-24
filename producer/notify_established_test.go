@@ -317,3 +317,82 @@ func TestSessionWithNoNotificationUriIsNotSilentlyUpdated(t *testing.T) {
 		t.Error("the stored decision was updated for a session that cannot be notified, so the change is now invisible")
 	}
 }
+
+// A fan-out that cannot start must not have already moved the sessions.
+//
+// Reported on the pull request. Recomputing writes each changed session's new decision into the
+// context; doing that and then finding the in-flight guard held would leave the sessions holding
+// decisions the SMF was never told about — and because the next comparison then matches, the
+// change would be invisible from then on. The warning promising it would be "picked up by the next
+// change" described the one thing that could not happen.
+func TestAFanOutThatCannotStartLeavesTheSessionsAlone(t *testing.T) {
+	original := getSlicePccPolicy
+	t.Cleanup(func() { getSlicePccPolicy = original })
+	getSlicePccPolicy = func(models.Snssai) *polling.PccPolicy {
+		return &polling.PccPolicy{
+			PccRules: map[string]*models.PccRule{"rule1": {PccRuleId: "rule1", Precedence: openapi.PtrInt32(200)}},
+			QosDecs:  map[string]*models.QosData{"qos1": {QosId: "qos1", Var5qi: openapi.PtrInt32(10)}},
+		}
+	}
+
+	smPolicy := establishedSession(t, nil, &models.SmPolicyDecision{})
+
+	// Another fan-out is already running.
+	if !inFlight.CompareAndSwap(false, true) {
+		t.Fatal("the guard was already held at the start of the test")
+	}
+	t.Cleanup(func() { inFlight.Store(false) })
+
+	NotifyEstablishedSessions()
+
+	if len(smPolicy.PolicyDecision.GetPccRules()) != 0 {
+		t.Error("the session's decision was updated by a fan-out that never ran; the SMF was not told and the next comparison will match, so the change is now invisible")
+	}
+}
+
+// Iterating the session map while sessions are created and released must not be a fatal runtime
+// error.
+//
+// Reported on the pull request. The map is a plain Go map: the poll loop iterates it periodically
+// while request handlers insert and delete. That is "concurrent map iteration and map write",
+// which is not recoverable. The race detector catches the unsynchronised access; without the
+// snapshot this test panics outright.
+func TestRecomputeToleratesSessionsBeingCreatedAndReleased(t *testing.T) {
+	original := getSlicePccPolicy
+	t.Cleanup(func() { getSlicePccPolicy = original })
+	getSlicePccPolicy = func(models.Snssai) *polling.PccPolicy {
+		return &polling.PccPolicy{
+			PccRules: map[string]*models.PccRule{"rule1": {PccRuleId: "rule1"}},
+			QosDecs:  map[string]*models.QosData{"qos1": {QosId: "qos1"}},
+		}
+	}
+
+	establishedSession(t, nil, &models.SmPolicyDecision{})
+	ue, _ := pcfContext.PCF_Self().UePool.Load("imsi-208930100007487")
+	ueCtx := ue.(*pcfContext.UeContext)
+
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; ; i++ {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			key := "churn-" + string(rune('a'+i%26))
+			ueCtx.SmPolicyDataMu.Lock()
+			ueCtx.SmPolicyData[key] = nil
+			delete(ueCtx.SmPolicyData, key)
+			ueCtx.SmPolicyDataMu.Unlock()
+		}
+	}()
+
+	for i := 0; i < 200; i++ {
+		recomputeChangedSessions()
+	}
+
+	close(stop)
+	<-done
+}
