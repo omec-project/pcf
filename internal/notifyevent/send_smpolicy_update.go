@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/omec-project/openapi/v2/models"
@@ -39,6 +40,19 @@ func (e SendSMpolicyUpdateNotifyEvent) Handle() {
 	logger.NotifyEventLog.Debugln("SM Policy Update Notification Success")
 }
 
+// smPolicyUpdateNotificationPath is appended to the SMF's notification URI when it is not there
+// already.
+//
+// TS 29.512 defines the callback as {notificationUri}/update -- the SMF supplies the base resource
+// at policy-create time and advertises it without the suffix, so posting the base returns 404.
+//
+// The suffix is added here **only when absent**, because this sender has two kinds of caller.
+// The application-function paths reach it through DispatchSendSMPolicyUpdateNotifyEvent, which
+// has always appended the suffix itself; appending again produced /update/update and a 404 that
+// looked exactly like the one this is meant to prevent. The polled trigger calls this sender
+// directly and has no dispatcher to do it.
+const smPolicyUpdateNotificationPath = "/update"
+
 // SendSMPolicyUpdateNotification posts the notification and reports what happened.
 //
 // The event handler above discards the result, which is right for a caller that has nothing to do
@@ -55,6 +69,11 @@ func SendSMPolicyUpdateNotification(uri string, request *models.SmPolicyNotifica
 	payload, err := json.Marshal(request)
 	if err != nil {
 		return fmt.Errorf("marshalling the request: %w", err)
+	}
+
+	uri = strings.TrimSuffix(uri, "/")
+	if !strings.HasSuffix(uri, smPolicyUpdateNotificationPath) {
+		uri += smPolicyUpdateNotificationPath
 	}
 
 	requestCtx, cancel := context.WithTimeout(context.Background(), sendSMPolicyUpdateNotifyTimeout)
