@@ -5,6 +5,7 @@ package producer
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/omec-project/openapi/v2/models"
 	pcfContext "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/factory"
+	"github.com/omec-project/pcf/internal/notifyevent"
 	"github.com/omec-project/pcf/polling"
 	"github.com/omec-project/pcf/util"
 )
@@ -689,4 +691,49 @@ func TestThePollLoopIsNotBlockedByTheFanOut(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Error("the in-flight guard was never released")
+}
+
+// Stale sessions must not abandon a fan-out that is otherwise healthy.
+//
+// The abandonment bound exists to stop the PCF spending a client timeout per session against an
+// SMF that is not answering. A session the SMF no longer holds is a different thing entirely: it
+// answers 404 immediately, costs nothing, and says nothing about the other sessions. Counting
+// those toward the streak would let three stale sessions strand every healthy session behind them
+// — the opposite of what the bound is for.
+func TestStaleSessionsDoNotAbandonTheFanOut(t *testing.T) {
+	unpaced(t)
+
+	attempts := 0
+	original := sendNotification
+	sendNotification = func(uri string, _ *models.SmPolicyNotification) error {
+		attempts++
+		if attempts <= 3 {
+			return fmt.Errorf("%w: SMF answered 404 Not Found", notifyevent.ErrSessionRejected)
+		}
+		return nil
+	}
+	t.Cleanup(func() { sendNotification = original })
+
+	pending := make([]pendingNotification, 6)
+	stored := make([]*pcfContext.UeSmPolicyData, 6)
+	for i := range pending {
+		stored[i] = &pcfContext.UeSmPolicyData{PolicyDecision: &models.SmPolicyDecision{}}
+		pending[i] = pendingNotification{
+			smPolicyID: "session",
+			smPolicy:   stored[i],
+			basedOn:    stored[i].PolicyDecision,
+			decision:   &models.SmPolicyDecision{},
+		}
+	}
+
+	dispatchPaced(pending)
+
+	if attempts != 6 {
+		t.Errorf("attempts = %d, want all 6: three stale sessions are not evidence that the SMF is down", attempts)
+	}
+	for _, i := range []int{3, 4, 5} {
+		if stored[i].PolicyDecision == pending[i].basedOn {
+			t.Errorf("healthy session %d was never told, because stale sessions ahead of it abandoned the fan-out", i)
+		}
+	}
 }

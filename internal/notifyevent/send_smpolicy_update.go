@@ -53,6 +53,15 @@ func (e SendSMpolicyUpdateNotifyEvent) Handle() {
 // directly and has no dispatcher to do it.
 const smPolicyUpdateNotificationPath = "/update"
 
+// ErrSessionRejected marks a failure that is about this session rather than about the far end.
+//
+// The distinction matters to a caller notifying many sessions in turn. An SMF that is down fails
+// every send the same way and there is nothing to gain by working through the rest; a session the
+// SMF no longer holds answers 404 while every other session is fine. Treating the second as
+// evidence of the first would let a few stale sessions abandon a fan-out and strand the healthy
+// ones behind them.
+var ErrSessionRejected = errors.New("the SMF rejected this session's notification")
+
 // SendSMPolicyUpdateNotification posts the notification and reports what happened.
 //
 // The event handler above discards the result, which is right for a caller that has nothing to do
@@ -100,6 +109,9 @@ func SendSMPolicyUpdateNotification(uri string, request *models.SmPolicyNotifica
 	}()
 
 	if httpResponse.StatusCode != http.StatusOK && httpResponse.StatusCode != http.StatusNoContent {
+		if httpResponse.StatusCode >= 400 && httpResponse.StatusCode < 500 {
+			return fmt.Errorf("%w: SMF answered %s", ErrSessionRejected, httpResponse.Status)
+		}
 		return fmt.Errorf("SMF answered %s", httpResponse.Status)
 	}
 	return nil

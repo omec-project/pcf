@@ -4,6 +4,7 @@
 package producer
 
 import (
+	"errors"
 	"reflect"
 	"sort"
 	"sync/atomic"
@@ -66,6 +67,18 @@ type pendingNotification struct {
 
 // NotifyEstablishedSessions brings sessions that are already running onto a policy that has just
 // changed, instead of leaving them on the one they were given until they next re-establish.
+//
+// It reaches slice-level policy only. The hook fires from the policy-control poll, so a change to
+// a network slice's PCC rules is seen, and a change to a **subscriber's** QoS is not: per-IMSI
+// session rules come from a different endpoint (`/nfconfig/qos/{dnn}/{imsi}`), fetched per session
+// on demand rather than polled, so nothing here notices when one changes. An operator editing a
+// device group's 5QI, ARP or session AMBR therefore still waits for the subscriber to re-establish.
+//
+// Closing that is not a matter of removing the gate: there is no cached per-IMSI QoS to compare
+// against, so detecting a change would mean fetching every established subscriber's rules on every
+// poll — one HTTP request per session every five seconds. The recompute below already costs one
+// such request per session, which is why it runs off the poll goroutine; doing it unconditionally
+// would put that cost on every poll instead of on every policy change.
 //
 // Only sessions whose decision actually differs are notified. A configuration change that leaves
 // a session's authorized parameters alone costs nothing to skip and a radio reconfiguration to
@@ -281,9 +294,18 @@ func dispatchPaced(pending []pendingNotification) {
 		notification := p.notification
 		if err := sendNotification(p.notifyURI, &notification); err != nil {
 			failed++
-			consecutiveFailures++
 			logger.SMpolicylog.Warnf("session %s was not told about the policy change: %v",
 				p.smPolicyID, err)
+
+			// Only a failure that says something about the far end counts toward giving up. A
+			// session the SMF no longer holds answers 404 while every other session is fine, and
+			// counting those would let a few stale sessions abandon the fan-out and strand the
+			// healthy ones behind them — the opposite of what the bound is for.
+			if errors.Is(err, notifyevent.ErrSessionRejected) {
+				consecutiveFailures = 0
+				continue
+			}
+			consecutiveFailures++
 
 			// A run of failures means the far end is down, not that these particular sessions were
 			// unlucky. Continuing would spend the client timeout per session against an SMF that is
