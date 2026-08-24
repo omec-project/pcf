@@ -6,10 +6,12 @@ package producer
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/omec-project/openapi/v2"
 	"github.com/omec-project/openapi/v2/models"
 	pcfContext "github.com/omec-project/pcf/context"
+	"github.com/omec-project/pcf/factory"
 	"github.com/omec-project/pcf/polling"
 	"github.com/omec-project/pcf/util"
 )
@@ -136,6 +138,36 @@ func establishedSession(t *testing.T, sessionAmbr *models.Ambr, given *models.Sm
 	return smPolicy
 }
 
+// runFanOut drives the whole trigger — recompute and delivery — with a sender that records what
+// the SMF would have received and answers however the caller says.
+//
+// The tests go through delivery rather than stopping at the recompute because that is where the
+// stored decision is now written. A test that asserted on stored state after recomputing alone
+// would be asserting on a step that deliberately does not touch it.
+func runFanOut(t *testing.T, sendResult error) []models.SmPolicyNotification {
+	t.Helper()
+
+	var sent []models.SmPolicyNotification
+	originalSender := sendNotification
+	sendNotification = func(_ string, request *models.SmPolicyNotification) error {
+		if sendResult == nil {
+			sent = append(sent, *request)
+		}
+		return sendResult
+	}
+	t.Cleanup(func() { sendNotification = originalSender })
+
+	// Unpaced. The interval exists to protect the air interface, and nothing here is on the air.
+	originalConfig := factory.PcfConfig
+	factory.PcfConfig = factory.Config{Configuration: &factory.Configuration{
+		PolicyNotificationRate: 100000,
+	}}
+	t.Cleanup(func() { factory.PcfConfig = originalConfig })
+
+	dispatchPaced(recomputeChangedSessions())
+	return sent
+}
+
 // A slice policy edit must reach a session that is already running, rather than waiting for the
 // subscriber to re-establish.
 func TestPolicyRuleChangeReachesAnEstablishedSession(t *testing.T) {
@@ -152,13 +184,16 @@ func TestPolicyRuleChangeReachesAnEstablishedSession(t *testing.T) {
 	// The session was given an empty decision, so anything the new policy produces is a change.
 	smPolicy := establishedSession(t, nil, &models.SmPolicyDecision{})
 
-	pending := recomputeChangedSessions()
+	sent := runFanOut(t, nil)
 
-	if len(pending) != 1 {
-		t.Fatalf("pending notifications = %d, want the established session to be told", len(pending))
+	if len(sent) != 1 {
+		t.Fatalf("notifications sent = %d, want the established session to be told", len(sent))
+	}
+	if len(sent[0].SmPolicyDecision.GetPccRules()) == 0 {
+		t.Error("the notification carried no PCC rules, so the SMF was told nothing useful")
 	}
 	if smPolicy.PolicyDecision == nil || len(smPolicy.PolicyDecision.GetPccRules()) == 0 {
-		t.Error("the session's stored decision must be updated to the new policy")
+		t.Error("the session's stored decision must be updated once the SMF has been told")
 	}
 }
 
@@ -175,16 +210,16 @@ func TestUnchangedDecisionSignalsNothing(t *testing.T) {
 		}
 	}
 
-	// Establish, then recompute twice: the second pass has nothing to do.
+	// Establish, then run the trigger twice: the second pass has nothing to do.
 	establishedSession(t, nil, &models.SmPolicyDecision{})
-	if first := recomputeChangedSessions(); len(first) != 1 {
-		t.Fatalf("first recompute = %d, want the initial difference to be seen", len(first))
+	if first := runFanOut(t, nil); len(first) != 1 {
+		t.Fatalf("first fan-out sent %d, want the initial difference to be seen", len(first))
 	}
 
-	second := recomputeChangedSessions()
+	second := runFanOut(t, nil)
 
 	if len(second) != 0 {
-		t.Errorf("second recompute = %d, want nothing: the policy did not change between them", len(second))
+		t.Errorf("second fan-out sent %d, want nothing: the policy did not change between them", len(second))
 	}
 }
 
@@ -239,8 +274,8 @@ func TestPerSessionDecisionStateSurvivesAPolicyEdit(t *testing.T) {
 	smPolicy := establishedSession(t, nil, &models.SmPolicyDecision{})
 	wantTriggers := len(smPolicy.PolicyDecision.PolicyCtrlReqTriggers)
 
-	if pending := recomputeChangedSessions(); len(pending) != 1 {
-		t.Fatalf("pending = %d, want the slice policy change to be seen", len(pending))
+	if sent := runFanOut(t, nil); len(sent) != 1 {
+		t.Fatalf("notifications sent = %d, want the slice policy change to be seen", len(sent))
 	}
 
 	got := smPolicy.PolicyDecision
@@ -395,4 +430,263 @@ func TestRecomputeToleratesSessionsBeingCreatedAndReleased(t *testing.T) {
 
 	close(stop)
 	<-done
+}
+
+// simplePolicy installs a slice policy that differs from an empty decision, which is all the
+// tests below need — they are about what happens to the notification, not what is in it.
+func simplePolicy(t *testing.T) {
+	t.Helper()
+	original := getSlicePccPolicy
+	t.Cleanup(func() { getSlicePccPolicy = original })
+	getSlicePccPolicy = func(models.Snssai) *polling.PccPolicy {
+		return &polling.PccPolicy{
+			PccRules: map[string]*models.PccRule{"rule1": {PccRuleId: "rule1", Precedence: openapi.PtrInt32(200)}},
+			QosDecs:  map[string]*models.QosData{"qos1": {QosId: "qos1", Var5qi: openapi.PtrInt32(10)}},
+		}
+	}
+}
+
+// unpaced removes the rate bound for a test that calls dispatchPaced directly.
+func unpaced(t *testing.T) {
+	t.Helper()
+	original := factory.PcfConfig
+	factory.PcfConfig = factory.Config{Configuration: &factory.Configuration{
+		PolicyNotificationRate: 100000,
+	}}
+	t.Cleanup(func() { factory.PcfConfig = original })
+}
+
+// A notification the SMF never received must not be recorded as delivered.
+//
+// This is the one that makes the trigger safe to suppress repeats on. Because the next fan-out
+// compares against the stored decision, storing before delivery turns a dropped notification into
+// a permanent divergence: the session stays on its old policy, the PCF believes otherwise, and
+// the difference that would drive a retry has been erased. The application function path can get
+// away with storing first because an AF can post its app-session again; nothing re-posts a
+// configuration edit.
+func TestAFailedDeliveryIsRetriedOnTheNextChange(t *testing.T) {
+	simplePolicy(t)
+	smPolicy := establishedSession(t, nil, &models.SmPolicyDecision{})
+	before := smPolicy.PolicyDecision
+
+	if sent := runFanOut(t, errors.New("connection refused")); len(sent) != 0 {
+		t.Fatalf("the sender was made to fail but %d notifications were recorded as sent", len(sent))
+	}
+
+	if smPolicy.PolicyDecision != before {
+		t.Fatal("the stored decision moved even though the SMF never received it; the next comparison now matches and the change can never be retried")
+	}
+
+	// The proof that it is retried, not merely un-stored.
+	if sent := runFanOut(t, nil); len(sent) != 1 {
+		t.Errorf("the next fan-out sent %d, want the undelivered session to be tried again", len(sent))
+	}
+	if len(smPolicy.PolicyDecision.GetPccRules()) == 0 {
+		t.Error("the retry succeeded but the decision was still not recorded")
+	}
+}
+
+// A dead SMF must not cost one client timeout per session. With a thousand established sessions
+// and a ten-second timeout, working through the whole list would take hours to discover what the
+// first few attempts already showed.
+func TestAFanOutGivesUpOnAnSmfThatIsNotAnswering(t *testing.T) {
+	unpaced(t)
+
+	attempts := 0
+	original := sendNotification
+	sendNotification = func(string, *models.SmPolicyNotification) error {
+		attempts++
+		return errors.New("connection refused")
+	}
+	t.Cleanup(func() { sendNotification = original })
+
+	pending := make([]pendingNotification, 50)
+	for i := range pending {
+		smPolicy := &pcfContext.UeSmPolicyData{PolicyDecision: &models.SmPolicyDecision{}}
+		pending[i] = pendingNotification{
+			smPolicyID: "session",
+			smPolicy:   smPolicy,
+			basedOn:    smPolicy.PolicyDecision,
+			decision:   &models.SmPolicyDecision{},
+		}
+	}
+
+	dispatchPaced(pending)
+
+	if attempts != maxConsecutiveNotifyFailures {
+		t.Errorf("attempts = %d, want %d: a run of failures means the far end is down, not that these sessions were unlucky",
+			attempts, maxConsecutiveNotifyFailures)
+	}
+}
+
+// One failure in the middle is not a dead SMF, and the sessions after it must still be told.
+func TestAnIsolatedFailureDoesNotStopTheFanOut(t *testing.T) {
+	unpaced(t)
+
+	attempts := 0
+	original := sendNotification
+	sendNotification = func(string, *models.SmPolicyNotification) error {
+		attempts++
+		if attempts == 2 {
+			return errors.New("transient")
+		}
+		return nil
+	}
+	t.Cleanup(func() { sendNotification = original })
+
+	pending := make([]pendingNotification, 5)
+	stored := make([]*pcfContext.UeSmPolicyData, 5)
+	for i := range pending {
+		stored[i] = &pcfContext.UeSmPolicyData{PolicyDecision: &models.SmPolicyDecision{}}
+		pending[i] = pendingNotification{
+			smPolicyID: "session",
+			smPolicy:   stored[i],
+			basedOn:    stored[i].PolicyDecision,
+			decision:   &models.SmPolicyDecision{},
+		}
+	}
+	wasNotDelivered := stored[1].PolicyDecision
+
+	dispatchPaced(pending)
+
+	if attempts != 5 {
+		t.Errorf("attempts = %d, want all 5: one failure is not grounds for abandoning the rest", attempts)
+	}
+	if stored[1].PolicyDecision != wasNotDelivered {
+		t.Error("the session whose notification failed was recorded as delivered")
+	}
+	for _, i := range []int{0, 2, 3, 4} {
+		if stored[i].PolicyDecision == nil || stored[i].PolicyDecision == pending[i].basedOn {
+			t.Errorf("session %d was delivered but not recorded", i)
+		}
+	}
+}
+
+// Pacing means a session can wait minutes in the queue, and an application function that claims it
+// meanwhile installs its PCC rules into the very decision this notification would replace. The
+// AF check at recompute time is not enough on its own.
+func TestASessionClaimedWhileQueuedIsNotOverwritten(t *testing.T) {
+	unpaced(t)
+
+	sent := 0
+	original := sendNotification
+	sendNotification = func(string, *models.SmPolicyNotification) error {
+		sent++
+		return nil
+	}
+	t.Cleanup(func() { sendNotification = original })
+
+	smPolicy := &pcfContext.UeSmPolicyData{PolicyDecision: &models.SmPolicyDecision{}}
+	pending := []pendingNotification{{
+		smPolicyID: "claimed",
+		smPolicy:   smPolicy,
+		basedOn:    smPolicy.PolicyDecision,
+		decision:   &models.SmPolicyDecision{},
+	}}
+
+	// The AF arrives after the session was queued and before its turn came round.
+	smPolicy.AppSessions = map[string]bool{"app-session-1": true}
+
+	dispatchPaced(pending)
+
+	if sent != 0 {
+		t.Error("an AF-managed session was told to replace its policy; the AF's rules would go with it")
+	}
+}
+
+// The same guard for the other way a queued session goes stale: something replaced its decision
+// outright, so the merge this notification carries was computed from state that no longer exists.
+func TestAReplacedDecisionIsNotOverwrittenByAQueuedNotification(t *testing.T) {
+	unpaced(t)
+
+	sent := 0
+	original := sendNotification
+	sendNotification = func(string, *models.SmPolicyNotification) error {
+		sent++
+		return nil
+	}
+	t.Cleanup(func() { sendNotification = original })
+
+	smPolicy := &pcfContext.UeSmPolicyData{PolicyDecision: &models.SmPolicyDecision{}}
+	pending := []pendingNotification{{
+		smPolicyID: "replaced",
+		smPolicy:   smPolicy,
+		basedOn:    smPolicy.PolicyDecision,
+		decision:   &models.SmPolicyDecision{},
+	}}
+
+	replacement := &models.SmPolicyDecision{}
+	smPolicy.PolicyDecision = replacement
+
+	dispatchPaced(pending)
+
+	if sent != 0 {
+		t.Error("a notification computed from a decision that has since been replaced was sent anyway")
+	}
+	if smPolicy.PolicyDecision != replacement {
+		t.Error("the queued notification overwrote the newer decision")
+	}
+}
+
+// The configuration poll loop must not wait for the fan-out, recompute included.
+//
+// The poll loop is a single serial goroutine and it is how the PCF sees every configuration
+// change. Recomputing a session's decision fetches its session rules from the webconsole — one
+// HTTP GET per established session, five second timeout each — so doing it inline would blind the
+// PCF for as long as it took, and a degraded webconsole would be both the cause and the thing that
+// could no longer be polled.
+func TestThePollLoopIsNotBlockedByTheFanOut(t *testing.T) {
+	simplePolicy(t)
+	unpaced(t)
+
+	release := make(chan struct{})
+	originalRules := polling.GetImsiSessionRules
+	polling.GetImsiSessionRules = func(string, string) (map[string]*models.SessionRule, error) {
+		<-release
+		return nil, errors.New("no imsi session rules configured")
+	}
+	t.Cleanup(func() { polling.GetImsiSessionRules = originalRules })
+
+	finished := make(chan struct{})
+	originalSender := sendNotification
+	sendNotification = func(string, *models.SmPolicyNotification) error {
+		close(finished)
+		return nil
+	}
+	t.Cleanup(func() { sendNotification = originalSender })
+
+	// establishedSession installs its own stub, so it has to be set up before ours takes over.
+	establishedSession(t, nil, &models.SmPolicyDecision{})
+	polling.GetImsiSessionRules = func(string, string) (map[string]*models.SessionRule, error) {
+		<-release
+		return nil, errors.New("no imsi session rules configured")
+	}
+
+	returned := make(chan struct{})
+	go func() {
+		NotifyEstablishedSessions()
+		close(returned)
+	}()
+
+	select {
+	case <-returned:
+	case <-time.After(2 * time.Second):
+		t.Fatal("NotifyEstablishedSessions did not return while a recompute was in progress; the poll loop is blocked behind per-session webconsole fetches")
+	}
+
+	close(release)
+	select {
+	case <-finished:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the fan-out never delivered anything after the recompute was released")
+	}
+
+	// Let the goroutine clear the in-flight guard before the stubs are restored.
+	for range 100 {
+		if !inFlight.Load() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Error("the in-flight guard was never released")
 }

@@ -9,11 +9,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/omec-project/openapi/v2"
 	"github.com/omec-project/openapi/v2/models"
 	pcfContext "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/factory"
 	"github.com/omec-project/pcf/internal/notifyevent"
 	"github.com/omec-project/pcf/logger"
+	"github.com/omec-project/pcf/metrics"
 	"github.com/omec-project/pcf/polling"
 	"github.com/omec-project/pcf/util"
 )
@@ -27,6 +29,15 @@ import (
 // from its own link budget; measurement sizes the default, it does not decide whether the bound
 // exists.
 const defaultPolicyNotificationRate = 10
+
+// maxConsecutiveNotifyFailures bounds how long a fan-out keeps trying against an SMF that is not
+// answering. Each failed send can cost the HTTP client's full timeout, so a large slice-wide
+// change would otherwise spend minutes discovering the same thing repeatedly.
+const maxConsecutiveNotifyFailures = 3
+
+// sendNotification is a seam: the tests need to observe what was sent and to make sending fail,
+// and the real one performs a synchronous HTTP request.
+var sendNotification = notifyevent.SendSMPolicyUpdateNotification
 
 func init() {
 	// Registered here rather than wired from service: the polling package cannot import this one.
@@ -42,8 +53,15 @@ var inFlight atomic.Bool
 type pendingNotification struct {
 	notifyURI    string
 	notification models.SmPolicyNotification
-	arpPriority  int32
-	smPolicyID   string
+	// smPolicy and decision are held so the recomputed decision can be recorded once the SMF has
+	// actually received it, and not before. See dispatchPaced.
+	smPolicy *pcfContext.UeSmPolicyData
+	decision *models.SmPolicyDecision
+	// basedOn is the decision the merge was computed from, kept so the dispatcher can tell whether
+	// anything replaced it while this notification waited its turn.
+	basedOn     *models.SmPolicyDecision
+	arpPriority int32
+	smPolicyID  string
 }
 
 // NotifyEstablishedSessions brings sessions that are already running onto a policy that has just
@@ -65,24 +83,29 @@ func NotifyEstablishedSessions() {
 		return
 	}
 
-	pending := recomputeChangedSessions()
-	if len(pending) == 0 {
-		logger.SMpolicylog.Debugln("policy changed but no established session's decision moved")
-		inFlight.Store(false)
-		return
-	}
-
-	// Highest allocation and retention priority first. TS 23.501 clause 5.7.2.2: the ARP priority
-	// range is 1 to 15 with 1 as the highest, so this is ascending. If sessions must wait, the
-	// ones being promoted are not the ones at the back of the queue.
-	sortByPriority(pending)
-
-	// Dispatched off the caller's goroutine. The caller is the configuration poll loop, and the
-	// fan-out is deliberately slow — pacing a thousand sessions takes minutes. Blocking the loop
-	// for that long would stop the SMF and the PCF seeing configuration changes at all, which is
-	// the opposite of what a change meant to reach running sessions should cost.
+	// Everything below runs off the caller's goroutine, recompute included.
+	//
+	// The caller is the configuration poll loop, a single serial goroutine, and both halves of
+	// this are slow for the same reason: they are per-session network work. Recomputing a
+	// session's decision calls polling.GetImsiSessionRules, which is an HTTP GET to the webconsole
+	// with a five second timeout — one per established session — and the paced dispatch that
+	// follows takes minutes by design. Doing either inline would stop the PCF seeing any
+	// configuration change for as long as it ran, and a degraded webconsole would both cause that
+	// and be the thing the PCF could no longer poll.
 	go func() {
 		defer inFlight.Store(false)
+
+		pending := recomputeChangedSessions()
+		if len(pending) == 0 {
+			logger.SMpolicylog.Debugln("policy changed but no established session's decision moved")
+			return
+		}
+
+		// Highest allocation and retention priority first. TS 23.501 clause 5.7.2.2: the ARP
+		// priority range is 1 to 15 with 1 as the highest, so this is ascending. If sessions must
+		// wait, the ones being promoted are not the ones at the back of the queue.
+		sortByPriority(pending)
+
 		dispatchPaced(pending)
 	}()
 }
@@ -181,16 +204,23 @@ func recomputeChangedSessions() []pendingNotification {
 				continue
 			}
 
-			stored := merged
-			smPolicy.PolicyDecision = &stored
+			// Deliberately not stored here. The stored decision is what the next recompute
+			// compares against, so writing it now and then failing to deliver would make the
+			// change invisible from then on — the difference that would trigger a retry is the
+			// one that has just been erased. It is recorded in dispatchPaced, once the SMF has
+			// answered.
+			decision := merged
 			pending = append(pending, pendingNotification{
 				notifyURI:   notifyURI,
 				smPolicyID:  smPolicyID,
-				arpPriority: defaultQosArpPriority(&stored),
+				smPolicy:    smPolicy,
+				decision:    &decision,
+				basedOn:     smPolicy.PolicyDecision,
+				arpPriority: defaultQosArpPriority(&decision),
 				notification: models.SmPolicyNotification{
-					ResourceUri: openapiPtr(util.GetResourceUri(
+					ResourceUri: openapi.PtrString(util.GetResourceUri(
 						models.SERVICENAME_NPCF_SMPOLICYCONTROL, smPolicyID)),
-					SmPolicyDecision: &stored,
+					SmPolicyDecision: &decision,
 				},
 			})
 		}
@@ -211,46 +241,89 @@ func mergeSliceDerived(stored, recomputed *models.SmPolicyDecision) models.SmPol
 	return merged
 }
 
-// dispatchPaced sends the notifications within the configured rate bound.
+// dispatchPaced sends the notifications within the configured rate bound, and records each
+// session's new decision only once the SMF has acknowledged it.
 //
-// Delivery is fire-and-forget: the dispatcher queues the event and a failure is logged by the
-// sender, with no path back here. A session whose notification is dropped therefore keeps a
-// stored decision the SMF never received, and because recomputeChangedSessions compares against
-// that stored decision, the next poll sees no difference and never retries. The change is then
-// invisible.
+// The ordering is the whole point. The stored decision is what the next recompute compares
+// against, so storing before delivery and then failing to deliver would leave the session holding
+// a policy the SMF never received — and the difference that would have triggered a retry is the
+// one that has just been erased. Storing after delivery costs a re-notification if the PCF
+// restarts mid-fan-out, which is harmless, and buys a retry on the next policy change for every
+// session that was not reached.
 //
-// The application function path stores and dispatches the same way, so this is not new — but the
-// consequence is worse here, and that difference is the point. An application function whose
-// notification is lost can post its app-session again; a poll-driven trigger that suppresses
-// repeats has no equivalent, because the thing that would trigger a repeat is the very
-// difference that has just been erased.
-//
-// Fixing it means knowing what was delivered rather than what was computed, which is a change to
-// how the decision is recorded. Until then a dropped notification is a silent divergence, and the
-// first step is to make it countable rather than only logged.
+// This is where the poll-driven trigger differs from the application function path, which stores
+// and dispatches fire-and-forget. An application function whose notification is lost can post its
+// app-session again; nothing re-posts a configuration change.
 func dispatchPaced(pending []pendingNotification) {
-	rate := factory.PcfConfig.Configuration.PolicyNotificationRate
-	if rate <= 0 {
-		rate = defaultPolicyNotificationRate
+	rate := defaultPolicyNotificationRate
+	if factory.PcfConfig.Configuration != nil && factory.PcfConfig.Configuration.PolicyNotificationRate > 0 {
+		rate = factory.PcfConfig.Configuration.PolicyNotificationRate
 	}
 	interval := time.Second / time.Duration(rate)
 
 	logger.SMpolicylog.Infof("notifying %d established sessions of a policy change at %d/s",
 		len(pending), rate)
 
+	var delivered, failed, skipped, consecutiveFailures int
+
 	for i, p := range pending {
-		if p.notifyURI == "" {
-			logger.SMpolicylog.Warnf("session %s has no notification URI; it will not be told about the policy change",
+		// Re-checked here, not only at recompute. Pacing means a session can wait minutes in this
+		// queue, and what was true when it was queued need not still be true. An application
+		// function that claims the session meanwhile installs its PCC rules into the very decision
+		// this notification carries a replacement for, and the SMF would be told to drop them.
+		if len(p.smPolicy.AppSessions) > 0 || p.smPolicy.PolicyDecision != p.basedOn {
+			logger.SMpolicylog.Infof("session %s changed while it was queued; leaving it to the next policy change",
 				p.smPolicyID)
+			skipped++
 			continue
 		}
+
 		notification := p.notification
-		notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(p.notifyURI, &notification)
+		if err := sendNotification(p.notifyURI, &notification); err != nil {
+			failed++
+			consecutiveFailures++
+			logger.SMpolicylog.Warnf("session %s was not told about the policy change: %v",
+				p.smPolicyID, err)
+
+			// A run of failures means the far end is down, not that these particular sessions were
+			// unlucky. Continuing would spend the client timeout per session against an SMF that is
+			// not answering, and every one of them would fail the same way.
+			if consecutiveFailures >= maxConsecutiveNotifyFailures {
+				notAttempted := len(pending) - i - 1
+				logger.SMpolicylog.Errorf("giving up after %d consecutive failures: %d of %d sessions keep their previous policy until it changes again",
+					consecutiveFailures, failed+skipped+notAttempted, len(pending))
+				metrics.AddPcfPolicyNotifyStats("failed", failed)
+				metrics.AddPcfPolicyNotifyStats("abandoned", notAttempted)
+				metrics.AddPcfPolicyNotifyStats("skipped", skipped)
+				metrics.AddPcfPolicyNotifyStats("delivered", delivered)
+				return
+			}
+			continue
+		}
+
+		consecutiveFailures = 0
+		delivered++
+
+		// Recorded only now. Until the SMF has it, this session's stored decision has to keep
+		// saying what the SMF believes, or the next recompute finds nothing to send.
+		p.smPolicy.PolicyDecision = p.decision
 
 		if i < len(pending)-1 {
 			time.Sleep(interval)
 		}
 	}
+
+	if failed > 0 || skipped > 0 {
+		logger.SMpolicylog.Warnf("policy change reached %d of %d established sessions (%d failed, %d changed while queued); the rest are retried on the next change",
+			delivered, len(pending), failed, skipped)
+	} else {
+		// A fan-out takes minutes by design, so an operator watching a slice-wide change needs a
+		// line saying it finished, not only the one saying it started.
+		logger.SMpolicylog.Infof("policy change reached all %d established sessions", delivered)
+	}
+	metrics.AddPcfPolicyNotifyStats("delivered", delivered)
+	metrics.AddPcfPolicyNotifyStats("failed", failed)
+	metrics.AddPcfPolicyNotifyStats("skipped", skipped)
 }
 
 // defaultQosArpPriority reports the ARP priority a session should be paced by, taking the most
@@ -267,5 +340,3 @@ func defaultQosArpPriority(decision *models.SmPolicyDecision) int32 {
 	}
 	return best
 }
-
-func openapiPtr(s string) *string { return &s }
