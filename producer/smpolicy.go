@@ -29,7 +29,8 @@ import (
 
 var getSlicePccPolicy = polling.GetSlicePccPolicy
 
-// defaultFallbackAmbrRate is used for both uplink and downlink when no AMBR is available
+// defaultFallbackAmbrRate is used for both uplink and downlink when falling
+// back to default session AMBR (e.g., when AMBR or QoS is unavailable)
 const defaultFallbackAmbrRate = "1 Mbps"
 
 // SmPoliciesPost -

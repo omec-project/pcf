@@ -31,6 +31,8 @@ func AddService(engine *gin.Engine) *gin.RouterGroup {
 	// https://localhost:29507/npcf-callback/v1/route
 	for _, route := range routes {
 		switch route.Method {
+		case http.MethodGet:
+			group.GET(route.Pattern, route.HandlerFunc)
 		case http.MethodPost:
 			group.POST(route.Pattern, route.HandlerFunc)
 		}
