@@ -21,6 +21,8 @@ import (
 	"github.com/omec-project/util/httpwrapper"
 )
 
+const locationHeaderKey = "Location"
+
 func HandleDeletePoliciesPolAssoId(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.AMpolicylog.Infoln("handle AM Policy Association Delete")
 
@@ -186,7 +188,7 @@ func HandlePostPolicies(request *httpwrapper.Request) *httpwrapper.Response {
 
 	response, locationHeader, problemDetails := PostPoliciesProcedure(polAssoId, policyAssociationRequest)
 	headers := http.Header{
-		"Location": {locationHeader},
+		locationHeaderKey: {locationHeader},
 	}
 	if response != nil {
 		return httpwrapper.NewResponse(http.StatusCreated, headers, response)

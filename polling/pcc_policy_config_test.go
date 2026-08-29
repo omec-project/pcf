@@ -21,6 +21,12 @@ import (
 	"github.com/omec-project/util/idgenerator"
 )
 
+const (
+	testPccRuleId1 = "rule1"
+	testQosId1     = "qos1"
+	testTcId1      = "tc1"
+)
+
 func TestGetSlicePccPolicy_Found(t *testing.T) {
 	originalPccPolicies := pccPolicies
 	defer func() { pccPolicies = originalPccPolicies }()
@@ -29,13 +35,13 @@ func TestGetSlicePccPolicy_Found(t *testing.T) {
 
 	testPolicy := &PccPolicy{
 		PccRules: map[string]*models.PccRule{
-			"rule1": {PccRuleId: "rule1"},
+			testPccRuleId1: {PccRuleId: testPccRuleId1},
 		},
 		QosDecs: map[string]*models.QosData{
-			"qos1": {QosId: "qos1"},
+			testQosId1: {QosId: testQosId1},
 		},
 		TraffContDecs: map[string]*models.TrafficControlData{
-			"tc1": {TcId: "tc1"},
+			testTcId1: {TcId: testTcId1},
 		},
 	}
 
@@ -114,13 +120,13 @@ func TestCreatePccPolicies_OnePolicyControlElement(t *testing.T) {
 			initialPccPolicies: map[SnssaiKey]*PccPolicy{
 				{Sst: 1, Sd: "22"}: {
 					PccRules: map[string]*models.PccRule{
-						"rule1": {PccRuleId: "rule1"},
+						testPccRuleId1: {PccRuleId: testPccRuleId1},
 					},
 					QosDecs: map[string]*models.QosData{
-						"qos1": {QosId: "qos1"},
+						testQosId1: {QosId: testQosId1},
 					},
 					TraffContDecs: map[string]*models.TrafficControlData{
-						"tc1": {TcId: "tc1"},
+						testTcId1: {TcId: testTcId1},
 					},
 				},
 			},
@@ -137,7 +143,7 @@ func TestCreatePccPolicies_OnePolicyControlElement(t *testing.T) {
 				},
 				PccRules: []nfConfigApi.PccRule{
 					{
-						RuleId:     "rule1",
+						RuleId:     testPccRuleId1,
 						Precedence: 255,
 						Qos: nfConfigApi.PccQos{
 							FiveQi:  9,
@@ -166,7 +172,7 @@ func TestCreatePccPolicies_OnePolicyControlElement(t *testing.T) {
 			expectedPccPolicies := map[SnssaiKey]*PccPolicy{
 				SnssaiToKey(snssai): {
 					PccRules: map[string]*models.PccRule{
-						"rule1": {
+						testPccRuleId1: {
 							PccRuleId:  "1",
 							Precedence: openapi.PtrInt32(255),
 							RefQosData: []string{"1"},

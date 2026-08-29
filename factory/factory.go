@@ -19,6 +19,8 @@ import (
 	"go.yaml.in/yaml/v4"
 )
 
+const defaultWebuiUri = "http://webui:5001"
+
 var PcfConfig Config
 
 // TODO: Support configuration update from REST api
@@ -34,7 +36,7 @@ func InitConfigFactory(f string) error {
 	}
 
 	if PcfConfig.Configuration.WebuiUri == "" {
-		PcfConfig.Configuration.WebuiUri = "http://webui:5001"
+		PcfConfig.Configuration.WebuiUri = defaultWebuiUri
 		logger.CfgLog.Infof("webuiUri not set in configuration file. Using %v", PcfConfig.Configuration.WebuiUri)
 		return nil
 	}

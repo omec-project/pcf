@@ -19,7 +19,7 @@ func TestWebuiUrl(t *testing.T) {
 		{
 			name:       "default webui URL",
 			configFile: "pcfcfg.yaml",
-			want:       "http://webui:5001",
+			want:       defaultWebuiUri,
 		},
 		{
 			name:       "custom webui URL",

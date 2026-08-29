@@ -48,6 +48,13 @@ var testQos = &models.SubscribedDefaultQos{
 
 const applicationJson = "application/json"
 
+const (
+	testPccRuleId1          = "rule1"
+	testQosId1              = "qos1"
+	testTcId1               = "tc1"
+	testSessRuleIdInternet1 = "internet-1"
+)
+
 func TestBuildSmPolicyDecision_FoundInLocalPolicy(t *testing.T) {
 	originalGetSlicePccPolicy := getSlicePccPolicy
 	originalPcfConfig := factory.PcfConfig
@@ -59,18 +66,18 @@ func TestBuildSmPolicyDecision_FoundInLocalPolicy(t *testing.T) {
 	getSlicePccPolicy = func(snssai models.Snssai) *polling.PccPolicy {
 		return &polling.PccPolicy{
 			PccRules: map[string]*models.PccRule{
-				"rule1": {
-					PccRuleId: "rule1",
+				testPccRuleId1: {
+					PccRuleId: testPccRuleId1,
 				},
 			},
 			QosDecs: map[string]*models.QosData{
-				"qos1": {
-					QosId: "qos1",
+				testQosId1: {
+					QosId: testQosId1,
 				},
 			},
 			TraffContDecs: map[string]*models.TrafficControlData{
-				"tc1": {
-					TcId: "tc1",
+				testTcId1: {
+					TcId: testTcId1,
 				},
 			},
 		}
@@ -119,18 +126,18 @@ func TestBuildSmPolicyDecision_FoundInLocalPolicy(t *testing.T) {
 	}
 
 	qosDecs := map[string]models.QosData{
-		"qos1": {
-			QosId: "qos1",
+		testQosId1: {
+			QosId: testQosId1,
 		},
 	}
 	traffContDecs := map[string]models.TrafficControlData{
-		"tc1": {
-			TcId: "tc1",
+		testTcId1: {
+			TcId: testTcId1,
 		},
 	}
 	sessRules := map[string]models.SessionRule{
-		"internet-1": {
-			SessRuleId: "internet-1",
+		testSessRuleIdInternet1: {
+			SessRuleId: testSessRuleIdInternet1,
 			AuthSessAmbr: &models.Ambr{
 				Uplink:   "55 Mbps",
 				Downlink: "515 Mbps",
@@ -148,8 +155,8 @@ func TestBuildSmPolicyDecision_FoundInLocalPolicy(t *testing.T) {
 
 	expectedDecision := &models.SmPolicyDecision{
 		PccRules: map[string]models.PccRule{
-			"rule1": {
-				PccRuleId: "rule1",
+			testPccRuleId1: {
+				PccRuleId: testPccRuleId1,
 			},
 		},
 		QosDecs:       &qosDecs,
@@ -299,8 +306,8 @@ func TestBuildSmPolicyDecision_FallbackToDefault(t *testing.T) {
 				AverWindow: *openapi.NewNullableInt32(openapi.PtrInt32(2000)),
 			},
 			expectedAmbr: &models.Ambr{
-				Downlink: "1 Mbps",
-				Uplink:   "1 Mbps",
+				Downlink: defaultFallbackAmbrRate,
+				Uplink:   defaultFallbackAmbrRate,
 			},
 		},
 		{
@@ -315,8 +322,8 @@ func TestBuildSmPolicyDecision_FallbackToDefault(t *testing.T) {
 				AverWindow: *openapi.NewNullableInt32(openapi.PtrInt32(2000)),
 			},
 			expectedAmbr: &models.Ambr{
-				Downlink: "1 Mbps",
-				Uplink:   "1 Mbps",
+				Downlink: defaultFallbackAmbrRate,
+				Uplink:   defaultFallbackAmbrRate,
 			},
 		},
 		{
@@ -331,8 +338,8 @@ func TestBuildSmPolicyDecision_FallbackToDefault(t *testing.T) {
 				AverWindow: *openapi.NewNullableInt32(openapi.PtrInt32(2000)),
 			},
 			expectedAmbr: &models.Ambr{
-				Downlink: "1 Mbps",
-				Uplink:   "1 Mbps",
+				Downlink: defaultFallbackAmbrRate,
+				Uplink:   defaultFallbackAmbrRate,
 			},
 		},
 	}
@@ -340,13 +347,13 @@ func TestBuildSmPolicyDecision_FallbackToDefault(t *testing.T) {
 	getSlicePccPolicy = func(snssai models.Snssai) *polling.PccPolicy {
 		return &polling.PccPolicy{
 			PccRules: map[string]*models.PccRule{
-				"rule1": {PccRuleId: "rule1"},
+				testPccRuleId1: {PccRuleId: testPccRuleId1},
 			},
 			QosDecs: map[string]*models.QosData{
-				"qos1": {QosId: "qos1"},
+				testQosId1: {QosId: testQosId1},
 			},
 			TraffContDecs: map[string]*models.TrafficControlData{
-				"tc1": {TcId: "tc1"},
+				testTcId1: {TcId: testTcId1},
 			},
 		}
 	}
@@ -380,18 +387,18 @@ func TestBuildSmPolicyDecision_FallbackToDefault(t *testing.T) {
 			}
 
 			qosDecs := map[string]models.QosData{
-				"qos1": {
-					QosId: "qos1",
+				testQosId1: {
+					QosId: testQosId1,
 				},
 			}
 			traffContDecs := map[string]models.TrafficControlData{
-				"tc1": {
-					TcId: "tc1",
+				testTcId1: {
+					TcId: testTcId1,
 				},
 			}
 			sessRules := map[string]models.SessionRule{
-				"internet-1": {
-					SessRuleId:   "internet-1",
+				testSessRuleIdInternet1: {
+					SessRuleId:   testSessRuleIdInternet1,
 					AuthDefQos:   tc.expectedQos,
 					AuthSessAmbr: tc.expectedAmbr,
 				},
@@ -399,8 +406,8 @@ func TestBuildSmPolicyDecision_FallbackToDefault(t *testing.T) {
 
 			expectedDecision := &models.SmPolicyDecision{
 				PccRules: map[string]models.PccRule{
-					"rule1": {
-						PccRuleId: "rule1",
+					testPccRuleId1: {
+						PccRuleId: testPccRuleId1,
 					},
 				},
 				QosDecs:       &qosDecs,
@@ -436,7 +443,7 @@ func TestBuildSmPolicyDecision_FallbackToDefault(t *testing.T) {
 // JSON deep copy used in initSmPolicyDecisionFromPccPolicy.
 func TestInitSmPolicyDecisionPreservesNullableFields(t *testing.T) {
 	qos := &models.QosData{
-		QosId:   "qos1",
+		QosId:   testQosId1,
 		MaxbrUl: *openapi.NewNullableString(openapi.PtrString("100 Mbps")),
 		MaxbrDl: *openapi.NewNullableString(openapi.PtrString("200 Mbps")),
 		Arp: &models.Arp{
@@ -447,13 +454,13 @@ func TestInitSmPolicyDecisionPreservesNullableFields(t *testing.T) {
 	}
 	pccPolicy := &polling.PccPolicy{
 		PccRules:      map[string]*models.PccRule{},
-		QosDecs:       map[string]*models.QosData{"qos1": qos},
+		QosDecs:       map[string]*models.QosData{testQosId1: qos},
 		TraffContDecs: map[string]*models.TrafficControlData{},
 	}
 
 	decision := initSmPolicyDecisionFromPccPolicy(pccPolicy)
 
-	got, ok := decision.GetQosDecs()["qos1"]
+	got, ok := decision.GetQosDecs()[testQosId1]
 	if !ok {
 		t.Fatal("qos1 missing from decision QosDecs")
 	}

@@ -31,7 +31,7 @@ func AddService(engine *gin.Engine) *gin.RouterGroup {
 	// https://localhost:29507/npcf-callback/v1/route
 	for _, route := range routes {
 		switch route.Method {
-		case "POST":
+		case http.MethodPost:
 			group.POST(route.Pattern, route.HandlerFunc)
 		}
 	}
@@ -45,17 +45,17 @@ func Index(c *gin.Context) {
 
 var routes = Routes{
 	{
-		Name: "Index", Method: "GET",
+		Name: "Index", Method: http.MethodGet,
 		Pattern: "/", HandlerFunc: Index,
 	},
 
 	{
-		Name: "HTTPNudrNotify", Method: "POST",
+		Name: "HTTPNudrNotify", Method: http.MethodPost,
 		Pattern: "/nudr-notify/:supi", HandlerFunc: HTTPNudrNotify,
 	},
 
 	{
-		Name: "HTTPAmfStatusChangeNotify", Method: "POST",
+		Name: "HTTPAmfStatusChangeNotify", Method: http.MethodPost,
 		Pattern: "/amfstatus", HandlerFunc: HTTPAmfStatusChangeNotify,
 	},
 }

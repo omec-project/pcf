@@ -204,7 +204,7 @@ func HandlePostAppSessionsContext(request *httpwrapper.Request) *httpwrapper.Res
 
 	if response != nil {
 		headers := http.Header{
-			"Location": {locationHeader},
+			locationHeaderKey: {locationHeader},
 		}
 		stats.IncrementPcfPolicyAuthorizationStats("create", "application_sessions", "SUCCESS")
 		return httpwrapper.NewResponse(http.StatusCreated, headers, response)
@@ -1282,7 +1282,7 @@ func HandleUpdateEventsSubscContext(request *httpwrapper.Request) *httpwrapper.R
 	} else if status == http.StatusCreated {
 		stats.IncrementPcfPolicyAuthorizationStats("update", "events_subscriptions", "SUCCESS")
 		headers := http.Header{
-			"Location": {locationHeader},
+			locationHeaderKey: {locationHeader},
 		}
 		return httpwrapper.NewResponse(http.StatusCreated, headers, response)
 	} else if status == http.StatusOK {
