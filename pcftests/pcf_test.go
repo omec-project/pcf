@@ -30,6 +30,13 @@ import (
 	"github.com/omec-project/pcf/service"
 )
 
+const (
+	testNfTypeUDR           = "UDR"
+	testNfStatusRegistered  = "REGISTERED"
+	testHTTPProto10         = "HTTP/1.0"
+	testEventNfDeregistered = "NF_DEREGISTERED"
+)
+
 var (
 	PCFTest        = &service.PCF{}
 	bitRateValues  = make(map[int64]string)
@@ -72,8 +79,8 @@ func TestGetUDRUri(t *testing.T) {
 			},
 		},
 		NfInstanceId: nfInstanceID,
-		NfType:       "UDR",
-		NfStatus:     "REGISTERED",
+		NfType:       testNfTypeUDR,
+		NfStatus:     testNfStatusRegistered,
 	}
 	udrUri1 := "https://10.0.13.1:8090"
 	udrUri2 := "https://20.20.13.1:8090"
@@ -111,8 +118,8 @@ func TestGetUDRUri(t *testing.T) {
 			},
 		},
 		NfInstanceId: "9999-4343-43-434-343",
-		NfType:       "UDR",
-		NfStatus:     "REGISTERED",
+		NfType:       testNfTypeUDR,
+		NfStatus:     testNfStatusRegistered,
 	}
 	services2 := []models.NFService{
 		{
@@ -212,8 +219,8 @@ func TestCreateSubscriptionSuccess(t *testing.T) {
 			},
 		},
 		NfInstanceId: nfInstanceID,
-		NfType:       "UDR",
-		NfStatus:     "REGISTERED",
+		NfType:       testNfTypeUDR,
+		NfStatus:     testNfStatusRegistered,
 	}
 	nfInstances := []models.NFProfileDiscovery{
 		udrProfile,
@@ -224,7 +231,7 @@ func TestCreateSubscriptionSuccess(t *testing.T) {
 	httpResponse := http.Response{
 		Status:     "200 OK",
 		StatusCode: 200,
-		Proto:      "HTTP/1.0",
+		Proto:      testHTTPProto10,
 		ProtoMajor: 1,
 		ProtoMinor: 0,
 		Body:       stringReadCloser,
@@ -279,7 +286,7 @@ func TestCreateSubscriptionSuccess(t *testing.T) {
 	}
 	for i := range parameters {
 		t.Run(fmt.Sprintf("CreateSubscription testname %v result %v", parameters[i].testName, parameters[i].result), func(t *testing.T) {
-			_, err := consumer.SendNfDiscoveryToNrf(context.Background(), "testNRFUri", "UDR", "PCF", param)
+			_, err := consumer.SendNfDiscoveryToNrf(context.Background(), "testNRFUri", testNfTypeUDR, "PCF", param)
 			val, _ := pcfContext.PCF_Self().NfStatusSubscriptions.Load(parameters[i].nfInstanceId)
 			if val != parameters[i].subscriptionId {
 				t.Errorf("Subscription ID mismatch. got = %v, want = %v (Correct Subscription ID is not stored in the PCF context)",
@@ -307,8 +314,8 @@ func TestCreateSubscriptionFail(t *testing.T) {
 			},
 		},
 		NfInstanceId: "84343-4343-43-434-343",
-		NfType:       "UDR",
-		NfStatus:     "REGISTERED",
+		NfType:       testNfTypeUDR,
+		NfStatus:     testNfStatusRegistered,
 	}
 	nfInstances := []models.NFProfileDiscovery{
 		udrProfile,
@@ -324,7 +331,7 @@ func TestCreateSubscriptionFail(t *testing.T) {
 	httpResponseTemporaryDirect := http.Response{
 		Status:     "307 Temporary Direct",
 		StatusCode: 307,
-		Proto:      "HTTP/1.0",
+		Proto:      testHTTPProto10,
 		ProtoMajor: 1,
 		ProtoMinor: 0,
 		Body:       stringReadCloser,
@@ -332,7 +339,7 @@ func TestCreateSubscriptionFail(t *testing.T) {
 	httpResponseSuccess := http.Response{
 		Status:     "200 OK",
 		StatusCode: 200,
-		Proto:      "HTTP/1.0",
+		Proto:      testHTTPProto10,
 		ProtoMajor: 1,
 		ProtoMinor: 0,
 		Body:       stringReadCloser,
@@ -427,7 +434,7 @@ func TestCreateSubscriptionFail(t *testing.T) {
 				callCountSendCreateSubscription++
 				return parameters[i].nrfSubscriptionData, parameters[i].subscriptionProblem, parameters[i].subscriptionError
 			}
-			_, err := consumer.SendNfDiscoveryToNrf(context.Background(), "testNRFUri", "UDR", "PCF", param)
+			_, err := consumer.SendNfDiscoveryToNrf(context.Background(), "testNRFUri", testNfTypeUDR, "PCF", param)
 			val, _ := pcfContext.PCF_Self().NfStatusSubscriptions.Load(udrProfile.NfInstanceId)
 			if val != parameters[i].expectedSubscriptionId {
 				t.Errorf("Subscription ID mismatch. got = %v, want = %v (Correct Subscription ID is not stored in the PCF context)",
@@ -475,7 +482,7 @@ func TestNfSubscriptionStatusNotify(t *testing.T) {
 			},
 		},
 		NfInstanceId: nfInstanceID,
-		NfType:       "UDR",
+		NfType:       testNfTypeUDR,
 		NfStatus:     "DEREGISTERED",
 	}
 	badRequestProblem := utils.ProblemDetailsMandatoryIeMissing("Missing IE [Event]/[NfInstanceUri] in NotificationData")
@@ -498,7 +505,7 @@ func TestNfSubscriptionStatusNotify(t *testing.T) {
 			nfInstanceID,
 			nfInstanceID,
 			subscriptionID,
-			"NF_DEREGISTERED",
+			testEventNfDeregistered,
 			1,
 			1,
 			true,
@@ -510,7 +517,7 @@ func TestNfSubscriptionStatusNotify(t *testing.T) {
 			nfInstanceID,
 			"",
 			"",
-			"NF_DEREGISTERED",
+			testEventNfDeregistered,
 			0,
 			1,
 			true,
@@ -522,7 +529,7 @@ func TestNfSubscriptionStatusNotify(t *testing.T) {
 			nfInstanceID,
 			nfInstanceID,
 			subscriptionID,
-			"NF_DEREGISTERED",
+			testEventNfDeregistered,
 			1,
 			0,
 			false,
@@ -546,7 +553,7 @@ func TestNfSubscriptionStatusNotify(t *testing.T) {
 			nfInstanceID,
 			nfInstanceID,
 			subscriptionID,
-			"NF_DEREGISTERED",
+			testEventNfDeregistered,
 			1,
 			1,
 			true,
@@ -558,7 +565,7 @@ func TestNfSubscriptionStatusNotify(t *testing.T) {
 			"",
 			"",
 			subscriptionID,
-			"NF_DEREGISTERED",
+			testEventNfDeregistered,
 			0,
 			0,
 			true,

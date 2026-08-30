@@ -23,8 +23,11 @@ import (
 )
 
 const (
-	testValidImsi = "imsi-001010123456789"
-	testValidDnn  = "internet"
+	testValidImsi           = "imsi-001010123456789"
+	testValidDnn            = "internet"
+	testMbrUplink1Gbps      = "1 Gbps"
+	testMbrDownlink500Mbps  = "500 Mbps"
+	testSessRuleIdInternet1 = "internet-1"
 )
 
 func TestGetImsiSessionRules_Success(t *testing.T) {
@@ -39,17 +42,17 @@ func TestGetImsiSessionRules_Success(t *testing.T) {
 		{
 			name: "single imsi qos",
 			input: []nfConfigApi.ImsiQos{{
-				MbrUplink:        "1 Gbps",
-				MbrDownlink:      "500 Mbps",
+				MbrUplink:        testMbrUplink1Gbps,
+				MbrDownlink:      testMbrDownlink500Mbps,
 				FiveQi:           9,
 				ArpPriorityLevel: 2,
 			}},
 			expectedSessionRules: map[string]*models.SessionRule{
-				"internet-1": {
-					SessRuleId: "internet-1",
+				testSessRuleIdInternet1: {
+					SessRuleId: testSessRuleIdInternet1,
 					AuthSessAmbr: &models.Ambr{
-						Uplink:   "1 Gbps",
-						Downlink: "500 Mbps",
+						Uplink:   testMbrUplink1Gbps,
+						Downlink: testMbrDownlink500Mbps,
 					},
 					AuthDefQos: &models.AuthorizedDefaultQos{
 						Var5qi: openapi.PtrInt32(9),
@@ -65,8 +68,8 @@ func TestGetImsiSessionRules_Success(t *testing.T) {
 		{
 			name: "multiple imsi qos",
 			input: []nfConfigApi.ImsiQos{{
-				MbrUplink:        "1 Gbps",
-				MbrDownlink:      "500 Mbps",
+				MbrUplink:        testMbrUplink1Gbps,
+				MbrDownlink:      testMbrDownlink500Mbps,
 				FiveQi:           9,
 				ArpPriorityLevel: 2,
 			}, {
@@ -81,11 +84,11 @@ func TestGetImsiSessionRules_Success(t *testing.T) {
 				ArpPriorityLevel: 7,
 			}},
 			expectedSessionRules: map[string]*models.SessionRule{
-				"internet-1": {
-					SessRuleId: "internet-1",
+				testSessRuleIdInternet1: {
+					SessRuleId: testSessRuleIdInternet1,
 					AuthSessAmbr: &models.Ambr{
-						Uplink:   "1 Gbps",
-						Downlink: "500 Mbps",
+						Uplink:   testMbrUplink1Gbps,
+						Downlink: testMbrDownlink500Mbps,
 					},
 					AuthDefQos: &models.AuthorizedDefaultQos{
 						Var5qi: openapi.PtrInt32(9),
@@ -183,8 +186,8 @@ func TestGetImsiSessionRules_FetchFailsDueToUnreachableWebconsole(t *testing.T) 
 		w.Header().Set("Content-Type", applicationJson)
 		w.WriteHeader(http.StatusOK)
 		retrievedSessionRules := []nfConfigApi.ImsiQos{{
-			MbrUplink:        "1 Gbps",
-			MbrDownlink:      "500 Mbps",
+			MbrUplink:        testMbrUplink1Gbps,
+			MbrDownlink:      testMbrDownlink500Mbps,
 			FiveQi:           9,
 			ArpPriorityLevel: 2,
 		}}

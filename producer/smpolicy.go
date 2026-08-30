@@ -29,6 +29,10 @@ import (
 
 var getSlicePccPolicy = polling.GetSlicePccPolicy
 
+// defaultFallbackAmbrRate is used for both uplink and downlink when falling
+// back to default session AMBR (e.g., when AMBR or QoS is unavailable)
+const defaultFallbackAmbrRate = "1 Mbps"
+
 // SmPoliciesPost -
 func HandleCreateSmPolicyRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.SMpolicylog.Debugln("handle CreateSmPolicy")
@@ -220,7 +224,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	// TODO: PCC rule, PraInfo ...
 	locationHeader := util.GetResourceUri(models.SERVICENAME_NPCF_SMPOLICYCONTROL, smPolicyID)
 	header = http.Header{
-		"Location": {locationHeader},
+		locationHeaderKey: {locationHeader},
 	}
 	logger.SMpolicylog.Debugf("SMPolicy PduSessionId[%d] Create", request.PduSessionId)
 	logger.SMpolicylog.Debugf("SM Policy Decision Sent to SMF: %v", decision)
@@ -326,8 +330,8 @@ func buildDefaultSessionRule(key string, ambr *models.Ambr, qos *models.Subscrib
 		authDefQos.SetArp(models.Arp{PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(1))})
 		sessionRule.SetAuthDefQos(*authDefQos)
 		sessionRule.SetAuthSessAmbr(models.Ambr{
-			Downlink: "1 Mbps",
-			Uplink:   "1 Mbps",
+			Downlink: defaultFallbackAmbrRate,
+			Uplink:   defaultFallbackAmbrRate,
 		})
 	}
 	return sessionRule

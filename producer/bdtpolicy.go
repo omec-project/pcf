@@ -243,7 +243,7 @@ func createBDTPolicyContextProcedure(request *models.BdtReqData) (
 
 	locationHeader := util.GetResourceUri(models.SERVICENAME_NPCF_BDTPOLICYCONTROL, bdtPolicyID)
 	header = http.Header{
-		"Location": {locationHeader},
+		locationHeaderKey: {locationHeader},
 	}
 	logger.Bdtpolicylog.Debugf("BDT Policy Id[%s] Create", bdtPolicyID)
 	return header, response, problemDetails

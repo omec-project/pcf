@@ -30,6 +30,12 @@ import (
 
 const applicationJson = "application/json"
 
+const (
+	testDnn1    = "dnn1"
+	testDnn2    = "dnn2"
+	testRuleId1 = "id1"
+)
+
 func marshalJSONForCompare(t *testing.T, value any) string {
 	t.Helper()
 	data, err := json.Marshal(value)
@@ -263,7 +269,7 @@ func TestHandlePolledPolicyControl_ExpectNFRegistrationChannelUpdate(t *testing.
 		{
 			PlmnId:   nfConfigApi.PlmnId{Mcc: "001", Mnc: "01"},
 			Snssai:   nfConfigApi.Snssai{Sst: 1},
-			Dnns:     []string{"dnn1"},
+			Dnns:     []string{testDnn1},
 			PccRules: []nfConfigApi.PccRule{},
 		},
 	}
@@ -271,7 +277,7 @@ func TestHandlePolledPolicyControl_ExpectNFRegistrationChannelUpdate(t *testing.
 		{
 			PlmnId:   nfConfigApi.PlmnId{Mcc: "002", Mnc: "01"},
 			Snssai:   nfConfigApi.Snssai{Sst: 5},
-			Dnns:     []string{"dnn1"},
+			Dnns:     []string{testDnn1},
 			PccRules: []nfConfigApi.PccRule{},
 		},
 	}
@@ -279,22 +285,22 @@ func TestHandlePolledPolicyControl_ExpectNFRegistrationChannelUpdate(t *testing.
 		{
 			PlmnId:   nfConfigApi.PlmnId{Mcc: "001", Mnc: "01"},
 			Snssai:   nfConfigApi.Snssai{Sst: 1},
-			Dnns:     []string{"dnn2"},
+			Dnns:     []string{testDnn2},
 			PccRules: []nfConfigApi.PccRule{},
 		},
 	}
 	nfProf1 := consumer.NfProfileDynamicConfig{
 		Plmns: map[models.PlmnId]struct{}{{Mcc: "001", Mnc: "01"}: {}},
-		Dnns:  map[string]struct{}{"dnn1": {}},
+		Dnns:  map[string]struct{}{testDnn1: {}},
 	}
 
 	newPlmnNfProfile := consumer.NfProfileDynamicConfig{
 		Plmns: map[models.PlmnId]struct{}{{Mcc: "002", Mnc: "01"}: {}},
-		Dnns:  map[string]struct{}{"dnn1": {}},
+		Dnns:  map[string]struct{}{testDnn1: {}},
 	}
 	newDnnNfProfile := consumer.NfProfileDynamicConfig{
 		Plmns: map[models.PlmnId]struct{}{{Mcc: "001", Mnc: "01"}: {}},
-		Dnns:  map[string]struct{}{"dnn2": {}},
+		Dnns:  map[string]struct{}{testDnn2: {}},
 	}
 
 	tests := []struct {
@@ -377,7 +383,7 @@ func TestHandlePolledPolicyControl_ExpectPccConfigNotToBeUpdated(t *testing.T) {
 		{
 			PlmnId:   nfConfigApi.PlmnId{Mcc: "001", Mnc: "01"},
 			Snssai:   nfConfigApi.Snssai{Sst: 1},
-			Dnns:     []string{"dnn1"},
+			Dnns:     []string{testDnn1},
 			PccRules: []nfConfigApi.PccRule{},
 		},
 	}
@@ -385,7 +391,7 @@ func TestHandlePolledPolicyControl_ExpectPccConfigNotToBeUpdated(t *testing.T) {
 		{
 			PlmnId:   nfConfigApi.PlmnId{Mcc: "001", Mnc: "02"},
 			Snssai:   nfConfigApi.Snssai{Sst: 1},
-			Dnns:     []string{"dnn1"},
+			Dnns:     []string{testDnn1},
 			PccRules: []nfConfigApi.PccRule{},
 		},
 	}
@@ -394,7 +400,7 @@ func TestHandlePolledPolicyControl_ExpectPccConfigNotToBeUpdated(t *testing.T) {
 		{
 			PlmnId:   nfConfigApi.PlmnId{Mcc: "001", Mnc: "01"},
 			Snssai:   nfConfigApi.Snssai{Sst: 1},
-			Dnns:     []string{"dnn2"},
+			Dnns:     []string{testDnn2},
 			PccRules: []nfConfigApi.PccRule{},
 		},
 	}
@@ -437,12 +443,12 @@ func TestHandlePolledPolicyControl_ExpectPccConfigNotToBeUpdated(t *testing.T) {
 
 			initialPccPolicies := map[SnssaiKey]*PccPolicy{
 				{Sst: 1}: {PccRules: map[string]*models.PccRule{
-					"id1": {},
+					testRuleId1: {},
 				}},
 			}
 			pccPolicies = map[SnssaiKey]*PccPolicy{
 				{Sst: 1}: {PccRules: map[string]*models.PccRule{
-					"id1": {},
+					testRuleId1: {},
 				}},
 			}
 
@@ -477,16 +483,16 @@ func TestHandlePolledPolicyControl_ExpectPccConfigToBeUpdated(t *testing.T) {
 		{
 			PlmnId:   nfConfigApi.PlmnId{Mcc: "001", Mnc: "01"},
 			Snssai:   nfConfigApi.Snssai{Sst: 1},
-			Dnns:     []string{"dnn1"},
-			PccRules: []nfConfigApi.PccRule{{RuleId: "id1"}},
+			Dnns:     []string{testDnn1},
+			PccRules: []nfConfigApi.PccRule{{RuleId: testRuleId1}},
 		},
 	}
 	newSnssaiPc := []nfConfigApi.PolicyControl{
 		{
 			PlmnId:   nfConfigApi.PlmnId{Mcc: "001", Mnc: "01"},
 			Snssai:   nfConfigApi.Snssai{Sst: 2},
-			Dnns:     []string{"dnn1"},
-			PccRules: []nfConfigApi.PccRule{{RuleId: "id1"}},
+			Dnns:     []string{testDnn1},
+			PccRules: []nfConfigApi.PccRule{{RuleId: testRuleId1}},
 		},
 	}
 
@@ -494,7 +500,7 @@ func TestHandlePolledPolicyControl_ExpectPccConfigToBeUpdated(t *testing.T) {
 		{
 			PlmnId:   nfConfigApi.PlmnId{Mcc: "001", Mnc: "01"},
 			Snssai:   nfConfigApi.Snssai{Sst: 1},
-			Dnns:     []string{"dnn1"},
+			Dnns:     []string{testDnn1},
 			PccRules: []nfConfigApi.PccRule{{RuleId: "id2"}},
 		},
 	}
@@ -511,14 +517,14 @@ func TestHandlePolledPolicyControl_ExpectPccConfigToBeUpdated(t *testing.T) {
 			initialPolicyControl: pc1,
 			initialPccPolicies: map[SnssaiKey]*PccPolicy{
 				{Sst: 1}: {PccRules: map[string]*models.PccRule{
-					"id1": {},
+					testRuleId1: {},
 				}},
 			},
 			input: newSnssaiPc,
 			expectedPccPolicies: map[SnssaiKey]*PccPolicy{
 				{Sst: 2}: {
 					PccRules: map[string]*models.PccRule{
-						"id1": {
+						testRuleId1: {
 							PccRuleId:  "1",
 							RefQosData: []string{"1"},
 							FlowInfos:  make([]models.FlowInformation, 0),
@@ -542,7 +548,7 @@ func TestHandlePolledPolicyControl_ExpectPccConfigToBeUpdated(t *testing.T) {
 			initialPolicyControl: pc1,
 			initialPccPolicies: map[SnssaiKey]*PccPolicy{
 				{Sst: 1}: {PccRules: map[string]*models.PccRule{
-					"id1": {},
+					testRuleId1: {},
 				}},
 			},
 			input: newPccRules,
