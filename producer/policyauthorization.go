@@ -741,7 +741,7 @@ func handleCombinedMediaSubComponents(
 	}
 	logger.PolicyAuthorizationlog.Debugf("RefQosData:")
 	for _, qosRef := range pccRule.RefQosData {
-		qosData, ok := (smPolicy.PolicyDecision.GetQosDecs())[qosRef]
+		qosData, ok := smPolicy.PolicyDecision.GetQosDecs()[qosRef]
 		if ok {
 			logger.PolicyAuthorizationlog.Debugf("QosId: %s, 5QI: %d", qosData.GetQosId(), qosData.GetVar5qi())
 		} else {

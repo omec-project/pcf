@@ -593,20 +593,18 @@ func TestHandlePolledPolicyControl_ExpectPccConfigToBeUpdated(t *testing.T) {
 			}
 			if !util.CompareViaJSON(tc.expectedPccPolicies, pccPolicies) {
 				t.Errorf("PccPolicy mismatch")
-				expectedJSON, err := json.MarshalIndent(tc.expectedPccPolicies, "", "  ")
+				expectedJSON, err := json.MarshalIndent(pccPoliciesForDebug(tc.expectedPccPolicies), "", "  ")
 				if err != nil {
 					t.Logf("Failed to marshal expected PccPolicy: %v", err)
 				} else {
 					t.Logf("Expected PccPolicy: %s", expectedJSON)
 				}
-				actualJSON, err := json.MarshalIndent(pccPolicies, "", "  ")
+				actualJSON, err := json.MarshalIndent(pccPoliciesForDebug(pccPolicies), "", "  ")
 				if err != nil {
 					t.Logf("Failed to marshal actual PccPolicy: %v", err)
 				} else {
 					t.Logf("Actual PccPolicy: %s", actualJSON)
 				}
-				t.Logf("Expected PccPolicy: %s", expectedJSON)
-				t.Logf("Actual PccPolicy: %s", actualJSON)
 			}
 		})
 	}

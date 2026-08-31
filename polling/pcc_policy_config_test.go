@@ -10,6 +10,7 @@ package polling
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"reflect"
 	"testing"
@@ -20,6 +21,15 @@ import (
 	"github.com/omec-project/pcf/util"
 	"github.com/omec-project/util/idgenerator"
 )
+
+// pccPoliciesForDebug converts SnssaiKey map keys to strings so the map can be JSON-marshaled for logging.
+func pccPoliciesForDebug(policies map[SnssaiKey]*PccPolicy) map[string]*PccPolicy {
+	debugMap := make(map[string]*PccPolicy, len(policies))
+	for key, policy := range policies {
+		debugMap[fmt.Sprintf("%+v", key)] = policy
+	}
+	return debugMap
+}
 
 const (
 	testPccRuleId1 = "rule1"
@@ -372,19 +382,17 @@ func TestCreatePccPolicies_MultiplePolicyControlElement(t *testing.T) {
 
 	if !util.CompareViaJSON(expectedPccPolicies, pccPolicies) {
 		t.Errorf("PccPolicy mismatch")
-		expectedJSON, err := json.MarshalIndent(expectedPccPolicies, "", "  ")
+		expectedJSON, err := json.MarshalIndent(pccPoliciesForDebug(expectedPccPolicies), "", "  ")
 		if err != nil {
 			t.Logf("Failed to marshal expected PccPolicy: %v", err)
 		} else {
 			t.Logf("Expected PccPolicy: %s", expectedJSON)
 		}
-		actualJSON, err := json.MarshalIndent(pccPolicies, "", "  ")
+		actualJSON, err := json.MarshalIndent(pccPoliciesForDebug(pccPolicies), "", "  ")
 		if err != nil {
 			t.Logf("Failed to marshal actual PccPolicy: %v", err)
 		} else {
 			t.Logf("Actual PccPolicy: %s", actualJSON)
 		}
-		t.Logf("Expected PccPolicy: %s", expectedJSON)
-		t.Logf("Actual PccPolicy: %s", actualJSON)
 	}
 }
