@@ -80,7 +80,7 @@ func InitPcfContext(context *pcfContext.PCFContext) {
 	context.TimeFormat = configuration.TimeFormat
 	context.DefaultBdtRefId = configuration.DefaultBdtRefId
 	for _, service := range context.NfService {
-		context.PcfServiceUris[service.ServiceName] = service.GetApiPrefix() + "/" + string(service.ServiceName) + "/" + (service.Versions)[0].ApiVersionInUri
+		context.PcfServiceUris[service.ServiceName] = service.GetApiPrefix() + "/" + string(service.ServiceName) + "/" + service.Versions[0].ApiVersionInUri
 		pcfSuppFeats, err := pcfContext.NewSupportedFeature(service.GetSupportedFeatures())
 		if err != nil {
 			logger.UtilLog.Errorf("NewSupportedFeature error: %+v", err)
