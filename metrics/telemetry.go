@@ -15,6 +15,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+// labelResult is the outcome label shared by every counter here.
+const labelResult = "result"
+
 // PcfStats captures PCF stats
 type PcfStats struct {
 	pcfSmPolicy            *prometheus.CounterVec
@@ -29,15 +32,15 @@ func initPcfStats() *PcfStats {
 		pcfSmPolicy: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "pcf_smpolicy",
 			Help: "Counter of total Session Management policy queries",
-		}, []string{"query_type", "dnn", "result"}),
+		}, []string{"query_type", "dnn", labelResult}),
 		pcfPolicyAuthorization: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "pcf_policy_authorization",
 			Help: "Counter of total policy authorization queries",
-		}, []string{"query_type", "resource_type", "result"}),
+		}, []string{"query_type", "resource_type", labelResult}),
 		pcfPolicyNotify: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "pcf_policy_notify",
 			Help: "Counter of established-session policy change notifications by outcome",
-		}, []string{"result"}),
+		}, []string{labelResult}),
 	}
 }
 

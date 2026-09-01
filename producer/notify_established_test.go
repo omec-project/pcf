@@ -18,6 +18,14 @@ import (
 	"github.com/omec-project/pcf/util"
 )
 
+// Literals repeated across the tables below; goconst asks for names, and the package already
+// names the rule and QoS identifiers in smpolicy_test.go.
+const (
+	testSessionAmbr   = "50 Mbps"
+	testAppSessionID  = "app-session-1"
+	testNotifySession = "session"
+)
+
 func decisionWithArp(levels ...int32) *models.SmPolicyDecision {
 	qosDecs := map[string]models.QosData{}
 	for i, level := range levels {
@@ -178,8 +186,8 @@ func TestPolicyRuleChangeReachesAnEstablishedSession(t *testing.T) {
 
 	getSlicePccPolicy = func(models.Snssai) *polling.PccPolicy {
 		return &polling.PccPolicy{
-			PccRules: map[string]*models.PccRule{"rule1": {PccRuleId: "rule1", Precedence: openapi.PtrInt32(200)}},
-			QosDecs:  map[string]*models.QosData{"qos1": {QosId: "qos1", Var5qi: openapi.PtrInt32(10)}},
+			PccRules: map[string]*models.PccRule{testPccRuleId1: {PccRuleId: testPccRuleId1, Precedence: openapi.PtrInt32(200)}},
+			QosDecs:  map[string]*models.QosData{testQosId1: {QosId: testQosId1, Var5qi: openapi.PtrInt32(10)}},
 		}
 	}
 
@@ -207,8 +215,8 @@ func TestUnchangedDecisionSignalsNothing(t *testing.T) {
 
 	getSlicePccPolicy = func(models.Snssai) *polling.PccPolicy {
 		return &polling.PccPolicy{
-			PccRules: map[string]*models.PccRule{"rule1": {PccRuleId: "rule1"}},
-			QosDecs:  map[string]*models.QosData{"qos1": {QosId: "qos1"}},
+			PccRules: map[string]*models.PccRule{testPccRuleId1: {PccRuleId: testPccRuleId1}},
+			QosDecs:  map[string]*models.QosData{testQosId1: {QosId: testQosId1}},
 		}
 	}
 
@@ -235,19 +243,19 @@ func TestSessionAmbrIsNotChangedByAPolicyEdit(t *testing.T) {
 
 	getSlicePccPolicy = func(models.Snssai) *polling.PccPolicy {
 		return &polling.PccPolicy{
-			PccRules: map[string]*models.PccRule{"rule1": {PccRuleId: "rule1"}},
-			QosDecs:  map[string]*models.QosData{"qos1": {QosId: "qos1"}},
+			PccRules: map[string]*models.PccRule{testPccRuleId1: {PccRuleId: testPccRuleId1}},
+			QosDecs:  map[string]*models.QosData{testQosId1: {QosId: testQosId1}},
 		}
 	}
 
-	subscribed := &models.Ambr{Uplink: "50 Mbps", Downlink: "50 Mbps"}
+	subscribed := &models.Ambr{Uplink: testSessionAmbr, Downlink: testSessionAmbr}
 	smPolicy := establishedSession(t, subscribed, &models.SmPolicyDecision{})
 
 	recomputeChangedSessions()
 
 	for _, rule := range smPolicy.PolicyDecision.GetSessRules() {
 		ambr := rule.GetAuthSessAmbr()
-		if ambr.Uplink != "50 Mbps" || ambr.Downlink != "50 Mbps" {
+		if ambr.Uplink != testSessionAmbr || ambr.Downlink != testSessionAmbr {
 			t.Errorf("session AMBR = %s/%s, want the subscribed value: a policy edit cannot change it",
 				ambr.Uplink, ambr.Downlink)
 		}
@@ -268,8 +276,8 @@ func TestPerSessionDecisionStateSurvivesAPolicyEdit(t *testing.T) {
 
 	getSlicePccPolicy = func(models.Snssai) *polling.PccPolicy {
 		return &polling.PccPolicy{
-			PccRules: map[string]*models.PccRule{"rule1": {PccRuleId: "rule1", Precedence: openapi.PtrInt32(200)}},
-			QosDecs:  map[string]*models.QosData{"qos1": {QosId: "qos1", Var5qi: openapi.PtrInt32(10)}},
+			PccRules: map[string]*models.PccRule{testPccRuleId1: {PccRuleId: testPccRuleId1, Precedence: openapi.PtrInt32(200)}},
+			QosDecs:  map[string]*models.QosData{testQosId1: {QosId: testQosId1, Var5qi: openapi.PtrInt32(10)}},
 		}
 	}
 
@@ -306,8 +314,8 @@ func TestAfManagedSessionIsLeftAlone(t *testing.T) {
 
 	getSlicePccPolicy = func(models.Snssai) *polling.PccPolicy {
 		return &polling.PccPolicy{
-			PccRules: map[string]*models.PccRule{"rule1": {PccRuleId: "rule1"}},
-			QosDecs:  map[string]*models.QosData{"qos1": {QosId: "qos1"}},
+			PccRules: map[string]*models.PccRule{testPccRuleId1: {PccRuleId: testPccRuleId1}},
+			QosDecs:  map[string]*models.QosData{testQosId1: {QosId: testQosId1}},
 		}
 	}
 
@@ -315,7 +323,7 @@ func TestAfManagedSessionIsLeftAlone(t *testing.T) {
 	given := &models.SmPolicyDecision{}
 	given.SetPccRules(afRule)
 	smPolicy := establishedSession(t, nil, given)
-	smPolicy.AppSessions = map[string]bool{"app-session-1": true}
+	smPolicy.AppSessions = map[string]bool{testAppSessionID: true}
 
 	pending := recomputeChangedSessions()
 
@@ -337,8 +345,8 @@ func TestSessionWithNoNotificationUriIsNotSilentlyUpdated(t *testing.T) {
 
 	getSlicePccPolicy = func(models.Snssai) *polling.PccPolicy {
 		return &polling.PccPolicy{
-			PccRules: map[string]*models.PccRule{"rule1": {PccRuleId: "rule1"}},
-			QosDecs:  map[string]*models.QosData{"qos1": {QosId: "qos1"}},
+			PccRules: map[string]*models.PccRule{testPccRuleId1: {PccRuleId: testPccRuleId1}},
+			QosDecs:  map[string]*models.QosData{testQosId1: {QosId: testQosId1}},
 		}
 	}
 
@@ -367,8 +375,8 @@ func TestAFanOutThatCannotStartLeavesTheSessionsAlone(t *testing.T) {
 	t.Cleanup(func() { getSlicePccPolicy = original })
 	getSlicePccPolicy = func(models.Snssai) *polling.PccPolicy {
 		return &polling.PccPolicy{
-			PccRules: map[string]*models.PccRule{"rule1": {PccRuleId: "rule1", Precedence: openapi.PtrInt32(200)}},
-			QosDecs:  map[string]*models.QosData{"qos1": {QosId: "qos1", Var5qi: openapi.PtrInt32(10)}},
+			PccRules: map[string]*models.PccRule{testPccRuleId1: {PccRuleId: testPccRuleId1, Precedence: openapi.PtrInt32(200)}},
+			QosDecs:  map[string]*models.QosData{testQosId1: {QosId: testQosId1, Var5qi: openapi.PtrInt32(10)}},
 		}
 	}
 
@@ -399,8 +407,8 @@ func TestRecomputeToleratesSessionsBeingCreatedAndReleased(t *testing.T) {
 	t.Cleanup(func() { getSlicePccPolicy = original })
 	getSlicePccPolicy = func(models.Snssai) *polling.PccPolicy {
 		return &polling.PccPolicy{
-			PccRules: map[string]*models.PccRule{"rule1": {PccRuleId: "rule1"}},
-			QosDecs:  map[string]*models.QosData{"qos1": {QosId: "qos1"}},
+			PccRules: map[string]*models.PccRule{testPccRuleId1: {PccRuleId: testPccRuleId1}},
+			QosDecs:  map[string]*models.QosData{testQosId1: {QosId: testQosId1}},
 		}
 	}
 
@@ -442,8 +450,8 @@ func simplePolicy(t *testing.T) {
 	t.Cleanup(func() { getSlicePccPolicy = original })
 	getSlicePccPolicy = func(models.Snssai) *polling.PccPolicy {
 		return &polling.PccPolicy{
-			PccRules: map[string]*models.PccRule{"rule1": {PccRuleId: "rule1", Precedence: openapi.PtrInt32(200)}},
-			QosDecs:  map[string]*models.QosData{"qos1": {QosId: "qos1", Var5qi: openapi.PtrInt32(10)}},
+			PccRules: map[string]*models.PccRule{testPccRuleId1: {PccRuleId: testPccRuleId1, Precedence: openapi.PtrInt32(200)}},
+			QosDecs:  map[string]*models.QosData{testQosId1: {QosId: testQosId1, Var5qi: openapi.PtrInt32(10)}},
 		}
 	}
 }
@@ -506,7 +514,7 @@ func TestAFanOutGivesUpOnAnSmfThatIsNotAnswering(t *testing.T) {
 	for i := range pending {
 		smPolicy := &pcfContext.UeSmPolicyData{PolicyDecision: &models.SmPolicyDecision{}}
 		pending[i] = pendingNotification{
-			smPolicyID: "session",
+			smPolicyID: testNotifySession,
 			smPolicy:   smPolicy,
 			basedOn:    smPolicy.PolicyDecision,
 			decision:   &models.SmPolicyDecision{},
@@ -541,7 +549,7 @@ func TestAnIsolatedFailureDoesNotStopTheFanOut(t *testing.T) {
 	for i := range pending {
 		stored[i] = &pcfContext.UeSmPolicyData{PolicyDecision: &models.SmPolicyDecision{}}
 		pending[i] = pendingNotification{
-			smPolicyID: "session",
+			smPolicyID: testNotifySession,
 			smPolicy:   stored[i],
 			basedOn:    stored[i].PolicyDecision,
 			decision:   &models.SmPolicyDecision{},
@@ -587,7 +595,7 @@ func TestASessionClaimedWhileQueuedIsNotOverwritten(t *testing.T) {
 	}}
 
 	// The AF arrives after the session was queued and before its turn came round.
-	smPolicy.AppSessions = map[string]bool{"app-session-1": true}
+	smPolicy.AppSessions = map[string]bool{testAppSessionID: true}
 
 	dispatchPaced(pending)
 
@@ -719,7 +727,7 @@ func TestStaleSessionsDoNotAbandonTheFanOut(t *testing.T) {
 	for i := range pending {
 		stored[i] = &pcfContext.UeSmPolicyData{PolicyDecision: &models.SmPolicyDecision{}}
 		pending[i] = pendingNotification{
-			smPolicyID: "session",
+			smPolicyID: testNotifySession,
 			smPolicy:   stored[i],
 			basedOn:    stored[i].PolicyDecision,
 			decision:   &models.SmPolicyDecision{},

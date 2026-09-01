@@ -22,15 +22,20 @@ import (
 // long before this change, so appending here unconditionally produced /update/update -- a 404
 // indistinguishable from the one the suffix exists to prevent.
 func TestNotificationGoesToTheUpdateCallback(t *testing.T) {
+	const (
+		base     = "/nsmf-callback/sm-policies/ref-1"
+		callback = base + "/update"
+	)
+
 	tests := []struct {
 		name string
 		give string
 		want string
 	}{
-		{"base uri", "/nsmf-callback/sm-policies/ref-1", "/nsmf-callback/sm-policies/ref-1/update"},
-		{"trailing slash", "/nsmf-callback/sm-policies/ref-1/", "/nsmf-callback/sm-policies/ref-1/update"},
-		{"already suffixed by the dispatcher", "/nsmf-callback/sm-policies/ref-1/update", "/nsmf-callback/sm-policies/ref-1/update"},
-		{"suffixed with a trailing slash", "/nsmf-callback/sm-policies/ref-1/update/", "/nsmf-callback/sm-policies/ref-1/update"},
+		{"base uri", base, callback},
+		{"trailing slash", base + "/", callback},
+		{"already suffixed by the dispatcher", callback, callback},
+		{"suffixed with a trailing slash", callback + "/", callback},
 	}
 
 	for _, tc := range tests {
