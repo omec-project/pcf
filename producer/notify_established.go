@@ -326,9 +326,21 @@ func dispatchPaced(pending []pendingNotification) {
 		consecutiveFailures = 0
 		delivered++
 
-		// Recorded only now. Until the SMF has it, this session's stored decision has to keep
-		// saying what the SMF believes, or the next recompute finds nothing to send.
-		p.smPolicy.PolicyDecision = p.decision
+		// Checked once more, after the send and not only before it. The round trip above takes
+		// milliseconds, and an application function that claims the session inside that window has
+		// already written its PCC rules into the decision this store would replace:
+		// mergeSliceDerived swaps the rule and QoS maps wholesale, so the AF's entries would go
+		// with them and its app-session would be left referencing rules the PCF no longer holds.
+		// Not storing costs a re-notification on the next policy change, which is the same price
+		// every other session that could not be reached pays.
+		if p.smPolicy.HasAppSessions() || p.smPolicy.PolicyDecision != p.basedOn {
+			logger.SMpolicylog.Infof("session %s was claimed while it was being notified; leaving its stored policy alone",
+				p.smPolicyID)
+		} else {
+			// Recorded only now. Until the SMF has it, this session's stored decision has to keep
+			// saying what the SMF believes, or the next recompute finds nothing to send.
+			p.smPolicy.PolicyDecision = p.decision
+		}
 
 		if i < len(pending)-1 {
 			time.Sleep(interval)

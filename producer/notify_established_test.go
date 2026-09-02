@@ -579,6 +579,41 @@ func TestAFanOutGivesUpOnAnSmfThatIsNotAnswering(t *testing.T) {
 	}
 }
 
+// An application function that claims the session while it is being notified keeps its rules.
+//
+// The pre-send check cannot cover this: the SMF round trip sits between it and the store, and an
+// IMS app-session created in that window writes its PCC rules straight into the decision the store
+// would replace. Storing anyway would drop them and strand the app-session on rules the PCF no
+// longer holds.
+func TestASessionClaimedWhileItIsBeingNotifiedKeepsItsRules(t *testing.T) {
+	unpaced(t)
+
+	smPolicy := &pcfContext.UeSmPolicyData{
+		PolicyDecision: &models.SmPolicyDecision{},
+		AppSessions:    map[string]bool{},
+	}
+	wasStored := smPolicy.PolicyDecision
+
+	original := sendNotification
+	sendNotification = func(string, *models.SmPolicyNotification) error {
+		// What HandlePostAppSessionsContext does while the SMF is answering.
+		smPolicy.AddAppSession("app-1")
+		return nil
+	}
+	t.Cleanup(func() { sendNotification = original })
+
+	dispatchPaced([]pendingNotification{{
+		smPolicyID: testNotifySession,
+		smPolicy:   smPolicy,
+		basedOn:    smPolicy.PolicyDecision,
+		decision:   &models.SmPolicyDecision{},
+	}})
+
+	if smPolicy.PolicyDecision != wasStored {
+		t.Error("the stored decision was replaced, dropping the PCC rules the application function had just installed")
+	}
+}
+
 // One failure in the middle is not a dead SMF, and the sessions after it must still be told.
 func TestAnIsolatedFailureDoesNotStopTheFanOut(t *testing.T) {
 	unpaced(t)
