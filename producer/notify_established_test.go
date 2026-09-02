@@ -140,7 +140,13 @@ func establishedSession(t *testing.T, sessionAmbr *models.Ambr, given *models.Sm
 	given.PolicyCtrlReqTriggers = util.PolicyControlReqTrigToArray(0x40780f)
 	given.Online = openapi.PtrBool(true)
 
-	smPolicy := &pcfContext.UeSmPolicyData{PolicyContext: ctx, PolicyDecision: given}
+	// AppSessions is made by NewUeSmPolicyData in production; a fixture that leaves it nil cannot
+	// exercise an application function claiming the session.
+	smPolicy := &pcfContext.UeSmPolicyData{
+		PolicyContext:  ctx,
+		PolicyDecision: given,
+		AppSessions:    map[string]bool{},
+	}
 	ue.SmPolicyData[smPolicyID] = smPolicy
 	pcfContext.PCF_Self().UePool.Store(supi, ue)
 
@@ -431,6 +437,50 @@ func TestRecomputeToleratesSessionsBeingCreatedAndReleased(t *testing.T) {
 			ueCtx.SmPolicyData[key] = nil
 			delete(ueCtx.SmPolicyData, key)
 			ueCtx.SmPolicyDataMu.Unlock()
+		}
+	}()
+
+	for i := 0; i < 200; i++ {
+		recomputeChangedSessions()
+	}
+
+	close(stop)
+	<-done
+}
+
+// An application function claiming or releasing a session must not race the fan-out reading it.
+//
+// The AF-managed check is what keeps an IMS session's PCC rules from being replaced by a
+// slice-policy recompute, so the fan-out reads AppSessions for every session it walks, and reads
+// it again at send time after pacing. The AF handlers insert into and delete from that same map
+// from request goroutines. A Go map read concurrent with a map write is a fatal runtime throw,
+// not a recoverable panic, so this pairing would take the PCF down rather than corrupt a value.
+func TestAfSessionChurnDoesNotRaceTheFanOut(t *testing.T) {
+	original := getSlicePccPolicy
+	t.Cleanup(func() { getSlicePccPolicy = original })
+	getSlicePccPolicy = func(models.Snssai) *polling.PccPolicy {
+		return &polling.PccPolicy{
+			PccRules: map[string]*models.PccRule{testPccRuleId1: {PccRuleId: testPccRuleId1}},
+			QosDecs:  map[string]*models.QosData{testQosId1: {QosId: testQosId1}},
+		}
+	}
+
+	smPolicy := establishedSession(t, nil, &models.SmPolicyDecision{})
+
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; ; i++ {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			// What HandlePostAppSessionsContext and the delete handler do to this map.
+			appSessionId := "app-" + string(rune('a'+i%26))
+			smPolicy.AddAppSession(appSessionId)
+			smPolicy.RemoveAppSession(appSessionId)
 		}
 	}()
 

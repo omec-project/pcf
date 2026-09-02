@@ -397,7 +397,7 @@ func deleteSmPolicyContextProcedure(smPolicyID string) *models.ProblemDetails {
 	terminationInfo := models.TerminationInfo{
 		TermCause: models.TERMINATIONCAUSE_PDU_SESSION_TERMINATION,
 	}
-	for appSessionID := range smPolicy.AppSessions {
+	for _, appSessionID := range smPolicy.AppSessionIds() {
 		if val, exist := pcfSelf.AppSessionPool.Load(appSessionID); exist {
 			appSession := val.(*pcfContext.AppSessionData)
 			SendAppSessionTermination(appSession, terminationInfo)
@@ -851,7 +851,7 @@ func sendSmPolicyRelatedAppSessionNotification(smPolicy *pcfContext.UeSmPolicyDa
 	notification models.EventsNotification, usageReports []models.AccuUsageReport,
 	successRules, failRules []models.RuleReport,
 ) {
-	for appSessionId := range smPolicy.AppSessions {
+	for _, appSessionId := range smPolicy.AppSessionIds() {
 		if val, exist := pcfContext.PCF_Self().AppSessionPool.Load(appSessionId); exist {
 			appSession := val.(*pcfContext.AppSessionData)
 			if len(appSession.Events) == 0 {

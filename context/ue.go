@@ -101,7 +101,13 @@ type UeSmPolicyData struct {
 	PolicyContext  *models.SmPolicyContextData
 	PolicyDecision *models.SmPolicyDecision
 	// related to AppSession
-	AppSessions map[string]bool // related appSessionId
+	//
+	// AppSessionsMu guards the map itself. The application-function handlers insert and delete
+	// entries while the configuration poll loop reads the map to decide whether a session is
+	// AF-managed, and a Go map read concurrent with a map write is a fatal runtime throw that
+	// takes the process down rather than a race that merely corrupts a value.
+	AppSessionsMu sync.RWMutex
+	AppSessions   map[string]bool // related appSessionId
 	// Corresponding UE
 	PcfUe               *UeContext
 	PackFiltIdGenarator int32
@@ -272,9 +278,45 @@ func (policy *UeSmPolicyData) RemovePccRule(pccRuleId string, deletedSmPolicyDec
 	return nil
 }
 
+// AddAppSession records that an application function now manages this session.
+func (policy *UeSmPolicyData) AddAppSession(appSessionId string) {
+	policy.AppSessionsMu.Lock()
+	defer policy.AppSessionsMu.Unlock()
+	policy.AppSessions[appSessionId] = true
+}
+
+// RemoveAppSession drops an application session that has been released.
+func (policy *UeSmPolicyData) RemoveAppSession(appSessionId string) {
+	policy.AppSessionsMu.Lock()
+	defer policy.AppSessionsMu.Unlock()
+	delete(policy.AppSessions, appSessionId)
+}
+
+// HasAppSessions reports whether an application function is managing this session.
+func (policy *UeSmPolicyData) HasAppSessions() bool {
+	policy.AppSessionsMu.RLock()
+	defer policy.AppSessionsMu.RUnlock()
+	return len(policy.AppSessions) > 0
+}
+
+// AppSessionIds returns the application session ids as a snapshot.
+//
+// Callers walk the ids to send terminations and notifications, which must not happen under the
+// lock: the far end can be slow, and the handlers that insert and delete entries would block
+// behind it.
+func (policy *UeSmPolicyData) AppSessionIds() []string {
+	policy.AppSessionsMu.RLock()
+	defer policy.AppSessionsMu.RUnlock()
+	ids := make([]string, 0, len(policy.AppSessions))
+	for appSessionId := range policy.AppSessions {
+		ids = append(ids, appSessionId)
+	}
+	return ids
+}
+
 // Check if the afEvent exists in smPolicy
 func (policy *UeSmPolicyData) CheckRelatedAfEvent(event models.AfEventPcf) (found bool) {
-	for appSessionId := range policy.AppSessions {
+	for _, appSessionId := range policy.AppSessionIds() {
 		if val, ok := PCF_Self().AppSessionPool.Load(appSessionId); ok {
 			appSession := val.(*AppSessionData)
 			for afEvent := range appSession.Events {

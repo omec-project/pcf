@@ -184,9 +184,9 @@ func recomputeChangedSessions() []pendingNotification {
 			// slice-derived part would take the AF's rules with it, stranding the app-session that
 			// still references them and never crediting its GBR back. Reaching these sessions needs
 			// provenance the decision does not yet carry.
-			if len(smPolicy.AppSessions) > 0 {
-				logger.SMpolicylog.Infof("session %s has %d active application sessions; leaving its policy alone",
-					smPolicyID, len(smPolicy.AppSessions))
+			if smPolicy.HasAppSessions() {
+				logger.SMpolicylog.Infof("session %s is managed by an application function; leaving its policy alone",
+					smPolicyID)
 				continue
 			}
 
@@ -284,7 +284,7 @@ func dispatchPaced(pending []pendingNotification) {
 		// queue, and what was true when it was queued need not still be true. An application
 		// function that claims the session meanwhile installs its PCC rules into the very decision
 		// this notification carries a replacement for, and the SMF would be told to drop them.
-		if len(p.smPolicy.AppSessions) > 0 || p.smPolicy.PolicyDecision != p.basedOn {
+		if p.smPolicy.HasAppSessions() || p.smPolicy.PolicyDecision != p.basedOn {
 			logger.SMpolicylog.Infof("session %s changed while it was queued; leaving it to the next policy change",
 				p.smPolicyID)
 			skipped++
