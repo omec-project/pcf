@@ -524,7 +524,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 	}
 	appSessCtx.SetAscRespData(ascRespData)
 	// Associate App Session to SMPolicy
-	smPolicy.AppSessions[appSessID] = true
+	smPolicy.AddAppSession(appSessID)
 	data := pcfContext.AppSessionData{
 		AppSessionId:      appSessID,
 		AppSessionContext: appSessCtx,
@@ -864,7 +864,7 @@ func DeleteAppSessionContextProcedure(appSessID string,
 		}
 	}
 
-	delete(smPolicy.AppSessions, appSessID)
+	smPolicy.RemoveAppSession(appSessID)
 
 	logger.PolicyAuthorizationlog.Infof("app session Id[%s] Del", appSessID)
 

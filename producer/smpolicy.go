@@ -51,6 +51,21 @@ func HandleCreateSmPolicyRequest(request *httpwrapper.Request) *httpwrapper.Resp
 	}
 }
 
+// lookupSmPolicy reads one session's policy data under the lock that guards the map.
+//
+// The map is mutated by session create and release while the configuration poll loop iterates it,
+// so every access takes the lock. A read left outside it is not merely racy: a Go map read
+// concurrent with a write is a fatal runtime error, and half-locking a map reads as safe while
+// being exactly as dangerous as not locking at all.
+func lookupSmPolicy(ue *pcfContext.UeContext, smPolicyID string) *pcfContext.UeSmPolicyData {
+	if ue == nil {
+		return nil
+	}
+	ue.SmPolicyDataMu.RLock()
+	defer ue.SmPolicyDataMu.RUnlock()
+	return ue.SmPolicyData[smPolicyID]
+}
+
 func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	header http.Header, response *models.SmPolicyDecision, problemDetails *models.ProblemDetails,
 ) {
@@ -83,7 +98,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	}
 	var smData *models.SmPolicyData
 	smPolicyID := fmt.Sprintf("%s-%d", ue.Supi, request.PduSessionId)
-	smPolicyData := ue.SmPolicyData[smPolicyID]
+	smPolicyData := lookupSmPolicy(ue, smPolicyID)
 	if smPolicyData == nil || smPolicyData.SmPolicyData == nil {
 		client := util.GetNudrClient(udrUri)
 		var response *http.Response
@@ -121,7 +136,9 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 		ue.Pei = request.GetPei()
 	}
 	if smPolicyData != nil {
+		ue.SmPolicyDataMu.Lock()
 		delete(ue.SmPolicyData, smPolicyID)
+		ue.SmPolicyDataMu.Unlock()
 	}
 	smPolicyData = ue.NewUeSmPolicyData(smPolicyID, request, smData)
 
@@ -363,23 +380,24 @@ func deleteSmPolicyContextProcedure(smPolicyID string) *models.ProblemDetails {
 	pcfSelf := pcfContext.PCF_Self()
 	ue := pcfSelf.PCFUeFindByPolicyId(smPolicyID)
 	logger.SMpolicylog.Infof("smPolicyID: %v, ue: %v", smPolicyID, ue)
-	if ue == nil || ue.SmPolicyData[smPolicyID] == nil {
+	smPolicy := lookupSmPolicy(ue, smPolicyID)
+	if smPolicy == nil {
 		problemDetail := util.GetProblemDetail("smPolicyID not found in PCF", util.CONTEXT_NOT_FOUND)
 		logger.SMpolicylog.Warnln(problemDetail.Detail)
 		return problemDetail
 	}
 
-	smPolicy := ue.SmPolicyData[smPolicyID]
-
 	// Unsubscrice UDR
+	ue.SmPolicyDataMu.Lock()
 	delete(ue.SmPolicyData, smPolicyID)
+	ue.SmPolicyDataMu.Unlock()
 	logger.SMpolicylog.Debugf("SMPolicy smPolicyID[%s] DELETE", smPolicyID)
 
 	// Release related App Session
 	terminationInfo := models.TerminationInfo{
 		TermCause: models.TERMINATIONCAUSE_PDU_SESSION_TERMINATION,
 	}
-	for appSessionID := range smPolicy.AppSessions {
+	for _, appSessionID := range smPolicy.AppSessionIds() {
 		if val, exist := pcfSelf.AppSessionPool.Load(appSessionID); exist {
 			appSession := val.(*pcfContext.AppSessionData)
 			SendAppSessionTermination(appSession, terminationInfo)
@@ -414,12 +432,12 @@ func getSmPolicyContextProcedure(smPolicyID string) (
 	logger.SMpolicylog.Debugln("handle GET SM Policy Request")
 
 	ue := pcfContext.PCF_Self().PCFUeFindByPolicyId(smPolicyID)
-	if ue == nil || ue.SmPolicyData[smPolicyID] == nil {
+	smPolicyData := lookupSmPolicy(ue, smPolicyID)
+	if smPolicyData == nil {
 		problemDetail := util.GetProblemDetail("smPolicyID not found in PCF", util.CONTEXT_NOT_FOUND)
 		logger.SMpolicylog.Warnln(problemDetail.Detail)
 		return nil, problemDetail
 	}
-	smPolicyData := ue.SmPolicyData[smPolicyID]
 	response = models.NewSmPolicyControl(*smPolicyData.PolicyContext, *smPolicyData.PolicyDecision)
 	logger.SMpolicylog.Debugf("SMPolicy smPolicyID[%s] GET", smPolicyID)
 	return response, nil
@@ -455,12 +473,12 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 	logger.SMpolicylog.Debugln("handle updateSmPolicyContext")
 
 	ue := pcfContext.PCF_Self().PCFUeFindByPolicyId(smPolicyID)
-	if ue == nil || ue.SmPolicyData[smPolicyID] == nil {
+	smPolicy := lookupSmPolicy(ue, smPolicyID)
+	if smPolicy == nil {
 		problemDetail := util.GetProblemDetail("smPolicyID not found in PCF", util.CONTEXT_NOT_FOUND)
 		logger.SMpolicylog.Warnln(problemDetail.Detail)
 		return nil, problemDetail
 	}
-	smPolicy := ue.SmPolicyData[smPolicyID]
 	smPolicyDecision := smPolicy.PolicyDecision
 	smPolicyContext := smPolicy.PolicyContext
 	errCause := ""
@@ -833,7 +851,7 @@ func sendSmPolicyRelatedAppSessionNotification(smPolicy *pcfContext.UeSmPolicyDa
 	notification models.EventsNotification, usageReports []models.AccuUsageReport,
 	successRules, failRules []models.RuleReport,
 ) {
-	for appSessionId := range smPolicy.AppSessions {
+	for _, appSessionId := range smPolicy.AppSessionIds() {
 		if val, exist := pcfContext.PCF_Self().AppSessionPool.Load(appSessionId); exist {
 			appSession := val.(*pcfContext.AppSessionData)
 			if len(appSession.Events) == 0 {
