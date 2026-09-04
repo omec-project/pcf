@@ -50,7 +50,17 @@ func peerReturning(t *testing.T, status int, withBody bool) *httptest.Server {
 			}
 		}
 	}))
-	t.Cleanup(svr.Close)
+
+	// SendUpdateNFInstance and SendRemoveSubscription read the NRF URI from the process-wide PCF
+	// context rather than taking it as an argument, so it is set here - and restored, because
+	// otherwise a later test in this package inherits a URL whose server has already been closed.
+	// Same save-and-restore as TestSendDeregisterNFInstance_AcceptsNoContentOnly.
+	originalNrfURI := pcf_context.PCF_Self().NrfUri
+	pcf_context.PCF_Self().NrfUri = svr.URL
+	t.Cleanup(func() {
+		pcf_context.PCF_Self().NrfUri = originalNrfURI
+		svr.Close()
+	})
 
 	return svr
 }
@@ -89,8 +99,7 @@ func assertErrAlongsideProblem(t *testing.T, err error) {
 // error string with FormatErrorMessage(status, model) as soon as a body decodes, so for a decoded
 // ProblemDetails err.Error() never equals res.Status.
 func TestSendUpdateNFInstanceReturnsTheProblemDetails(t *testing.T) {
-	svr := peerReturning(t, http.StatusForbidden, true)
-	pcf_context.PCF_Self().NrfUri = svr.URL
+	peerReturning(t, http.StatusForbidden, true)
 
 	// A non-empty patch: the generated client validates the slice before sending, so an empty
 	// one never reaches the peer and the test would assert against a client-side error instead.
@@ -114,8 +123,7 @@ func TestSendCreateSubscriptionReturnsTheProblemDetails(t *testing.T) {
 }
 
 func TestSendRemoveSubscriptionReturnsTheProblemDetails(t *testing.T) {
-	svr := peerReturning(t, http.StatusForbidden, true)
-	pcf_context.PCF_Self().NrfUri = svr.URL
+	peerReturning(t, http.StatusForbidden, true)
 
 	problem, err := SendRemoveSubscription("subscription-id")
 
