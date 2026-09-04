@@ -184,8 +184,11 @@ var SendUpdateNFInstance = func(patchItem []models.PatchItem) (nfProfile *models
 
 	if res != nil {
 		// Logged for every error response now, not only for the ones the removed guard let
-		// through: the message was already true in both cases.
-		logger.Consumerlog.Errorf("UpdateNFInstance received error response: %v", res.Status)
+		// through. Warn rather than Error: the caller owns the report, and it already logs the
+		// problem details it is handed - the subscription path at error level in nf_discovery, the heartbeat at
+		// warn level in nfregistration - so Error here duplicated the caller's line and, for the
+		// heartbeat, was louder than the caller that decides what to do about it.
+		logger.Consumerlog.Warnf("UpdateNFInstance received error response: %v", res.Status)
 		// ErrorModel accepts the model whether the client stored it by value or by pointer. The
 		// hand-rolled assertion this replaces asked for the value type, and the client returns
 		// *GenericOpenAPIError, so it could never succeed.
@@ -232,8 +235,11 @@ func SendCreateSubscription(nrfUri string, nrfSubscriptionData models.Subscripti
 
 	if res != nil {
 		// Logged for every error response now, not only for the ones the removed guard let
-		// through: the message was already true in both cases.
-		logger.ConsumerLog.Errorf("SendCreateSubscription received error response: %v", res.Status)
+		// through. Warn rather than Error: the caller owns the report, and it already logs the
+		// problem details it is handed - SendCreateSubscription at error level in nf_discovery, the heartbeat at
+		// warn level in nfregistration - so Error here duplicated the caller's line and, for the
+		// heartbeat, was louder than the caller that decides what to do about it.
+		logger.ConsumerLog.Warnf("SendCreateSubscription received error response: %v", res.Status)
 		// ErrorModel accepts the model whether the client stored it by value or by pointer. The
 		// hand-rolled assertion this replaces asked for the value type, and the client returns
 		// *GenericOpenAPIError, so it could never succeed.
