@@ -183,18 +183,17 @@ var SendUpdateNFInstance = func(patchItem []models.PatchItem) (nfProfile *models
 	}
 
 	if res != nil {
-		if res.Status != err.Error() {
-			logger.Consumerlog.Errorf("UpdateNFInstance received error response: %v", res.Status)
-			return nil, nil, err
-		}
-
-		// Safe type assertion with error handling
-		if genericErr, ok := err.(openapi.GenericOpenAPIError); ok {
-			if model := genericErr.Model(); model != nil {
-				if problem, ok := model.(models.ProblemDetails); ok {
-					return nil, &problem, err
-				}
-			}
+		// Logged for every error response now, not only for the ones the removed guard let
+		// through. Warn rather than Error: the caller owns the report, and it already logs the
+		// problem details it is handed - the subscription path at error level in nf_discovery, the heartbeat at
+		// warn level in nfregistration - so Error here duplicated the caller's line and, for the
+		// heartbeat, was louder than the caller that decides what to do about it.
+		logger.Consumerlog.Warnf("UpdateNFInstance received error response: %v", res.Status)
+		// ErrorModel accepts the model whether the client stored it by value or by pointer. The
+		// hand-rolled assertion this replaces asked for the value type, and the client returns
+		// *GenericOpenAPIError, so it could never succeed.
+		if problem, ok := openapi.ErrorModel[models.ProblemDetails](err); ok {
+			return nil, &problem, err
 		}
 		return nil, nil, err
 	}
@@ -235,18 +234,17 @@ func SendCreateSubscription(nrfUri string, nrfSubscriptionData models.Subscripti
 	}
 
 	if res != nil {
-		if res.Status != err.Error() {
-			logger.ConsumerLog.Errorf("SendCreateSubscription received error response: %v", res.Status)
-			return nil, nil, err
-		}
-
-		// Safe type assertion with error handling
-		if genericErr, ok := err.(openapi.GenericOpenAPIError); ok {
-			if model := genericErr.Model(); model != nil {
-				if problem, ok := model.(models.ProblemDetails); ok {
-					return nil, &problem, err
-				}
-			}
+		// Logged for every error response now, not only for the ones the removed guard let
+		// through. Warn rather than Error: the caller owns the report, and it already logs the
+		// problem details it is handed - SendCreateSubscription at error level in nf_discovery, the heartbeat at
+		// warn level in nfregistration - so Error here duplicated the caller's line and, for the
+		// heartbeat, was louder than the caller that decides what to do about it.
+		logger.ConsumerLog.Warnf("SendCreateSubscription received error response: %v", res.Status)
+		// ErrorModel accepts the model whether the client stored it by value or by pointer. The
+		// hand-rolled assertion this replaces asked for the value type, and the client returns
+		// *GenericOpenAPIError, so it could never succeed.
+		if problem, ok := openapi.ErrorModel[models.ProblemDetails](err); ok {
+			return nil, &problem, err
 		}
 		return nil, nil, err
 	}
@@ -287,17 +285,11 @@ func SendRemoveSubscription(subscriptionId string) (problemDetails *models.Probl
 	}
 
 	if res != nil {
-		if res.Status != err.Error() {
-			return nil, err
-		}
-
-		// Safe type assertion with error handling
-		if genericErr, ok := err.(openapi.GenericOpenAPIError); ok {
-			if model := genericErr.Model(); model != nil {
-				if problem, ok := model.(models.ProblemDetails); ok {
-					return &problem, err
-				}
-			}
+		// ErrorModel accepts the model whether the client stored it by value or by pointer. The
+		// hand-rolled assertion this replaces asked for the value type, and the client returns
+		// *GenericOpenAPIError, so it could never succeed.
+		if problem, ok := openapi.ErrorModel[models.ProblemDetails](err); ok {
+			return &problem, err
 		}
 		return nil, err
 	}

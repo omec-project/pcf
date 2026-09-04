@@ -51,12 +51,17 @@ func AmfStatusChangeSubscribe(amfUri string, guamiList []models.Guami) (
 		}
 		pcfSelf.NewAmfStatusSubscription(subscriptionID, amfStatusSubsData)
 	} else if httpResp != nil {
-		if httpResp.Status != localErr.Error() {
+		// ErrorModel accepts the model whether the client stored it by value or by pointer, and
+		// reports whether there was one. The unchecked assertion this replaces asked for the
+		// value type - the client returns *GenericOpenAPIError - so reaching it panicked rather
+		// than reading the model. The removed status guard is what kept it out of reach, and only
+		// for a response the client has an arm for: a status it does not name leaves RawError
+		// equal to the status, which passed the guard straight into the panic.
+		if problem, ok := openapi.ErrorModel[models.ProblemDetails](localErr); ok {
+			problemDetails = &problem
+		} else {
 			err = localErr
-			return nil, err
 		}
-		problem := localErr.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails)
-		problemDetails = &problem
 	} else {
 		err = openapi.ReportError("%s: server no response", amfUri)
 	}
@@ -65,8 +70,11 @@ func AmfStatusChangeSubscribe(amfUri string, guamiList []models.Guami) (
 		// httpResp can be nil in some error scenarios above; this check prevents a
 		// panic when accessing httpResp.Body
 		if httpResp != nil {
-			if err = httpResp.Body.Close(); err != nil {
-				logger.Consumerlog.Errorf("error closing response body: %v", err)
+			// Deliberately not the named err: a successful close returns nil, and assigning
+			// that would report success for a subscribe the AMF had refused. Unobservable
+			// before, because the guard removed above returned before this ran.
+			if closeErr := httpResp.Body.Close(); closeErr != nil {
+				logger.Consumerlog.Errorf("error closing response body: %v", closeErr)
 			}
 		}
 	}()
