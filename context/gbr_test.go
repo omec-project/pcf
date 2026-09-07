@@ -491,3 +491,47 @@ func TestRemainingGbrKbpsRendersAnAbsentBudget(t *testing.T) {
 		t.Errorf("downlink = %q, want \"512.00 Kbps\"", dl)
 	}
 }
+
+// Read from TS 23.501 table 5.7.4-1 rather than from the change that asked for this: the Non-GBR
+// resource type spans a block of rows whose type cell is written once, so the values have to be
+// taken in order from where the block starts to where the delay-critical one begins.
+func TestIsStandardisedNonGbr5QI(t *testing.T) {
+	nonGbr := []int32{5, 6, 7, 8, 9, 10, 69, 70, 79, 80}
+	gbr := []int32{1, 2, 3, 4, 65, 66, 67, 71, 72, 73, 74, 75, 76}
+	delayCritical := []int32{82, 83, 84, 85, 86, 87, 88, 89, 90}
+	dynamic := []int32{128, 130, 200, 255}
+
+	for _, v := range nonGbr {
+		if !IsStandardisedNonGbr5QI(v) {
+			t.Errorf("5QI %d is a Non-GBR resource type in TS 23.501 table 5.7.4-1", v)
+		}
+	}
+	for _, v := range append(gbr, delayCritical...) {
+		if IsStandardisedNonGbr5QI(v) {
+			t.Errorf("5QI %d is a GBR resource type and must not be reported as Non-GBR", v)
+		}
+	}
+	// The distinction the negation of the GBR set would lose.
+	for _, v := range dynamic {
+		if IsStandardisedNonGbr5QI(v) {
+			t.Errorf("5QI %d is outside the table, so it is dynamically assigned rather than "+
+				"Non-GBR: it carries its own QoS characteristics and may legitimately have a "+
+				"guaranteed rate", v)
+		}
+	}
+}
+
+// 5QI 10 was added to table 5.7.4-1 for satellite access — a 1100 ms packet delay budget under
+// NOTE 17 — and it is what a geostationary deployment runs, since no GBR value's budget reaches
+// that far. It is asserted on its own because it is both the value most likely to carry a
+// misconfigured guarantee and the newest in the table.
+func TestTheSatelliteNonGbr5QIIsRecognised(t *testing.T) {
+	const satellite int32 = 10
+
+	if !IsStandardisedNonGbr5QI(satellite) {
+		t.Error("5QI 10 is Non-GBR in TS 23.501 table 5.7.4-1")
+	}
+	if IsStandardisedGbr5QI(satellite) {
+		t.Error("5QI 10 must not be treated as a guaranteed-rate flow")
+	}
+}
