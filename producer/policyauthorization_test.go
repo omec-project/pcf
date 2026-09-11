@@ -233,3 +233,40 @@ func TestGetMaxPccRuleIdNum(t *testing.T) {
 		})
 	}
 }
+
+// None of the procedures that hold the session's policy lock had a test that drove it, so nothing
+// would have caught a path that takes the lock and returns without releasing it. That failure is
+// silent until the next request for the same session, which then waits for a lock nobody will
+// give back — the session is wedged for the lifetime of the process, and the same shape has
+// already been shipped once elsewhere in this project.
+//
+// Driven twice, and the lock is checked between the calls: TryLock reports a lock left held
+// immediately, rather than the second call hanging the suite to say the same thing.
+func TestDeleteAppSessionContextReleasesThePolicyLock(t *testing.T) {
+	smPolicy := establishedSession(t, nil, &models.SmPolicyDecision{
+		PccRules: map[string]models.PccRule{},
+	})
+	// The shared fixture leaves PcfUe unset, and this procedure builds its notification's resource
+	// URI from it.
+	smPolicy.PcfUe = &pcfContext.UeContext{Supi: "imsi-208930100007487"}
+
+	for round, appSessID := range []string{"app-lock-1", "app-lock-2"} {
+		pcfContext.PCF_Self().AppSessionPool.Store(appSessID, &pcfContext.AppSessionData{
+			AppSessionId:      appSessID,
+			SmPolicyData:      smPolicy,
+			RelatedPccRuleIds: map[string]string{},
+			Events:            map[models.AfEventPcf]models.AfNotifMethod{},
+		})
+		smPolicy.AddAppSession(appSessID)
+		t.Cleanup(func() { pcfContext.PCF_Self().AppSessionPool.Delete(appSessID) })
+
+		if problem := DeleteAppSessionContextProcedure(appSessID, nil); problem != nil {
+			t.Fatalf("call %d: unexpected problem details: %+v", round+1, problem)
+		}
+		if !smPolicy.PolicyMu.TryLock() {
+			t.Fatalf("call %d returned with the policy lock still held: the next request for this "+
+				"session would wait for it forever", round+1)
+		}
+		smPolicy.PolicyMu.Unlock()
+	}
+}
