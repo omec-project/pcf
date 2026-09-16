@@ -24,10 +24,19 @@ type UeContext struct {
 	UdrUri   string
 	UdrUriMu sync.RWMutex
 
-	// SmPolicyDataMu guards the SmPolicyData map itself — its shape, not the contents of the
-	// entries. Iterating a Go map while another goroutine inserts into or deletes from it is a
-	// fatal runtime error, not merely a race, and the configuration poll loop iterates it
-	// periodically while session create and delete mutate it from request handlers.
+	// SmPolicyDataMu guards the SmPolicyData map's shape, and on each entry the UE address that
+	// session binding matches against — PolicyContext.Ipv4Address and Ipv6AddressPrefix. Nothing
+	// else in an entry's contents.
+	//
+	// Iterating a Go map while another goroutine inserts into or deletes from it is a fatal runtime
+	// error, not merely a race, and the configuration poll loop iterates it periodically while
+	// session create and delete mutate it from request handlers.
+	//
+	// The addresses belong here rather than with the rest of an entry's state because finding a
+	// session by address is one operation, not two: the four finders below walk the map and compare
+	// the addresses in the same critical section, and an SMF reporting UE_IP_CH writes an address
+	// into an entry the finders may be walking. Splitting the two across different locks would
+	// leave the walk and the comparison protected by different things, which is no protection.
 	SmPolicyDataMu sync.RWMutex
 	// SMPolicy
 	SmPolicyData map[string]*UeSmPolicyData // use smPolicyId(ue.Supi-pduSessionId) as key
@@ -505,7 +514,11 @@ func (ue *UeContext) SMPolicyFindByIdentifiersIpv4(
 		if ipDomain != "" && policyContext.GetIpDomain() != "" && policyContext.GetIpDomain() != ipDomain {
 			continue
 		}
-		if sNssai != nil && !reflect.DeepEqual(sNssai, policyContext.SliceInfo) {
+		// Dereferenced before the comparison. SmPolicyContextData.SliceInfo is an Snssai and the
+		// caller's is an *Snssai, and reflect.DeepEqual is false for values of distinct types
+		// whatever they hold — so this guard used to discard every session, and an application
+		// function that named a slice could never bind to one.
+		if sNssai != nil && !reflect.DeepEqual(*sNssai, policyContext.SliceInfo) {
 			continue
 		}
 
@@ -530,7 +543,11 @@ func (ue *UeContext) SMPolicyFindByIdentifiersIpv6(v6 string, sNssai *models.Sns
 			if dnn != "" && policyContext.Dnn != dnn {
 				continue
 			}
-			if sNssai != nil && !reflect.DeepEqual(sNssai, policyContext.SliceInfo) {
+			// Dereferenced before the comparison. SmPolicyContextData.SliceInfo is an Snssai and the
+			// caller's is an *Snssai, and reflect.DeepEqual is false for values of distinct types
+			// whatever they hold — so this guard used to discard every session, and an application
+			// function that named a slice could never bind to one.
+			if sNssai != nil && !reflect.DeepEqual(*sNssai, policyContext.SliceInfo) {
 				continue
 			}
 			return smPolicy
