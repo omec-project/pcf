@@ -2106,6 +2106,10 @@ func modifyRemainBitRate(smPolicy *pcfContext.UeSmPolicyData, qosData *models.Qo
 			}
 		}
 	}
+	// Recorded only once both directions have been taken. The rates on qosData are what this
+	// function actually debited -- it writes back what it could take, which may be less than was
+	// asked for -- so this is the exact amount IncreaseRemainGBR has to give back.
+	smPolicy.RecordGbrDebit(qosData.QosId, qosData.GetGbrUl(), qosData.GetGbrDl())
 	return nil
 }
 

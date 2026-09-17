@@ -91,9 +91,11 @@ func TestRemovePccRuleRestoresBudgetForGbr5QIAboveFour(t *testing.T) {
 	remainUl, remainDl := 4096.0, 8192.0
 	policy := newPolicyHoldingGbrRule(66, "1 Mbps", "2 Mbps", &remainUl, &remainDl)
 
-	// What DecreaseRemainGBR took for this rule.
+	// What DecreaseRemainGBR took for this rule, recorded the way its callers do -- the credit is
+	// the mirror of the recorded debit, not a reading of the rates the stored QoS data carries.
 	remainUl -= 1024
 	remainDl -= 2048
+	policy.RecordGbrDebit("qos-1", "1 Mbps", "2 Mbps")
 
 	if err := policy.RemovePccRule("rule-1", nil); err != nil {
 		t.Fatalf("RemovePccRule: %v", err)
@@ -128,12 +130,14 @@ func TestDecreaseThenRemoveLeavesAggregateUnchanged(t *testing.T) {
 	req := models.NewRequestedQos(66)
 	req.SetGbrUl("1 Mbps")
 	req.SetGbrDl("2 Mbps")
-	if _, _, err := policy.DecreaseRemainGBR(req); err != nil {
+	gbrDl, gbrUl, err := policy.DecreaseRemainGBR(req)
+	if err != nil {
 		t.Fatalf("DecreaseRemainGBR: %v", err)
 	}
 	if remainUl == 4096 || remainDl == 8192 {
 		t.Fatalf("budget was not debited, so the test cannot show it being credited back")
 	}
+	policy.RecordGbrDebit("qos-1", gbrUl, gbrDl)
 
 	if err := policy.RemovePccRule("rule-1", nil); err != nil {
 		t.Fatalf("RemovePccRule: %v", err)
@@ -163,5 +167,53 @@ func newPolicyHoldingGbrRule(var5qi int32, gbrUl, gbrDl string, remainUl, remain
 		RemainGbrDL:            remainDl,
 		PolicyDecision:         decision,
 		PackFiltMapToPccRuleId: map[string]string{},
+	}
+}
+
+// The asymmetry that carrying guaranteed rates on slice-derived QoS data creates, and the reason
+// the credit is taken from a recorded debit rather than from the stored rates.
+//
+// A rule the slice policy supplied has guaranteed rates on its QoS data but never went through
+// DecreaseRemainGBR -- only an application function's request does. It still reaches RemovePccRule
+// by the ordinary routes: a delete operation, or an installation the SMF reports as failed. Reading
+// the stored rates there would hand back a rate nobody took and lift the aggregate above the budget
+// the session started with.
+func TestRemovePccRuleCreditsNothingForARuleThatWasNeverDebited(t *testing.T) {
+	remainUl, remainDl := 4096.0, 8192.0
+	policy := newPolicyHoldingGbrRule(66, "1 Mbps", "2 Mbps", &remainUl, &remainDl)
+
+	// No RecordGbrDebit: this is a slice-derived rule, so nothing was taken for it.
+	if err := policy.RemovePccRule("rule-1", nil); err != nil {
+		t.Fatalf("RemovePccRule: %v", err)
+	}
+	if remainUl != 4096 || remainDl != 8192 {
+		t.Errorf("aggregate = (%v, %v) kbps, want it untouched at (4096, 8192): nothing was debited for this rule",
+			remainUl, remainDl)
+	}
+}
+
+// The debit is both directions or neither. DecreaseRamainBitRate takes the downlink first, so a
+// request whose uplink does not fit used to leave the downlink spent -- and the SM policy create
+// arm returns on that error without restoring it, so the budget stayed short for the life of the
+// session, once per refused request.
+func TestDecreaseRemainGBRPutsTheDownlinkBackWhenTheUplinkDoesNotFit(t *testing.T) {
+	remainUl, remainDl := 512.0, 8192.0
+	policy := newPolicyHoldingGbrRule(66, "", "", &remainUl, &remainDl)
+
+	req := models.NewRequestedQos(66)
+	req.SetGbrUl("1 Mbps") // more than the 512 kbps left uplink
+	req.SetGbrDl("2 Mbps") // fits, and is taken first
+	gbrDl, _, err := policy.DecreaseRemainGBR(req)
+	if err == nil {
+		t.Fatal("expected the uplink debit to be refused")
+	}
+	if remainDl != 8192 {
+		t.Errorf("downlink budget = %v kbps after a refused request, want it back at 8192", remainDl)
+	}
+	if gbrDl != "" {
+		t.Errorf("gbrDl = %q, want it empty: nothing was granted", gbrDl)
+	}
+	if remainUl != 512 {
+		t.Errorf("uplink budget = %v kbps, want it untouched at 512", remainUl)
 	}
 }

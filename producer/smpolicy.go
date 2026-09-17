@@ -539,6 +539,7 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 				}
 				qosData.GbrDl = *openapi.NewNullableString(openapi.PtrString(gbrDl))
 				qosData.GbrUl = *openapi.NewNullableString(openapi.PtrString(gbrUl))
+				smPolicy.RecordGbrDebit(qosData.QosId, gbrUl, gbrDl)
 				if qosData.GetGbrDl() != "" {
 					logger.SMpolicylog.Debugf("SM Policy Dnn[%s] Data Aggregate decrease %s and then DL GBR remain[%.2f Kbps]",
 						smPolicyContext.Dnn, qosData.GbrDl, *smPolicy.RemainGbrDL)
@@ -590,6 +591,7 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 							qosData.Var5qi = openapi.PtrInt32(req.ReqQos.GetVar5qi())
 							qosData.GbrDl = *openapi.NewNullableString(openapi.PtrString(gbrDl))
 							qosData.GbrUl = *openapi.NewNullableString(openapi.PtrString(gbrUl))
+							smPolicy.RecordGbrDebit(qosId, gbrUl, gbrDl)
 							if qosData.GetGbrDl() != "" {
 								logger.SMpolicylog.Debugf("SM Policy Dnn[%s] Data Aggregate decrease %s and then DL GBR remain[%.2f Kbps]",
 									smPolicyContext.Dnn, qosData.GbrDl, *smPolicy.RemainGbrDL)
