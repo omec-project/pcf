@@ -95,6 +95,16 @@ type UeSmPolicyData struct {
 	// Related to GBR
 	RemainGbrUL *float64
 	RemainGbrDL *float64
+	// gbrDebits is what was actually taken from the aggregate budget, keyed by QoS data id, so the
+	// credit can be the exact mirror of the debit rather than a reading of whatever rates the
+	// stored QoS data happens to carry.
+	//
+	// The two are not the same thing. The budget is debited only for rates an application function
+	// asks for, but the QoS data of a rule the slice policy supplied carries guaranteed rates too,
+	// and that rule reaches RemovePccRule by the ordinary routes -- a delete operation, or a failed
+	// installation reported by the SMF. Crediting from the stored rates would then give back rates
+	// no one ever took, lifting the budget above the aggregate it started from.
+	gbrDebits map[string]gbrDebit
 	// related to UDR Subscription Data
 	SmPolicyData *models.SmPolicyData // Svbscription Data
 	// related to Policy
@@ -140,6 +150,13 @@ func (ue *UeContext) NewUeAMPolicyData(assolId string, req models.PolicyAssociat
 }
 
 // returns UeSmPolicyData and insert related info to Ue with smPolId
+// gbrDebit is one QoS data entry's contribution to the aggregate budget, in the units the
+// bit-rate strings carry, recorded when it is taken.
+type gbrDebit struct {
+	ul string
+	dl string
+}
+
 func (ue *UeContext) NewUeSmPolicyData(
 	key string, request models.SmPolicyContextData, smData *models.SmPolicyData,
 ) *UeSmPolicyData {
@@ -169,6 +186,7 @@ func (ue *UeContext) NewUeSmPolicyData(
 	data.SmPolicyData = smData
 	data.PackFiltIdGenarator = 1
 	data.PackFiltMapToPccRuleId = make(map[string]string)
+	data.gbrDebits = make(map[string]gbrDebit)
 	data.AppSessions = make(map[string]bool)
 	// data.RefToAmPolicy = amData
 	data.PccRuleIdGenarator = 1
@@ -367,16 +385,28 @@ func (policy *UeSmPolicyData) IncreaseRemainGBR(qosId string) (origUl, origDl *f
 	if decision.QosDecs == nil {
 		return
 	}
-	if qos, exist := (*decision.QosDecs)[qosId]; exist {
-		// The mirror of DecreaseRemainGBR. Both directions have to read the same table, or a
-		// guaranteed rate budgeted for a GBR 5QI above 4 is never given back.
-		if IsStandardisedGbr5QI(qos.GetVar5qi()) {
-			// Add GBR
-			origUl = IncreaseRamainBitRate(policy.RemainGbrUL, qos.GetGbrUl())
-			origDl = IncreaseRamainBitRate(policy.RemainGbrDL, qos.GetGbrDl())
-		}
+	// Credited from what was debited, not from the stored QoS data -- see gbrDebits. A rule whose
+	// rates never went through DecreaseRemainGBR has no entry here and is given back nothing, which
+	// is the whole point: it took nothing.
+	if debit, exist := policy.gbrDebits[qosId]; exist {
+		origUl = IncreaseRamainBitRate(policy.RemainGbrUL, debit.ul)
+		origDl = IncreaseRamainBitRate(policy.RemainGbrDL, debit.dl)
+		delete(policy.gbrDebits, qosId)
 	}
 	return
+}
+
+// RecordGbrDebit notes what DecreaseRemainGBR took for a QoS data id, so IncreaseRemainGBR can give
+// back exactly that. Called by the caller rather than by DecreaseRemainGBR itself, because the id is
+// assigned around the debit and is not known inside it.
+func (policy *UeSmPolicyData) RecordGbrDebit(qosId, gbrUl, gbrDl string) {
+	if gbrUl == "" && gbrDl == "" {
+		return
+	}
+	if policy.gbrDebits == nil {
+		policy.gbrDebits = make(map[string]gbrDebit)
+	}
+	policy.gbrDebits[qosId] = gbrDebit{ul: gbrUl, dl: gbrDl}
 }
 
 // Increase remain Bit Rate and returns original Bit Rate
@@ -407,6 +437,13 @@ func (policy *UeSmPolicyData) DecreaseRemainGBR(req *models.RequestedQos) (gbrDl
 		gbrDl = req.GetGbrDl()
 		err = DecreaseRamainBitRate(policy.RemainGbrUL, req.GetGbrUl())
 		if err != nil {
+			// Both directions or neither. The downlink has already been taken at this point, and a
+			// caller that gives up here without putting it back leaves the budget permanently short
+			// by that much -- the create arm in producer/smpolicy.go is exactly such a caller, and
+			// the modify arm only escapes it by restoring from its own snapshot. Undoing it here
+			// makes the operation atomic for every caller rather than for the one that remembered.
+			IncreaseRamainBitRate(policy.RemainGbrDL, gbrDl)
+			gbrDl = ""
 			return
 		}
 		gbrUl = req.GetGbrUl()
