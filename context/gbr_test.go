@@ -245,3 +245,60 @@ func TestGbrLedgerSurvivesConcurrentRecordAndRelease(t *testing.T) {
 	}()
 	wg.Wait()
 }
+
+// A modification that does not fit must leave the session exactly as it found it. The old call site
+// credited the previous debit back, took the new one, and on failure restored the budget from a
+// snapshot -- but the ledger entry had already been removed by the credit and was never put back,
+// so the next release of that rule found nothing to give back and the aggregate shrank for good.
+func TestReplaceGbrDebitRestoresTheLedgerWhenTheNewRequestDoesNotFit(t *testing.T) {
+	remainUl, remainDl := 1024.0, 8192.0
+	policy := newPolicyHoldingGbrRule(66, "1 Mbps", "2 Mbps", &remainUl, &remainDl)
+
+	// The rule is already holding 1 Mbps up / 2 Mbps down of the aggregate.
+	policy.RecordGbrDebit("qos-1", "1 Mbps", "2 Mbps")
+
+	// Ask for more uplink than the session can carry even after the old debit is credited back.
+	req := models.NewRequestedQos(66)
+	req.SetGbrUl("100 Mbps")
+	req.SetGbrDl("1 Mbps")
+	if _, _, err := policy.ReplaceGbrDebit("qos-1", req); err == nil {
+		t.Fatal("expected the replacement debit to be refused")
+	}
+	if remainUl != 1024 || remainDl != 8192 {
+		t.Errorf("budget = (%v, %v) kbps after a refused modification, want it unchanged at (1024, 8192)",
+			remainUl, remainDl)
+	}
+
+	// The proof the budget check alone cannot give: releasing the rule must still return the debit
+	// that is once again in force.
+	if err := policy.RemovePccRule("rule-1", nil); err != nil {
+		t.Fatalf("RemovePccRule: %v", err)
+	}
+	if remainUl != 1024+1024 || remainDl != 8192+2048 {
+		t.Errorf("budget = (%v, %v) kbps after releasing the rule, want the original debit credited back at (2048, 10240)",
+			remainUl, remainDl)
+	}
+}
+
+// The budget is rewritten through the pointers the session already holds, never replaced. Assigning
+// a snapshot pointer installs nil whenever there was nothing to credit, and a nil budget reads
+// downstream as no limit at all rather than as zero.
+func TestReplaceGbrDebitKeepsTheSessionsBudgetPointers(t *testing.T) {
+	remainUl, remainDl := 512.0, 512.0
+	policy := newPolicyHoldingGbrRule(66, "", "", &remainUl, &remainDl)
+	ulBefore, dlBefore := policy.RemainGbrUL, policy.RemainGbrDL
+
+	// No prior debit recorded, so there is nothing to credit and the snapshots would be nil.
+	req := models.NewRequestedQos(66)
+	req.SetGbrUl("100 Mbps")
+	req.SetGbrDl("100 Mbps")
+	if _, _, err := policy.ReplaceGbrDebit("qos-1", req); err == nil {
+		t.Fatal("expected the debit to be refused")
+	}
+	if policy.RemainGbrUL == nil || policy.RemainGbrDL == nil {
+		t.Fatal("the budget pointers were replaced with nil, which reads downstream as no limit")
+	}
+	if policy.RemainGbrUL != ulBefore || policy.RemainGbrDL != dlBefore {
+		t.Error("the budget pointers were swapped rather than rewritten")
+	}
+}

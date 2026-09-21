@@ -2098,8 +2098,13 @@ func modifyRemainBitRate(smPolicy *pcfContext.UeSmPolicyData, qosData *models.Qo
 		} else {
 			// err = pcfContext.DecreaseRamainBitRate(smPolicy.RemainGbrDL, qosData.GbrDl)
 			if err := pcfContext.DecreaseRamainBitRate(smPolicy.RemainGbrDL, qosData.GetGbrDl()); err != nil {
-				// if Policy failed, revert remain GBR to original GBR
-				pcfContext.IncreaseRamainBitRate(smPolicy.RemainGbrUL, *qosData.GbrUl.Get())
+				// If the policy failed, give back only the direction that was actually taken. The
+				// uplink is untouched when ulExist is false, and qosData.GbrUl is then unset --
+				// dereferencing it panicked rather than returning the authorization error, which a
+				// downlink-only request against an exhausted downlink budget reaches directly.
+				if ulExist {
+					pcfContext.IncreaseRamainBitRate(smPolicy.RemainGbrUL, qosData.GetGbrUl())
+				}
 				problemDetail := util.GetProblemDetail(err.Error(), util.REQUESTED_SERVICE_NOT_AUTHORIZED)
 				// sendProblemDetail(httpChannel, err.Error(), util.REQUESTED_SERVICE_NOT_AUTHORIZED)
 				return problemDetail
