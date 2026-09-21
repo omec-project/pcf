@@ -4,6 +4,7 @@
 package context
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/omec-project/openapi/v2/models"
@@ -216,4 +217,31 @@ func TestDecreaseRemainGBRPutsTheDownlinkBackWhenTheUplinkDoesNotFit(t *testing.
 	if remainUl != 512 {
 		t.Errorf("uplink budget = %v kbps, want it untouched at 512", remainUl)
 	}
+}
+
+// The ledger is reached from two HTTP handlers for the same session -- the application function
+// path records a debit while the SM policy update path releases a rule -- so it is shared state.
+// Unguarded, a concurrent map write is a fatal runtime throw rather than a wrong number, which is
+// a larger failure than the unsynchronised budget it mirrors. Run under -race.
+func TestGbrLedgerSurvivesConcurrentRecordAndRelease(t *testing.T) {
+	const iterations = 200
+	remainUl, remainDl := 1<<20, 1<<20
+	ul, dl := float64(remainUl), float64(remainDl)
+	policy := newPolicyHoldingGbrRule(66, "1 Mbps", "2 Mbps", &ul, &dl)
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < iterations; i++ {
+			policy.RecordGbrDebit("qos-1", "1 Mbps", "2 Mbps")
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for i := 0; i < iterations; i++ {
+			policy.IncreaseRemainGBR("qos-1")
+		}
+	}()
+	wg.Wait()
 }

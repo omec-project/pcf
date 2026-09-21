@@ -95,6 +95,15 @@ type UeSmPolicyData struct {
 	// Related to GBR
 	RemainGbrUL *float64
 	RemainGbrDL *float64
+	// gbrDebitsMu guards gbrDebits, and is a leaf: nothing else is acquired while it is held, so it
+	// cannot take part in a lock cycle.
+	//
+	// The budget this mirrors -- RemainGbrUL and RemainGbrDL -- is written without any lock today,
+	// and that is pre-existing, but the two failure modes are not the same size. A racy *float64 is
+	// a wrong number; a concurrent map write is a fatal runtime throw that takes the element down.
+	// New shared state should not escalate an existing race into a crash, and both the application
+	// function handlers and the SM policy update handler reach this map for the same session.
+	gbrDebitsMu sync.Mutex
 	// gbrDebits is what was actually taken from the aggregate budget, keyed by QoS data id, so the
 	// credit can be the exact mirror of the debit rather than a reading of whatever rates the
 	// stored QoS data happens to carry.
@@ -388,10 +397,16 @@ func (policy *UeSmPolicyData) IncreaseRemainGBR(qosId string) (origUl, origDl *f
 	// Credited from what was debited, not from the stored QoS data -- see gbrDebits. A rule whose
 	// rates never went through DecreaseRemainGBR has no entry here and is given back nothing, which
 	// is the whole point: it took nothing.
-	if debit, exist := policy.gbrDebits[qosId]; exist {
+	// Claimed and removed in one critical section, then credited outside it. Two callers releasing
+	// the same rule would otherwise both read the entry before either removed it, and the budget
+	// would be credited twice for one debit.
+	policy.gbrDebitsMu.Lock()
+	debit, exist := policy.gbrDebits[qosId]
+	delete(policy.gbrDebits, qosId)
+	policy.gbrDebitsMu.Unlock()
+	if exist {
 		origUl = IncreaseRamainBitRate(policy.RemainGbrUL, debit.ul)
 		origDl = IncreaseRamainBitRate(policy.RemainGbrDL, debit.dl)
-		delete(policy.gbrDebits, qosId)
 	}
 	return
 }
@@ -403,6 +418,8 @@ func (policy *UeSmPolicyData) RecordGbrDebit(qosId, gbrUl, gbrDl string) {
 	if gbrUl == "" && gbrDl == "" {
 		return
 	}
+	policy.gbrDebitsMu.Lock()
+	defer policy.gbrDebitsMu.Unlock()
 	if policy.gbrDebits == nil {
 		policy.gbrDebits = make(map[string]gbrDebit)
 	}
