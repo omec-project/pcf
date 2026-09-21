@@ -95,15 +95,19 @@ type UeSmPolicyData struct {
 	// Related to GBR
 	RemainGbrUL *float64
 	RemainGbrDL *float64
-	// gbrDebitsMu guards gbrDebits, and is a leaf: nothing else is acquired while it is held, so it
-	// cannot take part in a lock cycle.
+	// gbrMu serializes a whole budget transaction -- credit, debit and the ledger write that records
+	// it -- not merely the individual map accesses. Locking each access on its own leaves the
+	// sequence in ReplaceGbrDebit interleavable: another handler could claim the same QoS id while
+	// no entry existed, and a debit would then be recorded for a rule already released.
+	//
+	// It is a leaf: nothing else is acquired while it is held, so it cannot take part in a cycle.
 	//
 	// The budget this mirrors -- RemainGbrUL and RemainGbrDL -- is written without any lock today,
 	// and that is pre-existing, but the two failure modes are not the same size. A racy *float64 is
 	// a wrong number; a concurrent map write is a fatal runtime throw that takes the element down.
 	// New shared state should not escalate an existing race into a crash, and both the application
 	// function handlers and the SM policy update handler reach this map for the same session.
-	gbrDebitsMu sync.Mutex
+	gbrMu sync.Mutex
 	// gbrDebits is what was actually taken from the aggregate budget, keyed by QoS data id, so the
 	// credit can be the exact mirror of the debit rather than a reading of whatever rates the
 	// stored QoS data happens to carry.
@@ -397,7 +401,12 @@ func (policy *UeSmPolicyData) IncreaseRemainGBR(qosId string) (origUl, origDl *f
 	// Credited from what was debited, not from the stored QoS data -- see gbrDebits. A rule whose
 	// rates never went through DecreaseRemainGBR has no entry here and is given back nothing, which
 	// is the whole point: it took nothing.
-	if debit, exist := policy.takeGbrDebit(qosId); exist {
+	// Held across the credit, not merely the map access. ReplaceGbrDebit mutates the same budget
+	// under this lock, so crediting outside it would leave the two racing on the *float64 -- a lock
+	// only the newest caller takes is worse than none, because it reads as protection.
+	policy.gbrMu.Lock()
+	defer policy.gbrMu.Unlock()
+	if debit, exist := policy.takeGbrDebitLocked(qosId); exist {
 		origUl = IncreaseRamainBitRate(policy.RemainGbrUL, debit.ul)
 		origDl = IncreaseRamainBitRate(policy.RemainGbrDL, debit.dl)
 	}
@@ -408,8 +417,13 @@ func (policy *UeSmPolicyData) IncreaseRemainGBR(qosId string) (origUl, origDl *f
 // Two callers releasing the same rule would otherwise both read the entry before either removed it,
 // and the budget would be credited twice for a debit taken once.
 func (policy *UeSmPolicyData) takeGbrDebit(qosId string) (gbrDebit, bool) {
-	policy.gbrDebitsMu.Lock()
-	defer policy.gbrDebitsMu.Unlock()
+	policy.gbrMu.Lock()
+	defer policy.gbrMu.Unlock()
+	return policy.takeGbrDebitLocked(qosId)
+}
+
+// takeGbrDebitLocked is takeGbrDebit for a caller that already holds gbrMu.
+func (policy *UeSmPolicyData) takeGbrDebitLocked(qosId string) (gbrDebit, bool) {
 	debit, exist := policy.gbrDebits[qosId]
 	delete(policy.gbrDebits, qosId)
 	return debit, exist
@@ -428,11 +442,17 @@ func (policy *UeSmPolicyData) takeGbrDebit(qosId string) (gbrDebit, bool) {
 //
 // Doing the whole exchange here removes the caller's opportunity to get either wrong.
 func (policy *UeSmPolicyData) ReplaceGbrDebit(qosId string, req *models.RequestedQos) (gbrDl, gbrUl string, err error) {
-	prior, hadPrior := policy.takeGbrDebit(qosId)
+	// One lock across the whole exchange. Taking it per map access would let another handler claim
+	// this QoS id in the window between the credit and the record, and the debit written afterwards
+	// would belong to a rule that had already been released.
+	policy.gbrMu.Lock()
+	defer policy.gbrMu.Unlock()
+
+	prior, hadPrior := policy.takeGbrDebitLocked(qosId)
 	origUl := IncreaseRamainBitRate(policy.RemainGbrUL, prior.ul)
 	origDl := IncreaseRamainBitRate(policy.RemainGbrDL, prior.dl)
 
-	gbrDl, gbrUl, err = policy.DecreaseRemainGBR(req)
+	gbrDl, gbrUl, err = policy.decreaseRemainGBRLocked(req)
 	if err != nil {
 		// Written through the pointers the session already holds, so nothing that captured them
 		// earlier is left looking at a different budget.
@@ -443,12 +463,12 @@ func (policy *UeSmPolicyData) ReplaceGbrDebit(qosId string, req *models.Requeste
 			*policy.RemainGbrDL = *origDl
 		}
 		if hadPrior {
-			policy.RecordGbrDebit(qosId, prior.ul, prior.dl)
+			policy.recordGbrDebitLocked(qosId, prior.ul, prior.dl)
 		}
 		return "", "", err
 	}
 
-	policy.RecordGbrDebit(qosId, gbrUl, gbrDl)
+	policy.recordGbrDebitLocked(qosId, gbrUl, gbrDl)
 	return gbrDl, gbrUl, nil
 }
 
@@ -459,8 +479,16 @@ func (policy *UeSmPolicyData) RecordGbrDebit(qosId, gbrUl, gbrDl string) {
 	if gbrUl == "" && gbrDl == "" {
 		return
 	}
-	policy.gbrDebitsMu.Lock()
-	defer policy.gbrDebitsMu.Unlock()
+	policy.gbrMu.Lock()
+	defer policy.gbrMu.Unlock()
+	policy.recordGbrDebitLocked(qosId, gbrUl, gbrDl)
+}
+
+// recordGbrDebitLocked is RecordGbrDebit for a caller that already holds gbrMu.
+func (policy *UeSmPolicyData) recordGbrDebitLocked(qosId, gbrUl, gbrDl string) {
+	if gbrUl == "" && gbrDl == "" {
+		return
+	}
 	if policy.gbrDebits == nil {
 		policy.gbrDebits = make(map[string]gbrDebit)
 	}
@@ -482,6 +510,13 @@ func IncreaseRamainBitRate(remainBitRate *float64, reqBitRate string) (orig *flo
 
 // Decrease remain GBR of this policy and returns UL DL GBR
 func (policy *UeSmPolicyData) DecreaseRemainGBR(req *models.RequestedQos) (gbrDl, gbrUl string, err error) {
+	policy.gbrMu.Lock()
+	defer policy.gbrMu.Unlock()
+	return policy.decreaseRemainGBRLocked(req)
+}
+
+// decreaseRemainGBRLocked is DecreaseRemainGBR for a caller that already holds gbrMu.
+func (policy *UeSmPolicyData) decreaseRemainGBRLocked(req *models.RequestedQos) (gbrDl, gbrUl string, err error) {
 	if req == nil {
 		return "", "", nil
 	}
