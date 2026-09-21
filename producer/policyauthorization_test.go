@@ -277,3 +277,32 @@ func TestHandleCombinedMediaSubComponentsAuthorisesGbr5QIAboveFour(t *testing.T)
 			qosData.GetGbrUl(), qosData.GetGbrDl())
 	}
 }
+
+// A downlink-only request against an exhausted downlink budget. The rollback used to dereference
+// qosData.GbrUl unconditionally, and on this path the uplink was never touched so that field is
+// unset -- an unset NullableString's Get() is nil, so the handler panicked instead of returning the
+// authorization error. Reachable only once the GBR path widened past 5QI 4, which is what this
+// branch does.
+func TestModifyRemainBitRateDoesNotPanicOnADownlinkOnlyRequest(t *testing.T) {
+	remainUl, remainDl := 4096.0, 1.0
+	smPolicy := &pcfContext.UeSmPolicyData{
+		RemainGbrUL: &remainUl,
+		RemainGbrDL: &remainDl,
+	}
+	qosData := models.QosData{QosId: "qos-1"}
+	qosData.GbrDl = *openapi.NewNullableString(openapi.PtrString("100 Mbps"))
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("modifyRemainBitRate panicked instead of refusing the request: %v", r)
+		}
+	}()
+
+	problemDetails := modifyRemainBitRate(smPolicy, &qosData, false, true)
+	if problemDetails == nil {
+		t.Fatal("expected the downlink debit to be refused")
+	}
+	if remainUl != 4096 {
+		t.Errorf("uplink budget = %v kbps, want it untouched at 4096: nothing was taken for it", remainUl)
+	}
+}
