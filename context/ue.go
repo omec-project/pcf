@@ -397,18 +397,59 @@ func (policy *UeSmPolicyData) IncreaseRemainGBR(qosId string) (origUl, origDl *f
 	// Credited from what was debited, not from the stored QoS data -- see gbrDebits. A rule whose
 	// rates never went through DecreaseRemainGBR has no entry here and is given back nothing, which
 	// is the whole point: it took nothing.
-	// Claimed and removed in one critical section, then credited outside it. Two callers releasing
-	// the same rule would otherwise both read the entry before either removed it, and the budget
-	// would be credited twice for one debit.
-	policy.gbrDebitsMu.Lock()
-	debit, exist := policy.gbrDebits[qosId]
-	delete(policy.gbrDebits, qosId)
-	policy.gbrDebitsMu.Unlock()
-	if exist {
+	if debit, exist := policy.takeGbrDebit(qosId); exist {
 		origUl = IncreaseRamainBitRate(policy.RemainGbrUL, debit.ul)
 		origDl = IncreaseRamainBitRate(policy.RemainGbrDL, debit.dl)
 	}
 	return
+}
+
+// takeGbrDebit claims a QoS data id's recorded debit and removes it, in one critical section.
+// Two callers releasing the same rule would otherwise both read the entry before either removed it,
+// and the budget would be credited twice for a debit taken once.
+func (policy *UeSmPolicyData) takeGbrDebit(qosId string) (gbrDebit, bool) {
+	policy.gbrDebitsMu.Lock()
+	defer policy.gbrDebitsMu.Unlock()
+	debit, exist := policy.gbrDebits[qosId]
+	delete(policy.gbrDebits, qosId)
+	return debit, exist
+}
+
+// ReplaceGbrDebit swaps what one QoS data id holds of the aggregate budget for what a new request
+// asks, and puts back exactly what it took if the new request does not fit.
+//
+// The call site used to do this in the open: credit the old debit, take the new one, and on failure
+// restore the budget from the snapshot the credit returned. That left two things wrong, both of
+// which are invisible until the failure happens. The ledger entry was already deleted by the credit
+// and was never re-recorded, so a later release found nothing to give back and the aggregate shrank
+// for good. And the restore assigned the snapshot *pointers* onto the session, which replaces the
+// budget rather than rewriting it -- and installs nil, read downstream as no limit at all, whenever
+// there was nothing to credit.
+//
+// Doing the whole exchange here removes the caller's opportunity to get either wrong.
+func (policy *UeSmPolicyData) ReplaceGbrDebit(qosId string, req *models.RequestedQos) (gbrDl, gbrUl string, err error) {
+	prior, hadPrior := policy.takeGbrDebit(qosId)
+	origUl := IncreaseRamainBitRate(policy.RemainGbrUL, prior.ul)
+	origDl := IncreaseRamainBitRate(policy.RemainGbrDL, prior.dl)
+
+	gbrDl, gbrUl, err = policy.DecreaseRemainGBR(req)
+	if err != nil {
+		// Written through the pointers the session already holds, so nothing that captured them
+		// earlier is left looking at a different budget.
+		if origUl != nil && policy.RemainGbrUL != nil {
+			*policy.RemainGbrUL = *origUl
+		}
+		if origDl != nil && policy.RemainGbrDL != nil {
+			*policy.RemainGbrDL = *origDl
+		}
+		if hadPrior {
+			policy.RecordGbrDebit(qosId, prior.ul, prior.dl)
+		}
+		return "", "", err
+	}
+
+	policy.RecordGbrDebit(qosId, gbrUl, gbrDl)
+	return gbrDl, gbrUl, nil
 }
 
 // RecordGbrDebit notes what DecreaseRemainGBR took for a QoS data id, so IncreaseRemainGBR can give

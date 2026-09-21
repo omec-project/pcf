@@ -579,11 +579,8 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 					if req.ReqQos != nil && len(rule.RefQosData) != 0 {
 						qosId := rule.RefQosData[0]
 						if qosData, exist := smPolicyDecision.GetQosDecs()[qosId]; exist {
-							origUl, origDl := smPolicy.IncreaseRemainGBR(qosId)
-							gbrDl, gbrUl, err := smPolicy.DecreaseRemainGBR(req.ReqQos)
+							gbrDl, gbrUl, err := smPolicy.ReplaceGbrDebit(qosId, req.ReqQos)
 							if err != nil {
-								smPolicy.RemainGbrDL = origDl
-								smPolicy.RemainGbrUL = origUl
 								problemDetail := util.GetProblemDetail(err.Error(), util.ERROR_TRAFFIC_MAPPING_INFO_REJECTED)
 								logger.SMpolicyLog.Warnln(problemDetail.Detail)
 								return nil, problemDetail
@@ -591,7 +588,6 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 							qosData.Var5qi = new(req.ReqQos.GetVar5qi())
 							qosData.SetGbrDl(gbrDl)
 							qosData.SetGbrUl(gbrUl)
-							smPolicy.RecordGbrDebit(qosId, gbrUl, gbrDl)
 							if qosData.GetGbrDl() != "" {
 								logger.SMpolicyLog.Debugf("SM Policy Dnn[%s] Data Aggregate decrease %s and then DL GBR remain[%.2f Kbps]",
 									smPolicyContext.Dnn, qosData.GbrDl, *smPolicy.RemainGbrDL)
