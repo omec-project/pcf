@@ -302,3 +302,56 @@ func TestReplaceGbrDebitKeepsTheSessionsBudgetPointers(t *testing.T) {
 		t.Error("the budget pointers were swapped rather than rewritten")
 	}
 }
+
+// The exchange has to be one transaction, not three locked steps. With the lock taken per map
+// access, a release running between the credit and the record claims the id while no entry exists,
+// and the debit written afterwards belongs to a rule that is already gone — so the aggregate stays
+// short with nothing left to credit it back. Run under -race; the assertion is the invariant, not
+// the race detector.
+func TestReplaceGbrDebitIsOneTransactionAgainstAConcurrentRelease(t *testing.T) {
+	const iterations = 300
+	for i := 0; i < iterations; i++ {
+		remainUl, remainDl := 100000.0, 100000.0
+		policy := newPolicyHoldingGbrRule(66, "1 Mbps", "2 Mbps", &remainUl, &remainDl)
+		policy.RecordGbrDebit("qos-1", "1 Mbps", "2 Mbps")
+
+		req := models.NewRequestedQos(66)
+		req.SetGbrUl("1 Mbps")
+		req.SetGbrDl("2 Mbps")
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			// Either outcome is legitimate here; the invariant below is what is being tested.
+			if _, _, err := policy.ReplaceGbrDebit("qos-1", req); err != nil {
+				_ = err
+			}
+		}()
+		go func() { defer wg.Done(); policy.IncreaseRemainGBR("qos-1") }()
+		wg.Wait()
+
+		// Whatever order they ran in, the ledger and the budget have to agree: an entry still
+		// recorded means that much is still taken, and no entry means nothing is.
+		//
+		// The aggregate is the budget plus what is recorded against it, so the fixture's own
+		// starting debit has to be added back to get the total this session began with -- the
+		// first version of this test compared against the bare starting budget and failed for
+		// its own arithmetic rather than for the code.
+		debit, held := policy.takeGbrDebit("qos-1")
+		wantUl, wantDl := 100000.0+1024, 100000.0+2048
+		if held {
+			ul, errUl := ConvertBitRateToKbps(debit.ul)
+			dl, errDl := ConvertBitRateToKbps(debit.dl)
+			if errUl != nil || errDl != nil {
+				t.Fatalf("unparseable ledger entry %+v", debit)
+			}
+			wantUl -= ul
+			wantDl -= dl
+		}
+		if remainUl != wantUl || remainDl != wantDl {
+			t.Fatalf("iteration %d: budget (%v, %v) does not match the ledger (held=%v, %+v); want (%v, %v)",
+				i, remainUl, remainDl, held, debit, wantUl, wantDl)
+		}
+	}
+}
