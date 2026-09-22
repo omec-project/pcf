@@ -2111,10 +2111,20 @@ func modifyRemainBitRate(smPolicy *pcfContext.UeSmPolicyData, qosData *models.Qo
 			}
 		}
 	}
-	// Recorded only once both directions have been taken. The rates on qosData are what this
-	// function actually debited -- it writes back what it could take, which may be less than was
-	// asked for -- so this is the exact amount IncreaseRemainGBR has to give back.
-	smPolicy.RecordGbrDebit(qosData.QosId, qosData.GetGbrUl(), qosData.GetGbrDl())
+	// Only the directions this call actually debited. For those, the rate on qosData is the exact
+	// amount taken -- the function writes back what it could take, which may be less than was asked
+	// for. The other direction is left as already recorded: the rates on a stored QosData are not a
+	// record of what was charged, so reading them back would credit an aggregate nobody debited.
+	var ulDebit, dlDebit *string
+	if ulExist {
+		taken := qosData.GetGbrUl()
+		ulDebit = &taken
+	}
+	if dlExist {
+		taken := qosData.GetGbrDl()
+		dlDebit = &taken
+	}
+	smPolicy.MergeGbrDebit(qosData.QosId, ulDebit, dlDebit)
 	return nil
 }
 
