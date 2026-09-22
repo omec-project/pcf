@@ -306,3 +306,38 @@ func TestModifyRemainBitRateDoesNotPanicOnADownlinkOnlyRequest(t *testing.T) {
 		t.Errorf("uplink budget = %v kbps, want it untouched at 4096: nothing was taken for it", remainUl)
 	}
 }
+
+// A downlink-only update against a QoS data entry that already carries an uplink rate nobody
+// debited — the shape of a rule the slice policy supplied, which two of this function's call sites
+// read straight out of the stored decision. Recording both directions would enter that uplink in
+// the ledger, and releasing the rule would then credit an aggregate that was never charged.
+func TestModifyRemainBitRateRecordsOnlyTheDirectionsItDebited(t *testing.T) {
+	remainUl, remainDl := 100000.0, 100000.0
+	smPolicy := &pcfContext.UeSmPolicyData{
+		RemainGbrUL: &remainUl,
+		RemainGbrDL: &remainDl,
+	}
+	qosData := models.QosData{QosId: "qos-1"}
+	// Came from the slice policy: a rate is present, but nothing was ever taken for it.
+	qosData.GbrUl = *openapi.NewNullableString(openapi.PtrString("5 Mbps"))
+	qosData.GbrDl = *openapi.NewNullableString(openapi.PtrString("2 Mbps"))
+
+	if problemDetails := modifyRemainBitRate(smPolicy, &qosData, false, true); problemDetails != nil {
+		t.Fatalf("downlink-only update refused: %+v", problemDetails)
+	}
+	if remainDl != 100000-2048 {
+		t.Fatalf("downlink budget = %v kbps, want it debited by 2 Mbps to 97952", remainDl)
+	}
+	if remainUl != 100000 {
+		t.Fatalf("uplink budget = %v kbps, want it untouched at 100000", remainUl)
+	}
+
+	// Releasing the rule must give back only what was taken.
+	smPolicy.IncreaseRemainGBR("qos-1")
+	if remainUl != 100000 {
+		t.Errorf("uplink budget = %v kbps after release, want 100000: the 5 Mbps was never debited", remainUl)
+	}
+	if remainDl != 100000 {
+		t.Errorf("downlink budget = %v kbps after release, want it restored to 100000", remainDl)
+	}
+}

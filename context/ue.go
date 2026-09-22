@@ -391,16 +391,15 @@ func (policy *UeSmPolicyData) ArrangeExistEventSubscription() (changed bool) {
 
 // Increase remain GBR of this policy and returns original UL DL GBR for resume case
 func (policy *UeSmPolicyData) IncreaseRemainGBR(qosId string) (origUl, origDl *float64) {
-	decision := policy.PolicyDecision
-	if decision == nil {
-		return
-	}
-	if decision.QosDecs == nil {
-		return
-	}
 	// Credited from what was debited, not from the stored QoS data -- see gbrDebits. A rule whose
 	// rates never went through DecreaseRemainGBR has no entry here and is given back nothing, which
 	// is the whole point: it took nothing.
+	//
+	// Deliberately no longer gated on the policy decision or its QosDecs map. Those guards belonged
+	// to the version that read the rates out of the decision; now that the ledger is the record,
+	// they only mean a debit that was genuinely taken goes uncredited whenever the decision entry
+	// has already gone -- silently, and for the life of the session.
+	//
 	// Held across the credit, not merely the map access. ReplaceGbrDebit mutates the same budget
 	// under this lock, so crediting outside it would leave the two racing on the *float64 -- a lock
 	// only the newest caller takes is worse than none, because it reads as protection.
@@ -482,6 +481,39 @@ func (policy *UeSmPolicyData) RecordGbrDebit(qosId, gbrUl, gbrDl string) {
 	policy.gbrMu.Lock()
 	defer policy.gbrMu.Unlock()
 	policy.recordGbrDebitLocked(qosId, gbrUl, gbrDl)
+}
+
+// MergeGbrDebit updates only the directions it is given, leaving the other as already recorded.
+// A nil argument means "this direction was not part of this operation".
+//
+// Replacing both directions from the QoS data is wrong for a caller that debited only one of them.
+// The rates sitting on a stored QosData are not a record of what was taken: two of the paths that
+// reach here read an existing entry out of the policy decision, where the rates may have come from
+// the slice policy and been debited by nobody, or from an earlier operation that debited only the
+// other direction. Recording them wholesale would credit an aggregate that was never charged --
+// which is the defect the ledger exists to prevent, arriving through the write instead of the read.
+func (policy *UeSmPolicyData) MergeGbrDebit(qosId string, gbrUl, gbrDl *string) {
+	if gbrUl == nil && gbrDl == nil {
+		return
+	}
+	policy.gbrMu.Lock()
+	defer policy.gbrMu.Unlock()
+
+	debit := policy.gbrDebits[qosId]
+	if gbrUl != nil {
+		debit.ul = *gbrUl
+	}
+	if gbrDl != nil {
+		debit.dl = *gbrDl
+	}
+	if debit.ul == "" && debit.dl == "" {
+		delete(policy.gbrDebits, qosId)
+		return
+	}
+	if policy.gbrDebits == nil {
+		policy.gbrDebits = make(map[string]gbrDebit)
+	}
+	policy.gbrDebits[qosId] = debit
 }
 
 // recordGbrDebitLocked is RecordGbrDebit for a caller that already holds gbrMu.
