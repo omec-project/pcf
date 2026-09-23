@@ -540,13 +540,10 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 				qosData.SetGbrDl(gbrDl)
 				qosData.SetGbrUl(gbrUl)
 				smPolicy.RecordGbrDebit(qosData.QosId, gbrUl, gbrDl)
-				if qosData.GetGbrDl() != "" {
-					logger.SMpolicyLog.Debugf("SM Policy Dnn[%s] Data Aggregate decrease %s and then DL GBR remain[%.2f Kbps]",
-						smPolicyContext.Dnn, qosData.GbrDl, *smPolicy.RemainGbrDL)
-				}
-				if qosData.GetGbrUl() != "" {
-					logger.SMpolicyLog.Debugf("SM Policy Dnn[%s] Data Aggregate decrease %s and then UL GBR remain[%.2f Kbps]",
-						smPolicyContext.Dnn, qosData.GbrUl, *smPolicy.RemainGbrUL)
+				if qosData.GetGbrDl() != "" || qosData.GetGbrUl() != "" {
+					remainUl, remainDl := smPolicy.RemainingGbrKbps()
+					logger.SMpolicyLog.Debugf("SM Policy Dnn[%s] Data Aggregate decrease DL %s UL %s, then remain DL[%s] UL[%s]",
+						smPolicyContext.Dnn, qosData.GetGbrDl(), qosData.GetGbrUl(), remainDl, remainUl)
 				}
 				util.SetPccRuleRelatedData(smPolicyDecision, pccRule, tcData, &qosData, nil, nil)
 				// link Packet filters to PccRule
@@ -588,13 +585,10 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 							qosData.Var5qi = new(req.ReqQos.GetVar5qi())
 							qosData.SetGbrDl(gbrDl)
 							qosData.SetGbrUl(gbrUl)
-							if qosData.GetGbrDl() != "" {
-								logger.SMpolicyLog.Debugf("SM Policy Dnn[%s] Data Aggregate decrease %s and then DL GBR remain[%.2f Kbps]",
-									smPolicyContext.Dnn, qosData.GbrDl, *smPolicy.RemainGbrDL)
-							}
-							if qosData.GetGbrUl() != "" {
-								logger.SMpolicyLog.Debugf("SM Policy Dnn[%s] Data Aggregate decrease %s and then UL GBR remain[%.2f Kbps]",
-									smPolicyContext.Dnn, qosData.GbrUl, *smPolicy.RemainGbrUL)
+							if qosData.GetGbrDl() != "" || qosData.GetGbrUl() != "" {
+								remainUl, remainDl := smPolicy.RemainingGbrKbps()
+								logger.SMpolicyLog.Debugf("SM Policy Dnn[%s] Data Aggregate decrease DL %s UL %s, then remain DL[%s] UL[%s]",
+									smPolicyContext.Dnn, qosData.GetGbrDl(), qosData.GetGbrUl(), remainDl, remainUl)
 							}
 							(*smPolicyDecision.QosDecs)[qosId] = qosData
 						} else {
