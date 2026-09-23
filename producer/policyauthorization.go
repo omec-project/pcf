@@ -2068,63 +2068,11 @@ func extractUmData(umID string, eventSubs map[models.AfEventPcf]models.AfNotifMe
 func modifyRemainBitRate(smPolicy *pcfContext.UeSmPolicyData, qosData *models.QosData,
 	ulExist, dlExist bool,
 ) *models.ProblemDetails {
-	// if request GBR == 0, qos GBR = MBR
-	// if request GBR > remain GBR, qos GBR = remain GBR
-	if ulExist {
-		if qosData.GetGbrUl() == "" {
-			// err = pcfContext.DecreaseRamainBitRate(smPolicy.RemainGbrUL, qosData.MaxbrUl)
-			if err := pcfContext.DecreaseRamainBitRate(smPolicy.RemainGbrUL, qosData.GetMaxbrUl()); err != nil {
-				qosData.GbrUl = *openapi.NewNullableString(openapi.PtrString(pcfContext.DecreaseRamainBitRateToZero(smPolicy.RemainGbrUL)))
-			} else {
-				qosData.GbrUl = qosData.MaxbrUl
-			}
-		} else {
-			// err = pcfContext.DecreaseRamainBitRate(smPolicy.RemainGbrUL, qosData.GbrUl)
-			if err := pcfContext.DecreaseRamainBitRate(smPolicy.RemainGbrUL, qosData.GetGbrUl()); err != nil {
-				problemDetail := util.GetProblemDetail(err.Error(), util.REQUESTED_SERVICE_NOT_AUTHORIZED)
-				// sendProblemDetail(httpChannel, err.Error(), util.REQUESTED_SERVICE_NOT_AUTHORIZED)
-				return problemDetail
-			}
-		}
+	// The budget arithmetic and the ledger write are one transaction in the context package, where
+	// the lock that serialises them lives; see DebitForAuthorizedQos.
+	if err := smPolicy.DebitForAuthorizedQos(qosData, ulExist, dlExist); err != nil {
+		return util.GetProblemDetail(err.Error(), util.REQUESTED_SERVICE_NOT_AUTHORIZED)
 	}
-	if dlExist {
-		if qosData.GetGbrDl() == "" {
-			// err = pcfContext.DecreaseRamainBitRate(smPolicy.RemainGbrDL, qosData.MaxbrDl)
-			if err := pcfContext.DecreaseRamainBitRate(smPolicy.RemainGbrDL, qosData.GetMaxbrDl()); err != nil {
-				qosData.GbrDl = *openapi.NewNullableString(openapi.PtrString(pcfContext.DecreaseRamainBitRateToZero(smPolicy.RemainGbrDL)))
-			} else {
-				qosData.GbrDl = qosData.MaxbrDl
-			}
-		} else {
-			// err = pcfContext.DecreaseRamainBitRate(smPolicy.RemainGbrDL, qosData.GbrDl)
-			if err := pcfContext.DecreaseRamainBitRate(smPolicy.RemainGbrDL, qosData.GetGbrDl()); err != nil {
-				// If the policy failed, give back only the direction that was actually taken. The
-				// uplink is untouched when ulExist is false, and qosData.GbrUl is then unset --
-				// dereferencing it panicked rather than returning the authorization error, which a
-				// downlink-only request against an exhausted downlink budget reaches directly.
-				if ulExist {
-					pcfContext.IncreaseRamainBitRate(smPolicy.RemainGbrUL, qosData.GetGbrUl())
-				}
-				problemDetail := util.GetProblemDetail(err.Error(), util.REQUESTED_SERVICE_NOT_AUTHORIZED)
-				// sendProblemDetail(httpChannel, err.Error(), util.REQUESTED_SERVICE_NOT_AUTHORIZED)
-				return problemDetail
-			}
-		}
-	}
-	// Only the directions this call actually debited. For those, the rate on qosData is the exact
-	// amount taken -- the function writes back what it could take, which may be less than was asked
-	// for. The other direction is left as already recorded: the rates on a stored QosData are not a
-	// record of what was charged, so reading them back would credit an aggregate nobody debited.
-	var ulDebit, dlDebit *string
-	if ulExist {
-		taken := qosData.GetGbrUl()
-		ulDebit = &taken
-	}
-	if dlExist {
-		taken := qosData.GetGbrDl()
-		dlDebit = &taken
-	}
-	smPolicy.MergeGbrDebit(qosData.QosId, ulDebit, dlDebit)
 	return nil
 }
 

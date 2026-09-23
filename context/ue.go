@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/omec-project/openapi/v2"
 	"github.com/omec-project/openapi/v2/models"
 	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/util/idgenerator"
@@ -498,7 +499,14 @@ func (policy *UeSmPolicyData) MergeGbrDebit(qosId string, gbrUl, gbrDl *string) 
 	}
 	policy.gbrMu.Lock()
 	defer policy.gbrMu.Unlock()
+	policy.mergeGbrDebitLocked(qosId, gbrUl, gbrDl)
+}
 
+// mergeGbrDebitLocked is MergeGbrDebit for a caller that already holds gbrMu.
+func (policy *UeSmPolicyData) mergeGbrDebitLocked(qosId string, gbrUl, gbrDl *string) {
+	if gbrUl == nil && gbrDl == nil {
+		return
+	}
 	debit := policy.gbrDebits[qosId]
 	if gbrUl != nil {
 		debit.ul = *gbrUl
@@ -514,6 +522,88 @@ func (policy *UeSmPolicyData) MergeGbrDebit(qosId string, gbrUl, gbrDl *string) 
 		policy.gbrDebits = make(map[string]gbrDebit)
 	}
 	policy.gbrDebits[qosId] = debit
+}
+
+// DebitForAuthorizedQos takes what an application function's authorized QoS needs from the
+// aggregate budget and records what it took, as one transaction under gbrMu.
+//
+// This was producer's modifyRemainBitRate, which changed RemainGbrUL and RemainGbrDL through the
+// package-level helpers and only then merged the ledger under the lock. Between the two, a
+// concurrent release could claim and credit the rule's entry, and the merge would then record a
+// debit for a rule already removed -- the aggregate short for good. It was also the one writer of
+// the budget left outside gbrMu once every other was inside it, and a lock that some writers of the
+// same state skip is not a lock on that state; this is the application-function path, so it was the
+// writer that mattered most.
+//
+// The semantics are modifyRemainBitRate's, unchanged: with no guaranteed rate requested the maximum
+// rate is budgeted instead, falling back to whatever remains when even that does not fit; a
+// guaranteed rate that does not fit is refused, and a refused downlink gives back the uplink taken
+// just before it. It returns an error rather than a ProblemDetails because util, which builds those,
+// imports this package.
+func (policy *UeSmPolicyData) DebitForAuthorizedQos(qosData *models.QosData, ulExist, dlExist bool) error {
+	policy.gbrMu.Lock()
+	defer policy.gbrMu.Unlock()
+
+	if ulExist {
+		if qosData.GetGbrUl() == "" {
+			if err := DecreaseRamainBitRate(policy.RemainGbrUL, qosData.GetMaxbrUl()); err != nil {
+				qosData.GbrUl = *openapi.NewNullableString(openapi.PtrString(DecreaseRamainBitRateToZero(policy.RemainGbrUL)))
+			} else {
+				qosData.GbrUl = qosData.MaxbrUl
+			}
+		} else if err := DecreaseRamainBitRate(policy.RemainGbrUL, qosData.GetGbrUl()); err != nil {
+			return err
+		}
+	}
+	if dlExist {
+		if qosData.GetGbrDl() == "" {
+			if err := DecreaseRamainBitRate(policy.RemainGbrDL, qosData.GetMaxbrDl()); err != nil {
+				qosData.GbrDl = *openapi.NewNullableString(openapi.PtrString(DecreaseRamainBitRateToZero(policy.RemainGbrDL)))
+			} else {
+				qosData.GbrDl = qosData.MaxbrDl
+			}
+		} else if err := DecreaseRamainBitRate(policy.RemainGbrDL, qosData.GetGbrDl()); err != nil {
+			// Give back only the direction actually taken. With ulExist false the uplink was never
+			// touched and qosData.GbrUl may be unset, which the accessor answers as "".
+			if ulExist {
+				IncreaseRamainBitRate(policy.RemainGbrUL, qosData.GetGbrUl())
+			}
+			return err
+		}
+	}
+
+	// Only the directions this call debited, and for those the rate on qosData is exactly what was
+	// taken. The other direction is left as recorded -- the rates on a stored QosData are not a
+	// record of what was charged.
+	var ulDebit, dlDebit *string
+	if ulExist {
+		taken := qosData.GetGbrUl()
+		ulDebit = &taken
+	}
+	if dlExist {
+		taken := qosData.GetGbrDl()
+		dlDebit = &taken
+	}
+	policy.mergeGbrDebitLocked(qosData.QosId, ulDebit, dlDebit)
+	return nil
+}
+
+// RemainingGbrKbps renders what is left of each direction of the aggregate budget, for logging.
+//
+// Read under gbrMu, since every writer now holds it and an unlocked read would race them. And nil
+// is rendered rather than dereferenced: a session with no aggregate GBR has a nil budget, which
+// DecreaseRamainBitRate treats as unlimited -- it accepts the request and returns the rate -- so the
+// log line that followed it used to panic on exactly the requests it had just allowed.
+func (policy *UeSmPolicyData) RemainingGbrKbps() (ul, dl string) {
+	policy.gbrMu.Lock()
+	defer policy.gbrMu.Unlock()
+	render := func(remain *float64) string {
+		if remain == nil {
+			return "unlimited"
+		}
+		return fmt.Sprintf("%.2f Kbps", *remain)
+	}
+	return render(policy.RemainGbrUL), render(policy.RemainGbrDL)
 }
 
 // recordGbrDebitLocked is RecordGbrDebit for a caller that already holds gbrMu.
