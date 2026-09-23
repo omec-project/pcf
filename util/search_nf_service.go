@@ -15,31 +15,43 @@ import (
 func SearchNFServiceUri(nfProfile models.NFProfileDiscovery, serviceName models.ServiceName,
 	nfServiceStatus models.NFServiceStatus,
 ) (nfUri string) {
-	if nfProfile.NfServices != nil {
-		for _, service := range nfProfile.NfServices {
-			if service.ServiceName == serviceName && service.NfServiceStatus == nfServiceStatus {
-				if nfProfile.GetFqdn() != "" {
-					nfUri = nfProfile.GetFqdn()
-				} else if service.GetFqdn() != "" {
-					nfUri = service.GetFqdn()
-				} else if service.GetApiPrefix() != "" {
-					nfUri = service.GetApiPrefix()
-				} else if len(service.IpEndPoints) > 0 {
-					point := service.IpEndPoints[0]
-					if point.GetIpv4Address() != "" {
-						nfUri = getSbiUri(service.GetScheme(), point.GetIpv4Address(), point.GetPort())
-					} else if len(nfProfile.Ipv4Addresses) != 0 {
-						nfUri = getSbiUri(service.GetScheme(), nfProfile.Ipv4Addresses[0], point.GetPort())
-					}
+	for _, service := range nfProfileServices(nfProfile) {
+		if service.GetServiceName() == serviceName && service.GetNfServiceStatus() == nfServiceStatus {
+			if nfProfile.GetFqdn() != "" {
+				nfUri = nfProfile.GetFqdn()
+			} else if service.GetFqdn() != "" {
+				nfUri = service.GetFqdn()
+			} else if service.GetApiPrefix() != "" {
+				nfUri = service.GetApiPrefix()
+			} else if len(service.GetIpEndPoints()) > 0 {
+				point := service.GetIpEndPoints()[0]
+				if point.GetIpv4Address() != "" {
+					nfUri = getSbiUri(service.GetScheme(), point.GetIpv4Address(), point.GetPort())
+				} else if len(nfProfile.GetIpv4Addresses()) != 0 {
+					nfUri = getSbiUri(service.GetScheme(), nfProfile.GetIpv4Addresses()[0], point.GetPort())
 				}
 			}
-			if nfUri != "" {
-				break
-			}
+		}
+		if nfUri != "" {
+			break
 		}
 	}
 
 	return
+}
+
+// nfProfileServices returns nfProfile's NF services, preferring the TS 29.510
+// Rel-16 nfServiceList over the deprecated nfServices array.
+func nfProfileServices(nfProfile models.NFProfileDiscovery) []models.NFService {
+	nfServiceList := nfProfile.GetNfServiceList()
+	if len(nfServiceList) == 0 {
+		return nfProfile.GetNfServices()
+	}
+	services := make([]models.NFService, 0, len(nfServiceList))
+	for _, service := range nfServiceList {
+		services = append(services, service)
+	}
+	return services
 }
 
 func getSbiUri(scheme models.UriScheme, ipv4Address string, port int32) (uri string) {

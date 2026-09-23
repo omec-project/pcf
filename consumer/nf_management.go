@@ -33,10 +33,13 @@ func getNfProfile(pcfContext *pcfContext.PCFContext, nfProfileDynamicConfig NfPr
 	profile.NfStatus = models.NFSTATUS_REGISTERED
 	profile.Ipv4Addresses = append(profile.Ipv4Addresses, pcfContext.RegisterIPv4)
 	service := []models.NFService{}
+	serviceList := map[string]models.NFService{}
 	for _, nfService := range pcfContext.NfService {
 		service = append(service, nfService)
+		serviceList[nfService.GetServiceInstanceId()] = nfService
 	}
 	profile.NfServices = service
+	profile.SetNfServiceList(serviceList)
 
 	if len(nfProfileDynamicConfig.Plmns) > 0 {
 		plmnCopy := make([]models.PlmnId, 0, len(nfProfileDynamicConfig.Plmns))
