@@ -7,10 +7,15 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/omec-project/openapi/v2"
 	"github.com/omec-project/openapi/v2/models"
 )
 
 // The test this replaces was 5QI <= 4, which is not the 3GPP definition.
+
+// testQosID is the QoS data id the fixtures here hold their one rule under.
+const testQosID = "qos-1"
+
 func TestIsStandardisedGbr5QI(t *testing.T) {
 	gbr := []int32{1, 2, 3, 4, 65, 66, 67, 71, 72, 73, 74, 75, 76}
 	delayCritical := []int32{82, 83, 84, 85, 86, 87, 88, 89, 90}
@@ -96,7 +101,7 @@ func TestRemovePccRuleRestoresBudgetForGbr5QIAboveFour(t *testing.T) {
 	// the mirror of the recorded debit, not a reading of the rates the stored QoS data carries.
 	remainUl -= 1024
 	remainDl -= 2048
-	policy.RecordGbrDebit("qos-1", "1 Mbps", "2 Mbps")
+	policy.RecordGbrDebit(testQosID, "1 Mbps", "2 Mbps")
 
 	if err := policy.RemovePccRule("rule-1", nil); err != nil {
 		t.Fatalf("RemovePccRule: %v", err)
@@ -138,7 +143,7 @@ func TestDecreaseThenRemoveLeavesAggregateUnchanged(t *testing.T) {
 	if remainUl == 4096 || remainDl == 8192 {
 		t.Fatalf("budget was not debited, so the test cannot show it being credited back")
 	}
-	policy.RecordGbrDebit("qos-1", gbrUl, gbrDl)
+	policy.RecordGbrDebit(testQosID, gbrUl, gbrDl)
 
 	if err := policy.RemovePccRule("rule-1", nil); err != nil {
 		t.Fatalf("RemovePccRule: %v", err)
@@ -151,17 +156,17 @@ func TestDecreaseThenRemoveLeavesAggregateUnchanged(t *testing.T) {
 // A policy holding one PCC rule whose QoS data carries the given 5QI and guaranteed rates,
 // which is the state RemovePccRule reads to decide what to credit back.
 func newPolicyHoldingGbrRule(var5qi int32, gbrUl, gbrDl string, remainUl, remainDl *float64) *UeSmPolicyData {
-	qos := models.NewQosData("qos-1")
+	qos := models.NewQosData(testQosID)
 	qos.SetVar5qi(var5qi)
 	qos.SetGbrUl(gbrUl)
 	qos.SetGbrDl(gbrDl)
 
 	rule := models.NewPccRule("rule-1")
-	rule.SetRefQosData([]string{"qos-1"})
+	rule.SetRefQosData([]string{testQosID})
 
 	decision := models.NewSmPolicyDecision()
 	decision.SetPccRules(map[string]models.PccRule{"rule-1": *rule})
-	decision.SetQosDecs(map[string]models.QosData{"qos-1": *qos})
+	decision.SetQosDecs(map[string]models.QosData{testQosID: *qos})
 
 	return &UeSmPolicyData{
 		RemainGbrUL:            remainUl,
@@ -234,13 +239,13 @@ func TestGbrLedgerSurvivesConcurrentRecordAndRelease(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < iterations; i++ {
-			policy.RecordGbrDebit("qos-1", "1 Mbps", "2 Mbps")
+			policy.RecordGbrDebit(testQosID, "1 Mbps", "2 Mbps")
 		}
 	}()
 	go func() {
 		defer wg.Done()
 		for i := 0; i < iterations; i++ {
-			policy.IncreaseRemainGBR("qos-1")
+			policy.IncreaseRemainGBR(testQosID)
 		}
 	}()
 	wg.Wait()
@@ -255,13 +260,13 @@ func TestReplaceGbrDebitRestoresTheLedgerWhenTheNewRequestDoesNotFit(t *testing.
 	policy := newPolicyHoldingGbrRule(66, "1 Mbps", "2 Mbps", &remainUl, &remainDl)
 
 	// The rule is already holding 1 Mbps up / 2 Mbps down of the aggregate.
-	policy.RecordGbrDebit("qos-1", "1 Mbps", "2 Mbps")
+	policy.RecordGbrDebit(testQosID, "1 Mbps", "2 Mbps")
 
 	// Ask for more uplink than the session can carry even after the old debit is credited back.
 	req := models.NewRequestedQos(66)
 	req.SetGbrUl("100 Mbps")
 	req.SetGbrDl("1 Mbps")
-	if _, _, err := policy.ReplaceGbrDebit("qos-1", req); err == nil {
+	if _, _, err := policy.ReplaceGbrDebit(testQosID, req); err == nil {
 		t.Fatal("expected the replacement debit to be refused")
 	}
 	if remainUl != 1024 || remainDl != 8192 {
@@ -292,7 +297,7 @@ func TestReplaceGbrDebitKeepsTheSessionsBudgetPointers(t *testing.T) {
 	req := models.NewRequestedQos(66)
 	req.SetGbrUl("100 Mbps")
 	req.SetGbrDl("100 Mbps")
-	if _, _, err := policy.ReplaceGbrDebit("qos-1", req); err == nil {
+	if _, _, err := policy.ReplaceGbrDebit(testQosID, req); err == nil {
 		t.Fatal("expected the debit to be refused")
 	}
 	if policy.RemainGbrUL == nil || policy.RemainGbrDL == nil {
@@ -313,7 +318,7 @@ func TestReplaceGbrDebitIsOneTransactionAgainstAConcurrentRelease(t *testing.T) 
 	for i := 0; i < iterations; i++ {
 		remainUl, remainDl := 100000.0, 100000.0
 		policy := newPolicyHoldingGbrRule(66, "1 Mbps", "2 Mbps", &remainUl, &remainDl)
-		policy.RecordGbrDebit("qos-1", "1 Mbps", "2 Mbps")
+		policy.RecordGbrDebit(testQosID, "1 Mbps", "2 Mbps")
 
 		req := models.NewRequestedQos(66)
 		req.SetGbrUl("1 Mbps")
@@ -324,11 +329,11 @@ func TestReplaceGbrDebitIsOneTransactionAgainstAConcurrentRelease(t *testing.T) 
 		go func() {
 			defer wg.Done()
 			// Either outcome is legitimate here; the invariant below is what is being tested.
-			if _, _, err := policy.ReplaceGbrDebit("qos-1", req); err != nil {
+			if _, _, err := policy.ReplaceGbrDebit(testQosID, req); err != nil {
 				_ = err
 			}
 		}()
-		go func() { defer wg.Done(); policy.IncreaseRemainGBR("qos-1") }()
+		go func() { defer wg.Done(); policy.IncreaseRemainGBR(testQosID) }()
 		wg.Wait()
 
 		// Whatever order they ran in, the ledger and the budget have to agree: an entry still
@@ -338,7 +343,7 @@ func TestReplaceGbrDebitIsOneTransactionAgainstAConcurrentRelease(t *testing.T) 
 		// starting debit has to be added back to get the total this session began with -- the
 		// first version of this test compared against the bare starting budget and failed for
 		// its own arithmetic rather than for the code.
-		debit, held := policy.takeGbrDebit("qos-1")
+		debit, held := policy.takeGbrDebit(testQosID)
 		wantUl, wantDl := 100000.0+1024, 100000.0+2048
 		if held {
 			ul, errUl := ConvertBitRateToKbps(debit.ul)
@@ -353,5 +358,64 @@ func TestReplaceGbrDebitIsOneTransactionAgainstAConcurrentRelease(t *testing.T) 
 			t.Fatalf("iteration %d: budget (%v, %v) does not match the ledger (held=%v, %+v); want (%v, %v)",
 				i, remainUl, remainDl, held, debit, wantUl, wantDl)
 		}
+	}
+}
+
+// The application-function debit and its ledger write are one transaction. They used to be two: the
+// budget changed through the package-level helpers first, and the ledger was merged under the lock
+// afterwards, so a release running in between claimed and credited the rule's entry and the merge
+// then recorded a debit for a rule already removed. Asserted as the invariant -- the budget plus
+// what the ledger still holds equals the aggregate -- after racing the two, under -race.
+func TestDebitForAuthorizedQosIsOneTransactionAgainstAConcurrentRelease(t *testing.T) {
+	const iterations = 300
+	for i := 0; i < iterations; i++ {
+		remainUl, remainDl := 100000.0, 100000.0
+		policy := newPolicyHoldingGbrRule(66, "", "", &remainUl, &remainDl)
+
+		qosData := models.QosData{QosId: testQosID}
+		qosData.GbrUl = *openapi.NewNullableString(openapi.PtrString("1 Mbps"))
+		qosData.GbrDl = *openapi.NewNullableString(openapi.PtrString("2 Mbps"))
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			if err := policy.DebitForAuthorizedQos(&qosData, true, true); err != nil {
+				t.Errorf("iteration %d: debit refused: %v", i, err)
+			}
+		}()
+		go func() { defer wg.Done(); policy.IncreaseRemainGBR(testQosID) }()
+		wg.Wait()
+
+		debit, held := policy.takeGbrDebit(testQosID)
+		wantUl, wantDl := 100000.0, 100000.0
+		if held {
+			ul, errUl := ConvertBitRateToKbps(debit.ul)
+			dl, errDl := ConvertBitRateToKbps(debit.dl)
+			if errUl != nil || errDl != nil {
+				t.Fatalf("iteration %d: unparseable ledger entry %+v", i, debit)
+			}
+			wantUl -= ul
+			wantDl -= dl
+		}
+		if remainUl != wantUl || remainDl != wantDl {
+			t.Fatalf("iteration %d: budget (%v, %v) does not match the ledger (held=%v, %+v); want (%v, %v)",
+				i, remainUl, remainDl, held, debit, wantUl, wantDl)
+		}
+	}
+}
+
+// A session with no aggregate GBR has nil budgets, which the debit treats as unlimited. Reading them
+// for a log line must not dereference nil -- that panicked on exactly the requests just accepted.
+func TestRemainingGbrKbpsRendersAnAbsentBudget(t *testing.T) {
+	policy := &UeSmPolicyData{}
+	ul, dl := policy.RemainingGbrKbps()
+	if ul != "unlimited" || dl != "unlimited" {
+		t.Errorf("RemainingGbrKbps() = (%q, %q), want (\"unlimited\", \"unlimited\")", ul, dl)
+	}
+	remain := 512.0
+	policy.RemainGbrDL = &remain
+	if _, dl := policy.RemainingGbrKbps(); dl != "512.00 Kbps" {
+		t.Errorf("downlink = %q, want \"512.00 Kbps\"", dl)
 	}
 }
