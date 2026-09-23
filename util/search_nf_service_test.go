@@ -76,3 +76,34 @@ func TestSearchNFServiceUri_NfServiceListTakesPrecedenceOverNfServices(t *testin
 		t.Fatalf("expected NfServiceList entry %q to take precedence, got %q", wantURI, nfURI)
 	}
 }
+
+func TestSearchNFServiceUri_NfServiceListSelectionIsDeterministic(t *testing.T) {
+	nfServiceList := map[string]models.NFService{
+		"service-b": {
+			ServiceName:     models.SERVICENAME_NUDR_DR,
+			NfServiceStatus: models.NFSERVICESTATUS_REGISTERED,
+			Scheme:          models.URISCHEME_HTTPS,
+			IpEndPoints: []models.IpEndPoint{
+				{Ipv4Address: openapi.PtrString("10.0.0.2"), Port: openapi.PtrInt32(9443)},
+			},
+		},
+		"service-a": {
+			ServiceName:     models.SERVICENAME_NUDR_DR,
+			NfServiceStatus: models.NFSERVICESTATUS_REGISTERED,
+			Scheme:          models.URISCHEME_HTTPS,
+			IpEndPoints: []models.IpEndPoint{
+				{Ipv4Address: openapi.PtrString("10.0.0.1"), Port: openapi.PtrInt32(9443)},
+			},
+		},
+	}
+
+	nfProfile := models.NFProfileDiscovery{NfServiceList: &nfServiceList}
+	wantURI := "https://10.0.0.1:9443" // lexicographically smallest ServiceInstanceId ("service-a") wins
+
+	for i := 0; i < 20; i++ {
+		nfURI := SearchNFServiceUri(nfProfile, models.SERVICENAME_NUDR_DR, models.NFSERVICESTATUS_REGISTERED)
+		if nfURI != wantURI {
+			t.Fatalf("expected deterministic URI %q, got %q on iteration %d", wantURI, nfURI, i)
+		}
+	}
+}

@@ -7,6 +7,7 @@ package util
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/omec-project/openapi/v2/models"
 )
@@ -41,15 +42,22 @@ func SearchNFServiceUri(nfProfile models.NFProfileDiscovery, serviceName models.
 }
 
 // nfProfileServices returns nfProfile's NF services, preferring the TS 29.510
-// Rel-16 nfServiceList over the deprecated nfServices array.
+// Rel-16 nfServiceList over the deprecated nfServices array. NfServiceList is
+// keyed by ServiceInstanceId in a map, so entries are sorted by that key to
+// guarantee a deterministic service selection when multiple entries match.
 func nfProfileServices(nfProfile models.NFProfileDiscovery) []models.NFService {
 	nfServiceList := nfProfile.GetNfServiceList()
 	if len(nfServiceList) == 0 {
 		return nfProfile.GetNfServices()
 	}
+	instanceIds := make([]string, 0, len(nfServiceList))
+	for instanceId := range nfServiceList {
+		instanceIds = append(instanceIds, instanceId)
+	}
+	sort.Strings(instanceIds)
 	services := make([]models.NFService, 0, len(nfServiceList))
-	for _, service := range nfServiceList {
-		services = append(services, service)
+	for _, instanceId := range instanceIds {
+		services = append(services, nfServiceList[instanceId])
 	}
 	return services
 }
