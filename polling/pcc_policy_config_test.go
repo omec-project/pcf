@@ -13,13 +13,18 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/omec-project/openapi/v2"
 	"github.com/omec-project/openapi/v2/models"
 	"github.com/omec-project/openapi/v2/nfConfigApi"
+	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/pcf/util"
 	"github.com/omec-project/util/idgenerator"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 // pccPoliciesForDebug converts SnssaiKey map keys to strings so the map can be JSON-marshaled for logging.
@@ -394,5 +399,191 @@ func TestCreatePccPolicies_MultiplePolicyControlElement(t *testing.T) {
 		} else {
 			t.Logf("Actual PccPolicy: %s", actualJSON)
 		}
+	}
+}
+
+// A slice policy can express a floor and not only a ceiling. makeQosDesc dropped the guaranteed
+// rates the operator configured, so a configured CIR never left the PCF.
+func TestMakeQosDescCarriesGuaranteedBitRates(t *testing.T) {
+	qos := makeQosDesc(1, nfConfigApi.PccQos{
+		FiveQi:  66,
+		MaxBrUl: openapi.PtrString("200 Mbps"),
+		MaxBrDl: openapi.PtrString("300 Mbps"),
+		GbrUl:   openapi.PtrString("20 Mbps"),
+		GbrDl:   openapi.PtrString("30 Mbps"),
+		Arp: nfConfigApi.Arp{
+			PriorityLevel: 8,
+			PreemptCap:    nfConfigApi.PREEMPTCAP_NOT_PREEMPT,
+			PreemptVuln:   nfConfigApi.PREEMPTVULN_NOT_PREEMPTABLE,
+		},
+	})
+
+	if got, want := qos.GetGbrUl(), "20 Mbps"; got != want {
+		t.Errorf("GbrUl = %q, want %q", got, want)
+	}
+	if got, want := qos.GetGbrDl(), "30 Mbps"; got != want {
+		t.Errorf("GbrDl = %q, want %q", got, want)
+	}
+	if got, want := qos.GetMaxbrUl(), "200 Mbps"; got != want {
+		t.Errorf("MaxbrUl = %q, want %q", got, want)
+	}
+}
+
+// An operator who configures no floor must not be given one. A guaranteed rate is a commitment
+// the datapath then has to honour, so it is left unset rather than defaulted to the maximum.
+func TestMakeQosDescLeavesUnconfiguredGuaranteedRatesUnset(t *testing.T) {
+	qos := makeQosDesc(1, nfConfigApi.PccQos{
+		FiveQi:  66,
+		MaxBrUl: openapi.PtrString("200 Mbps"),
+		MaxBrDl: openapi.PtrString("300 Mbps"),
+		Arp: nfConfigApi.Arp{
+			PriorityLevel: 8,
+			PreemptCap:    nfConfigApi.PREEMPTCAP_NOT_PREEMPT,
+			PreemptVuln:   nfConfigApi.PREEMPTVULN_NOT_PREEMPTABLE,
+		},
+	})
+
+	if got := qos.GetGbrUl(); got != "" {
+		t.Errorf("GbrUl = %q, want it unset", got)
+	}
+	if got := qos.GetGbrDl(); got != "" {
+		t.Errorf("GbrDl = %q, want it unset", got)
+	}
+}
+
+// captureWarnings substitutes the package logger with an observer for the duration of one test.
+// The logger is a package-level variable and the tests in this package do not run in parallel, so
+// the substitution is contained; it is restored through Cleanup either way.
+func captureWarnings(t *testing.T) *observer.ObservedLogs {
+	t.Helper()
+
+	core, logs := observer.New(zapcore.WarnLevel)
+	original := logger.PollConfigLog
+	logger.PollConfigLog = zap.New(core).Sugar()
+	t.Cleanup(func() { logger.PollConfigLog = original })
+
+	return logs
+}
+
+func nonGbrRuleQos(fiveQI int32, gbrUl, gbrDl string) nfConfigApi.PccQos {
+	qos := nfConfigApi.PccQos{
+		FiveQi:  fiveQI,
+		MaxBrUl: openapi.PtrString("200 Mbps"),
+		MaxBrDl: openapi.PtrString("300 Mbps"),
+		Arp: nfConfigApi.Arp{
+			PriorityLevel: 8,
+			PreemptCap:    nfConfigApi.PREEMPTCAP_NOT_PREEMPT,
+			PreemptVuln:   nfConfigApi.PREEMPTVULN_NOT_PREEMPTABLE,
+		},
+	}
+	if gbrUl != "" {
+		qos.GbrUl = openapi.PtrString(gbrUl)
+	}
+	if gbrDl != "" {
+		qos.GbrDl = openapi.PtrString(gbrDl)
+	}
+
+	return qos
+}
+
+func buildPolicyForRule(t *testing.T, ruleID string, qos nfConfigApi.PccQos) *PccPolicy {
+	t.Helper()
+
+	snssai := models.Snssai{Sst: 1, Sd: openapi.PtrString("010203")}
+
+	return makePccPolicy(idgenerator.NewGenerator(1, math.MaxInt64), snssai, []nfConfigApi.PccRule{{
+		RuleId:     ruleID,
+		Precedence: 10,
+		Qos:        qos,
+	}})
+}
+
+// The operator gets no other signal that this is wrong: the rate is accepted, the session is set
+// up, and nothing guarantees anything.
+//
+// Driven through makePccPolicy rather than the check itself, so that what is under test includes
+// the wiring: a check nothing calls looks exactly like a check that passes.
+func TestAGuaranteedRateAgainstANonGbr5QIIsWarnedAbout(t *testing.T) {
+	logs := captureWarnings(t)
+
+	policy := buildPolicyForRule(t, "rule55", nonGbrRuleQos(9, "10 Mbps", "20 Mbps"))
+
+	entries := logs.FilterMessageSnippet("Non-GBR resource type").All()
+	if len(entries) != 1 {
+		t.Fatalf("warnings mentioning the resource type = %d, want 1; all entries: %v", len(entries), logs.All())
+	}
+	// The identifier has to be the one the operator wrote, not the generated QoS id, or the
+	// warning names something they cannot find in their own configuration.
+	if !strings.Contains(entries[0].Message, `"rule55"`) {
+		t.Errorf("warning = %q, want it to name the operator's rule id", entries[0].Message)
+	}
+	// And the slice with it: a rule id is only unique within one slice, so naming the rule alone
+	// leaves an operator running several of them unable to tell which one to fix.
+	if !strings.Contains(entries[0].Message, "SST 1 SD 010203") {
+		t.Errorf("warning = %q, want it to name the slice the rule belongs to", entries[0].Message)
+	}
+	// Warned, not enforced: the rate is still carried, because the SMF decides on the presence of
+	// the rates and dropping them here would quietly change what the user plane is programmed with.
+	qos := policy.QosDecs["1"]
+	if qos == nil {
+		t.Fatal("no QoS data was built for the rule")
+		return
+	}
+	if qos.GetGbrUl() != "10 Mbps" || qos.GetGbrDl() != "20 Mbps" {
+		t.Errorf("GBR = (%q, %q), want the configured rates carried unchanged",
+			qos.GetGbrUl(), qos.GetGbrDl())
+	}
+}
+
+// 5QI 10 is the standardised Non-GBR value for satellite access — TS 23.501 table 5.7.4-1 gives it
+// a 1100 ms packet delay budget under NOTE 17 — and it is what a geostationary deployment runs, so
+// it is the value this warning most needs to cover.
+func TestAGuaranteedRateAgainstTheSatelliteNonGbr5QIIsWarnedAbout(t *testing.T) {
+	logs := captureWarnings(t)
+
+	buildPolicyForRule(t, "geo-cir", nonGbrRuleQos(10, "10 Mbps", ""))
+
+	if got := logs.FilterMessageSnippet("5QI 10").Len(); got != 1 {
+		t.Errorf("warnings naming 5QI 10 = %d, want 1; all entries: %v", got, logs.All())
+	}
+}
+
+// The other direction, and the reason the check is not "not a GBR 5QI": a dynamically assigned
+// value carries its own QoS characteristics, and is how a guarantee has to be expressed over a
+// link that no standardised GBR 5QI fits. Warning there would train the operator to ignore this.
+func TestAGuaranteedRateAgainstADynamicallyAssigned5QIIsNotWarnedAbout(t *testing.T) {
+	logs := captureWarnings(t)
+
+	buildPolicyForRule(t, "geo-dynamic", nonGbrRuleQos(130, "10 Mbps", "20 Mbps"))
+
+	if got := logs.Len(); got != 0 {
+		t.Errorf("warnings = %d, want none for a dynamically assigned 5QI; all entries: %v", got, logs.All())
+	}
+}
+
+// The SD is optional in an S-NSSAI, and a slice without one is the ordinary case for an
+// SST-only deployment, so it is named by its SST alone rather than with an empty SD hung off it.
+func TestTheWarningNamesASliceWithNoSdBySstAlone(t *testing.T) {
+	logs := captureWarnings(t)
+
+	makePccPolicy(idgenerator.NewGenerator(1, math.MaxInt64), models.Snssai{Sst: 2},
+		[]nfConfigApi.PccRule{{RuleId: "rule1", Precedence: 10, Qos: nonGbrRuleQos(9, "10 Mbps", "")}})
+
+	entries := logs.FilterMessageSnippet("Non-GBR resource type").All()
+	if len(entries) != 1 {
+		t.Fatalf("warnings = %d, want 1; all entries: %v", len(entries), logs.All())
+	}
+	if !strings.Contains(entries[0].Message, "in slice SST 2 configures") {
+		t.Errorf("warning = %q, want the slice named by SST alone", entries[0].Message)
+	}
+}
+
+func TestANonGbr5QIWithNoGuaranteedRateIsNotWarnedAbout(t *testing.T) {
+	logs := captureWarnings(t)
+
+	buildPolicyForRule(t, "plain-internet", nonGbrRuleQos(9, "", ""))
+
+	if got := logs.Len(); got != 0 {
+		t.Errorf("warnings = %d, want none when no guarantee is configured; all entries: %v", got, logs.All())
 	}
 }
