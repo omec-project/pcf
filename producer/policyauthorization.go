@@ -16,6 +16,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/omec-project/openapi/v2"
@@ -261,6 +262,14 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 	}
 	logger.PolicyAuthorizationlog.Infof("session Binding Success - UeIpv4[%s], UeIpv6[%s], UeMac[%s]",
 		ascReqData.Get().GetUeIpv4(), ascReqData.Get().GetUeIpv6(), ascReqData.Get().GetUeMac())
+
+	// See the PolicyMu contract. Taken once the session is bound, held across the whole mutation
+	// sequence — which installs PCC rules, QoS data and charging data into this session's stored
+	// decision — and released before the notification, which is a blocking POST to the SMF. The
+	// deferred OnceFunc covers the early returns below and does not undo the explicit release.
+	smPolicy.PolicyMu.Lock()
+	unlockPolicy := sync.OnceFunc(smPolicy.PolicyMu.Unlock)
+	defer unlockPolicy()
 	ue := smPolicy.PcfUe
 	updateSMpolicy := false
 
@@ -579,18 +588,30 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 
 	// Send Notification to SMF
 	if updateSMpolicy {
+		// A snapshot, not the stored decision: what goes out is marshalled after the lock is
+		// released. buildRelatedSmPolicyDecision hands back the stored decision itself when there
+		// is nothing to filter, and otherwise carries the containers it does not rebuild over by
+		// reference, so cloning its result is what makes either outcome safe to publish.
 		filteredDecision := buildRelatedSmPolicyDecision(smPolicy.PolicyDecision, relatedPccRuleIds)
+		notified := snapshotForNotification(filteredDecision)
 		smPolicyID := fmt.Sprintf("%s-%d", ue.Supi, smPolicy.PolicyContext.PduSessionId)
 		notification := models.SmPolicyNotification{
 			ResourceUri:      openapi.PtrString(util.GetResourceUri(models.SERVICENAME_NPCF_SMPOLICYCONTROL, smPolicyID)),
-			SmPolicyDecision: filteredDecision,
+			SmPolicyDecision: notified,
 		}
-		logger.PolicyAuthorizationlog.Debugw("smPolicyDecision data", "decision", filteredDecision)
-		notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(smPolicy.PolicyContext.NotificationUri, &notification)
+		logger.PolicyAuthorizationlog.Debugw("smPolicyDecision data", "decision", notified)
+		notifyURI := smPolicy.PolicyContext.NotificationUri
+		unlockPolicy()
+
+		notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(notifyURI, &notification)
 	}
 	return appSessCtx, locationHeader, nil
 }
 
+// Called only from postAppSessCtxProcedure and ModAppSessionContextProcedure, both of which
+// hold PolicyMu across the call. This writes the session's stored decision and must not take
+// the lock itself: sync.RWMutex is not reentrant, so acquiring it here would wedge the
+// session for good.
 func handleCombinedMediaSubComponents(
 	smPolicy *pcfContext.UeSmPolicyData,
 	medComp *models.MediaComponent,
@@ -752,6 +773,22 @@ func handleCombinedMediaSubComponents(
 	return pccRule, nil
 }
 
+// snapshotForNotification clones a stored decision for publication, or returns nil when there is
+// none.
+//
+// A notification carries the decision by pointer and the field is optional, so the code this
+// replaces passed a nil straight through. Cloning has to keep that: a session with no stored
+// decision must still be answerable rather than take the process down. Callers hold PolicyMu, so
+// this clones directly rather than asking for a snapshot.
+func snapshotForNotification(decision *models.SmPolicyDecision) *models.SmPolicyDecision {
+	if decision == nil {
+		return nil
+	}
+	snapshot := pcfContext.CloneSmPolicyDecisionContainers(*decision)
+
+	return &snapshot
+}
+
 func buildRelatedSmPolicyDecision(
 	policyDecision *models.SmPolicyDecision,
 	relatedPccRuleIds map[string]string,
@@ -858,6 +895,15 @@ func DeleteAppSessionContextProcedure(appSessID string,
 	}
 	// Remove related pcc rule resource
 	smPolicy := appSession.SmPolicyData
+
+	// Held from the first change to the session's policy until just before the notification goes
+	// out, and no further: the dispatcher calls its handler synchronously, so that send is a
+	// blocking POST to the SMF. sync.OnceFunc is what makes both true at once — the deferred call
+	// covers every early return below, and the explicit one before the send is not undone by it.
+	smPolicy.PolicyMu.Lock()
+	unlockPolicy := sync.OnceFunc(smPolicy.PolicyMu.Unlock)
+	defer unlockPolicy()
+
 	for _, pccRuleID := range appSession.RelatedPccRuleIds {
 		if err := smPolicy.RemovePccRule(pccRuleID, nil); err != nil {
 			logger.PolicyAuthorizationlog.Warnln(err.Error())
@@ -886,11 +932,18 @@ func DeleteAppSessionContextProcedure(appSessID string,
 
 	// Notify SMF About Pcc Rule moval
 	smPolicyID := fmt.Sprintf("%s-%d", smPolicy.PcfUe.Supi, smPolicy.PolicyContext.PduSessionId)
+	// A snapshot, not the stored decision. What goes out is marshalled after the lock is released,
+	// and sending the stored pointer would be marshalling containers another goroutine may be
+	// writing. Cloned here rather than through SnapshotPolicyDecision because the lock is held.
+	notified := snapshotForNotification(smPolicy.PolicyDecision)
 	notification := models.SmPolicyNotification{
 		ResourceUri:      openapi.PtrString(util.GetResourceUri(models.SERVICENAME_NPCF_SMPOLICYCONTROL, smPolicyID)),
-		SmPolicyDecision: smPolicy.PolicyDecision,
+		SmPolicyDecision: notified,
 	}
-	notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(smPolicy.PolicyContext.NotificationUri, &notification)
+	notifyURI := smPolicy.PolicyContext.NotificationUri
+	unlockPolicy()
+
+	notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(notifyURI, &notification)
 	logger.PolicyAuthorizationlog.Debugf("send SM Policy[%s] Update Notification", smPolicyID)
 	return nil
 }
@@ -968,6 +1021,14 @@ func ModAppSessionContextProcedure(appSessID string,
 		problemDetail := util.GetProblemDetail("Can't find related PDU Session", util.REQUESTED_SERVICE_NOT_AUTHORIZED)
 		return problemDetail, nil
 	}
+
+	// See the PolicyMu contract. Taken after the nil check, held across the whole mutation
+	// sequence, and released before the notification, which is a blocking POST to the SMF. This
+	// procedure has ten early returns; the deferred OnceFunc is what makes that safe, and it does
+	// not undo the explicit release below.
+	smPolicy.PolicyMu.Lock()
+	unlockPolicy := sync.OnceFunc(smPolicy.PolicyMu.Unlock)
+	defer unlockPolicy()
 	// InfluenceOnTrafficRouting = 1 in 29514 &  Traffic Steering Control support = 1 in 29512
 	traffRoutSupp := util.CheckSuppFeat(appSessCtx.AscRespData.GetSuppFeat(),
 		1) && util.CheckSuppFeat(smPolicy.PolicyDecision.GetSuppFeat(), 1)
@@ -1211,11 +1272,17 @@ func ModAppSessionContextProcedure(appSessID string,
 	// Send Notification to SMF
 	if updateSMpolicy {
 		smPolicyID := fmt.Sprintf("%s-%d", smPolicy.PcfUe.Supi, smPolicy.PolicyContext.PduSessionId)
+		// A snapshot, not the stored decision: what goes out is marshalled after the lock is
+		// released. Cloned directly because the lock is held here.
+		notified := snapshotForNotification(smPolicy.PolicyDecision)
 		notification := models.SmPolicyNotification{
 			ResourceUri:      openapi.PtrString(util.GetResourceUri(models.SERVICENAME_NPCF_SMPOLICYCONTROL, smPolicyID)),
-			SmPolicyDecision: smPolicy.PolicyDecision,
+			SmPolicyDecision: notified,
 		}
-		notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(smPolicy.PolicyContext.NotificationUri, &notification)
+		notifyURI := smPolicy.PolicyContext.NotificationUri
+		unlockPolicy()
+
+		notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(notifyURI, &notification)
 		logger.PolicyAuthorizationlog.Debugf("send SM Policy[%s] Update Notification", smPolicyID)
 	}
 	return nil, appSessCtx
@@ -1256,14 +1323,27 @@ func DeleteEventsSubscContextProcedure(appSessID string) *models.ProblemDetails 
 	logger.PolicyAuthorizationlog.Debugf("app session Id[%s] Del Events Subsc success", appSessID)
 
 	smPolicy := appSession.SmPolicyData
+
+	// See the PolicyMu contract: held from the first change to this session's policy until just
+	// before the notification, which is a blocking POST to the SMF. The deferred OnceFunc covers
+	// the early returns; the explicit call before the send is not undone by it.
+	smPolicy.PolicyMu.Lock()
+	unlockPolicy := sync.OnceFunc(smPolicy.PolicyMu.Unlock)
+	defer unlockPolicy()
 	// Send Notification to SMF
 	if changed := appSession.SmPolicyData.ArrangeExistEventSubscription(); changed {
 		smPolicyID := fmt.Sprintf("%s-%d", smPolicy.PcfUe.Supi, smPolicy.PolicyContext.PduSessionId)
+		// A snapshot, not the stored decision: what goes out is marshalled after the lock is
+		// released. Cloned directly because the lock is held here.
+		notified := snapshotForNotification(smPolicy.PolicyDecision)
 		notification := models.SmPolicyNotification{
 			ResourceUri:      openapi.PtrString(util.GetResourceUri(models.SERVICENAME_NPCF_SMPOLICYCONTROL, smPolicyID)),
-			SmPolicyDecision: smPolicy.PolicyDecision,
+			SmPolicyDecision: notified,
 		}
-		notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(smPolicy.PolicyContext.NotificationUri, &notification)
+		notifyURI := smPolicy.PolicyContext.NotificationUri
+		unlockPolicy()
+
+		notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(notifyURI, &notification)
 		logger.PolicyAuthorizationlog.Debugf("send SM Policy[%s] Update Notification", smPolicyID)
 	}
 	return nil
@@ -1325,6 +1405,13 @@ func UpdateEventsSubscContextProcedure(appSessID string, eventsSubscReqData mode
 		return nil, "", int(problemDetail.GetStatus()), problemDetail
 	}
 	smPolicy := appSession.SmPolicyData
+
+	// See the PolicyMu contract: held from the first change to this session's policy until just
+	// before the notification, which is a blocking POST to the SMF. The deferred OnceFunc covers
+	// the early returns; the explicit call before the send is not undone by it.
+	smPolicy.PolicyMu.Lock()
+	unlockPolicy := sync.OnceFunc(smPolicy.PolicyMu.Unlock)
+	defer unlockPolicy()
 	eventSubs := make(map[models.AfEventPcf]models.AfNotifMethod)
 
 	updataSmPolicy := false
@@ -1422,11 +1509,17 @@ func UpdateEventsSubscContextProcedure(appSessID string, eventsSubscReqData mode
 	// Send Notification to SMF
 	if updataSmPolicy || changed {
 		smPolicyID := fmt.Sprintf("%s-%d", smPolicy.PcfUe.Supi, smPolicy.PolicyContext.PduSessionId)
+		// A snapshot, not the stored decision: what goes out is marshalled after the lock is
+		// released. Cloned directly because the lock is held here.
+		notified := snapshotForNotification(smPolicy.PolicyDecision)
 		notification := models.SmPolicyNotification{
 			ResourceUri:      openapi.PtrString(util.GetResourceUri(models.SERVICENAME_NPCF_SMPOLICYCONTROL, smPolicyID)),
-			SmPolicyDecision: smPolicy.PolicyDecision,
+			SmPolicyDecision: notified,
 		}
-		notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(smPolicy.PolicyContext.NotificationUri, &notification)
+		notifyURI := smPolicy.PolicyContext.NotificationUri
+		unlockPolicy()
+
+		notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(notifyURI, &notification)
 		logger.PolicyAuthorizationlog.Debugf("send SM Policy[%s] Update Notification", smPolicyID)
 	}
 	if created {
@@ -1501,6 +1594,11 @@ func handleBDTPolicyInd(pcfSelf *pcfContext.PCFContext, appSessCtx *models.AppSe
 }
 
 // provisioning of sponsored connectivity information
+//
+// Called only from postAppSessCtxProcedure and ModAppSessionContextProcedure, both of which
+// hold PolicyMu across the call. This writes the session's stored decision and must not take
+// the lock itself: sync.RWMutex is not reentrant, so acquiring it here would wedge the
+// session for good.
 func handleSponsoredConnectivityInformation(smPolicy *pcfContext.UeSmPolicyData, relatedPccRuleIds map[string]string,
 	aspID, sponID string, sponStatus models.SponsoringStatus, umData *models.UsageMonitoringData,
 	updateSMpolicy *bool,
@@ -2061,6 +2159,12 @@ func extractUmData(umID string, eventSubs map[models.AfEventPcf]models.AfNotifMe
 	return
 }
 
+// modifyRemainBitRate settles a flow's guaranteed rates against the session's remaining budget.
+//
+// Called only from postAppSessCtxProcedure, ModAppSessionContextProcedure and
+// handleCombinedMediaSubComponents, all of which hold PolicyMu across the call. It writes the
+// budget the field's contract puts under that lock and must not take it itself: sync.RWMutex is
+// not reentrant.
 func modifyRemainBitRate(smPolicy *pcfContext.UeSmPolicyData, qosData *models.QosData,
 	ulExist, dlExist bool,
 ) *models.ProblemDetails {
@@ -2105,6 +2209,10 @@ func modifyRemainBitRate(smPolicy *pcfContext.UeSmPolicyData, qosData *models.Qo
 	return nil
 }
 
+// Called only from postAppSessCtxProcedure and ModAppSessionContextProcedure, both of which
+// hold PolicyMu across the call. This writes the session's stored decision and must not take
+// the lock itself: sync.RWMutex is not reentrant, so acquiring it here would wedge the
+// session for good.
 func provisioningOfTrafficRoutingInfo(smPolicy *pcfContext.UeSmPolicyData, appID string,
 	routeReq *models.AfRoutingRequirement, fStatus models.FlowStatus,
 ) *models.PccRule {

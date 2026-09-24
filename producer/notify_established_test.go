@@ -830,3 +830,63 @@ func TestStaleSessionsDoNotAbandonTheFanOut(t *testing.T) {
 		}
 	}
 }
+
+// The fan-out compares each session's stored decision against a recomputed one, and
+// reflect.DeepEqual walks into SessRules, PccRules, QosDecs and TraffContDecs. It walks them
+// furthest for a session whose policy did *not* change, because it only stops early where it finds
+// a difference — so one slice's configuration edit reads every other session's maps to the end.
+//
+// The application-function handlers write into those same maps from their own HTTP goroutines. A
+// Go map read concurrent with a map write is a fatal runtime throw: before the lock this was
+// reproducible as `concurrent map iteration and map write`, which takes the PCF down rather than
+// returning a stale value.
+//
+// The AF-managed skip does not close it. That check happens before the comparison, so an
+// application function claiming the session in between leaves the comparison walking maps it is
+// writing.
+func TestAfDecisionWritesDoNotRaceTheFanOut(t *testing.T) {
+	original := getSlicePccPolicy
+	t.Cleanup(func() { getSlicePccPolicy = original })
+	getSlicePccPolicy = func(models.Snssai) *polling.PccPolicy {
+		return &polling.PccPolicy{
+			PccRules: map[string]*models.PccRule{testPccRuleId1: {PccRuleId: testPccRuleId1}},
+			QosDecs:  map[string]*models.QosData{testQosId1: {QosId: testQosId1}},
+		}
+	}
+	smPolicy := establishedSession(t, nil, &models.SmPolicyDecision{})
+
+	// An unchanged session, which is what most sessions are on any one edit and what the
+	// comparison walks deepest.
+	pending := recomputeChangedSessions()
+	if len(pending) != 1 {
+		t.Fatalf("fixture: pending = %d, want 1", len(pending))
+	}
+	smPolicy.PolicyDecision = pending[0].decision
+	if got := recomputeChangedSessions(); len(got) != 0 {
+		t.Fatalf("fixture: the session should now compare equal, got %d pending", len(got))
+	}
+
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			// What the application-function handlers do, under the lock they now take.
+			smPolicy.PolicyMu.Lock()
+			(*smPolicy.PolicyDecision.QosDecs)["af-added"] = models.QosData{QosId: "af-added"}
+			delete(*smPolicy.PolicyDecision.QosDecs, "af-added")
+			smPolicy.PolicyMu.Unlock()
+		}
+	}()
+
+	for i := 0; i < 300; i++ {
+		recomputeChangedSessions()
+	}
+	close(stop)
+	<-done
+}
