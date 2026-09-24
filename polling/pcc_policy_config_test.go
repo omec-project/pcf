@@ -396,3 +396,52 @@ func TestCreatePccPolicies_MultiplePolicyControlElement(t *testing.T) {
 		}
 	}
 }
+
+// A slice policy can express a floor and not only a ceiling. makeQosDesc dropped the guaranteed
+// rates the operator configured, so a configured CIR never left the PCF.
+func TestMakeQosDescCarriesGuaranteedBitRates(t *testing.T) {
+	qos := makeQosDesc(1, nfConfigApi.PccQos{
+		FiveQi:  66,
+		MaxBrUl: openapi.PtrString("200 Mbps"),
+		MaxBrDl: openapi.PtrString("300 Mbps"),
+		GbrUl:   openapi.PtrString("20 Mbps"),
+		GbrDl:   openapi.PtrString("30 Mbps"),
+		Arp: nfConfigApi.Arp{
+			PriorityLevel: 8,
+			PreemptCap:    nfConfigApi.PREEMPTCAP_NOT_PREEMPT,
+			PreemptVuln:   nfConfigApi.PREEMPTVULN_NOT_PREEMPTABLE,
+		},
+	})
+
+	if got, want := qos.GetGbrUl(), "20 Mbps"; got != want {
+		t.Errorf("GbrUl = %q, want %q", got, want)
+	}
+	if got, want := qos.GetGbrDl(), "30 Mbps"; got != want {
+		t.Errorf("GbrDl = %q, want %q", got, want)
+	}
+	if got, want := qos.GetMaxbrUl(), "200 Mbps"; got != want {
+		t.Errorf("MaxbrUl = %q, want %q", got, want)
+	}
+}
+
+// An operator who configures no floor must not be given one. A guaranteed rate is a commitment
+// the datapath then has to honour, so it is left unset rather than defaulted to the maximum.
+func TestMakeQosDescLeavesUnconfiguredGuaranteedRatesUnset(t *testing.T) {
+	qos := makeQosDesc(1, nfConfigApi.PccQos{
+		FiveQi:  66,
+		MaxBrUl: openapi.PtrString("200 Mbps"),
+		MaxBrDl: openapi.PtrString("300 Mbps"),
+		Arp: nfConfigApi.Arp{
+			PriorityLevel: 8,
+			PreemptCap:    nfConfigApi.PREEMPTCAP_NOT_PREEMPT,
+			PreemptVuln:   nfConfigApi.PREEMPTVULN_NOT_PREEMPTABLE,
+		},
+	})
+
+	if got := qos.GetGbrUl(); got != "" {
+		t.Errorf("GbrUl = %q, want it unset", got)
+	}
+	if got := qos.GetGbrDl(); got != "" {
+		t.Errorf("GbrDl = %q, want it unset", got)
+	}
+}

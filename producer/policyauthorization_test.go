@@ -233,3 +233,111 @@ func TestGetMaxPccRuleIdNum(t *testing.T) {
 		})
 	}
 }
+
+// 5QI 66 is a GBR resource type in TS 23.501 table 5.7.4-1 but fails a 5QI <= 4 test, so the
+// QoS data for such a flow was created and stored with no rates at all: the media component's
+// requested bandwidth was never read and no guaranteed rate was authorised.
+func TestHandleCombinedMediaSubComponentsAuthorisesGbr5QIAboveFour(t *testing.T) {
+	smPolicy := newCombinedMediaTestPolicy()
+	medComp := &models.MediaComponent{
+		FStatus: models.FLOWSTATUS_ENABLED.Ptr(),
+		MarBwUl: openapi.PtrString("1 Mbps"),
+		MarBwDl: openapi.PtrString("2 Mbps"),
+	}
+	medSubComps := []models.MediaSubComponent{{
+		FNum:    1,
+		FStatus: models.FLOWSTATUS_ENABLED.Ptr(),
+		FDescs: []string{
+			"permit out ip from any to 10.0.0.1",
+			"permit in ip from 10.0.0.1 to any",
+		},
+	}}
+	flowInfos := []models.FlowInformation{
+		{FlowDescription: openapi.PtrString("permit out ip from any to 10.0.0.1")},
+	}
+
+	pccRule, problemDetails := handleCombinedMediaSubComponents(smPolicy, medComp, medSubComps, 66, flowInfos)
+	if problemDetails != nil {
+		t.Fatalf("unexpected problem details: %+v", problemDetails)
+	}
+	if pccRule == nil || len(pccRule.RefQosData) == 0 {
+		t.Fatal("expected a PCC rule referencing QoS data")
+		return
+	}
+	if smPolicy.PolicyDecision.QosDecs == nil {
+		t.Fatal("expected QoS decisions to be created")
+		return
+	}
+	qosData, ok := (*smPolicy.PolicyDecision.QosDecs)[pccRule.RefQosData[0]]
+	if !ok {
+		t.Fatalf("expected QoS data %q to exist", pccRule.RefQosData[0])
+	}
+	if qosData.GetGbrUl() == "" || qosData.GetGbrDl() == "" {
+		t.Errorf("a GBR 5QI must be authorised a guaranteed rate, got UL %q and DL %q",
+			qosData.GetGbrUl(), qosData.GetGbrDl())
+	}
+}
+
+// A downlink-only request against an exhausted downlink budget. The rollback used to dereference
+// qosData.GbrUl unconditionally, and on this path the uplink was never touched so that field is
+// unset -- an unset NullableString's Get() is nil, so the handler panicked instead of returning the
+// authorization error. Reachable only once the GBR path widened past 5QI 4, which is what this
+// branch does.
+func TestModifyRemainBitRateDoesNotPanicOnADownlinkOnlyRequest(t *testing.T) {
+	remainUl, remainDl := 4096.0, 1.0
+	smPolicy := &pcfContext.UeSmPolicyData{
+		RemainGbrUL: &remainUl,
+		RemainGbrDL: &remainDl,
+	}
+	qosData := models.QosData{QosId: "qos-1"}
+	qosData.GbrDl = *openapi.NewNullableString(openapi.PtrString("100 Mbps"))
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("modifyRemainBitRate panicked instead of refusing the request: %v", r)
+		}
+	}()
+
+	problemDetails := modifyRemainBitRate(smPolicy, &qosData, false, true)
+	if problemDetails == nil {
+		t.Fatal("expected the downlink debit to be refused")
+	}
+	if remainUl != 4096 {
+		t.Errorf("uplink budget = %v kbps, want it untouched at 4096: nothing was taken for it", remainUl)
+	}
+}
+
+// A downlink-only update against a QoS data entry that already carries an uplink rate nobody
+// debited — the shape of a rule the slice policy supplied, which two of this function's call sites
+// read straight out of the stored decision. Recording both directions would enter that uplink in
+// the ledger, and releasing the rule would then credit an aggregate that was never charged.
+func TestModifyRemainBitRateRecordsOnlyTheDirectionsItDebited(t *testing.T) {
+	remainUl, remainDl := 100000.0, 100000.0
+	smPolicy := &pcfContext.UeSmPolicyData{
+		RemainGbrUL: &remainUl,
+		RemainGbrDL: &remainDl,
+	}
+	qosData := models.QosData{QosId: "qos-1"}
+	// Came from the slice policy: a rate is present, but nothing was ever taken for it.
+	qosData.GbrUl = *openapi.NewNullableString(openapi.PtrString("5 Mbps"))
+	qosData.GbrDl = *openapi.NewNullableString(openapi.PtrString("2 Mbps"))
+
+	if problemDetails := modifyRemainBitRate(smPolicy, &qosData, false, true); problemDetails != nil {
+		t.Fatalf("downlink-only update refused: %+v", problemDetails)
+	}
+	if remainDl != 100000-2048 {
+		t.Fatalf("downlink budget = %v kbps, want it debited by 2 Mbps to 97952", remainDl)
+	}
+	if remainUl != 100000 {
+		t.Fatalf("uplink budget = %v kbps, want it untouched at 100000", remainUl)
+	}
+
+	// Releasing the rule must give back only what was taken.
+	smPolicy.IncreaseRemainGBR("qos-1")
+	if remainUl != 100000 {
+		t.Errorf("uplink budget = %v kbps after release, want 100000: the 5 Mbps was never debited", remainUl)
+	}
+	if remainDl != 100000 {
+		t.Errorf("downlink budget = %v kbps after release, want it restored to 100000", remainDl)
+	}
+}

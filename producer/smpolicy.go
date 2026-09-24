@@ -539,13 +539,11 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 				}
 				qosData.GbrDl = *openapi.NewNullableString(openapi.PtrString(gbrDl))
 				qosData.GbrUl = *openapi.NewNullableString(openapi.PtrString(gbrUl))
-				if qosData.GetGbrDl() != "" {
-					logger.SMpolicylog.Debugf("SM Policy Dnn[%s] Data Aggregate decrease %s and then DL GBR remain[%.2f Kbps]",
-						smPolicyContext.Dnn, qosData.GbrDl, *smPolicy.RemainGbrDL)
-				}
-				if qosData.GetGbrUl() != "" {
-					logger.SMpolicylog.Debugf("SM Policy Dnn[%s] Data Aggregate decrease %s and then UL GBR remain[%.2f Kbps]",
-						smPolicyContext.Dnn, qosData.GbrUl, *smPolicy.RemainGbrUL)
+				smPolicy.RecordGbrDebit(qosData.QosId, gbrUl, gbrDl)
+				if qosData.GetGbrDl() != "" || qosData.GetGbrUl() != "" {
+					remainUl, remainDl := smPolicy.RemainingGbrKbps()
+					logger.SMpolicylog.Debugf("SM Policy Dnn[%s] Data Aggregate decrease DL %s UL %s, then remain DL[%s] UL[%s]",
+						smPolicyContext.Dnn, qosData.GetGbrDl(), qosData.GetGbrUl(), remainDl, remainUl)
 				}
 				util.SetPccRuleRelatedData(smPolicyDecision, pccRule, tcData, &qosData, nil, nil)
 				// link Packet filters to PccRule
@@ -578,11 +576,8 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 					if req.ReqQos != nil && len(rule.RefQosData) != 0 {
 						qosId := rule.RefQosData[0]
 						if qosData, exist := smPolicyDecision.GetQosDecs()[qosId]; exist {
-							origUl, origDl := smPolicy.IncreaseRemainGBR(qosId)
-							gbrDl, gbrUl, err := smPolicy.DecreaseRemainGBR(req.ReqQos)
+							gbrDl, gbrUl, err := smPolicy.ReplaceGbrDebit(qosId, req.ReqQos)
 							if err != nil {
-								smPolicy.RemainGbrDL = origDl
-								smPolicy.RemainGbrUL = origUl
 								problemDetail := util.GetProblemDetail(err.Error(), util.ERROR_TRAFFIC_MAPPING_INFO_REJECTED)
 								logger.SMpolicylog.Warnln(problemDetail.Detail)
 								return nil, problemDetail
@@ -590,13 +585,10 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 							qosData.Var5qi = openapi.PtrInt32(req.ReqQos.GetVar5qi())
 							qosData.GbrDl = *openapi.NewNullableString(openapi.PtrString(gbrDl))
 							qosData.GbrUl = *openapi.NewNullableString(openapi.PtrString(gbrUl))
-							if qosData.GetGbrDl() != "" {
-								logger.SMpolicylog.Debugf("SM Policy Dnn[%s] Data Aggregate decrease %s and then DL GBR remain[%.2f Kbps]",
-									smPolicyContext.Dnn, qosData.GbrDl, *smPolicy.RemainGbrDL)
-							}
-							if qosData.GetGbrUl() != "" {
-								logger.SMpolicylog.Debugf("SM Policy Dnn[%s] Data Aggregate decrease %s and then UL GBR remain[%.2f Kbps]",
-									smPolicyContext.Dnn, qosData.GbrUl, *smPolicy.RemainGbrUL)
+							if qosData.GetGbrDl() != "" || qosData.GetGbrUl() != "" {
+								remainUl, remainDl := smPolicy.RemainingGbrKbps()
+								logger.SMpolicylog.Debugf("SM Policy Dnn[%s] Data Aggregate decrease DL %s UL %s, then remain DL[%s] UL[%s]",
+									smPolicyContext.Dnn, qosData.GetGbrDl(), qosData.GetGbrUl(), remainDl, remainUl)
 							}
 							(*smPolicyDecision.QosDecs)[qosId] = qosData
 						} else {
