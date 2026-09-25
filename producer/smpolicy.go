@@ -438,7 +438,15 @@ func getSmPolicyContextProcedure(smPolicyID string) (
 		logger.SMpolicylog.Warnln(problemDetail.Detail)
 		return nil, problemDetail
 	}
-	response = models.NewSmPolicyControl(*smPolicyData.PolicyContext, *smPolicyData.PolicyDecision)
+	// Copied under SmPolicyDataMu, which guards the UE address a UE_IP_CH report writes. Copying
+	// the struct reads every field, the addresses among them, so it races that write unless it holds
+	// the same lock -- a reader that copies the whole context names no field and is easy to miss.
+	// Only the copy needs the lock: the writer replaces the address pointers rather than writing
+	// through them, so the strings this copy points at are never modified after it is taken.
+	ue.SmPolicyDataMu.RLock()
+	policyContext := *smPolicyData.PolicyContext
+	ue.SmPolicyDataMu.RUnlock()
+	response = models.NewSmPolicyControl(policyContext, *smPolicyData.PolicyDecision)
 	logger.SMpolicylog.Debugf("SMPolicy smPolicyID[%s] GET", smPolicyID)
 	return response, nil
 }

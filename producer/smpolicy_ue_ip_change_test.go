@@ -169,3 +169,80 @@ func TestSessionBindingMatchesOnTheSliceTheSessionWasCreatedWith(t *testing.T) {
 		t.Error("a request naming a different DNN bound anyway")
 	}
 }
+
+// The SMF's own SM policy GET copies the whole stored context, which reads the UE address without
+// naming it — so it races a UE_IP_CH report that writes it unless both hold SmPolicyDataMu. A
+// reader that copies the struct is the kind a grep for the field names does not find, which is how
+// this one was missed when the other readers were locked. Run with -race.
+func TestSmPolicyGetDoesNotRaceUeIpChange(t *testing.T) {
+	const iterations = 200
+	_, smPolicyID := newSessionBoundTo(t, "imsi-001010123456705")
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < iterations; i++ {
+			addr := testUpfIpv4
+			if i%2 == 0 {
+				addr = testCreateIpv4
+			}
+			if _, problem := updateSmPolicyContextProcedure(ueIpChangeRequest(addr, ""), smPolicyID); problem != nil {
+				t.Errorf("update refused: %+v", problem)
+				return
+			}
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for i := 0; i < iterations; i++ {
+			if _, problem := getSmPolicyContextProcedure(smPolicyID); problem != nil {
+				t.Errorf("get refused: %+v", problem)
+				return
+			}
+		}
+	}()
+	wg.Wait()
+}
+
+// The IPv6 finder carried the same slice comparison as the IPv4 one — the caller's *Snssai against a
+// value Snssai — and was fixed with it, but nothing exercised it: the earlier check reverted both
+// sites together and watched only the IPv4 tests fail. This pins the IPv6 site on its own.
+func TestSessionBindingByIpv6MatchesOnTheSliceTheSessionWasCreatedWith(t *testing.T) {
+	ue, _ := newSessionBoundTo(t, "imsi-001010123456706")
+	for _, p := range ue.SmPolicyData {
+		p.PolicyContext.Ipv6AddressPrefix = openapi.PtrString(testIpv6Prefix)
+	}
+
+	if got := ue.SMPolicyFindByIdentifiersIpv6(testIpv6Prefix, &testSnssai, testDnn); got == nil {
+		t.Error("a request naming the session's own slice did not bind by IPv6 prefix")
+	}
+	other := models.Snssai{Sst: 2, Sd: openapi.PtrString("040506")}
+	if got := ue.SMPolicyFindByIdentifiersIpv6(testIpv6Prefix, &other, testDnn); got != nil {
+		t.Error("a request naming a different slice bound anyway by IPv6 prefix")
+	}
+}
+
+// The IPv6 half of the UE_IP_CH arm: a new prefix is bound, and releasing it by value clears it.
+// The release compared pointers before it compared values, in both families.
+func TestUeIpChangeRebindsAndReleasesTheIpv6Prefix(t *testing.T) {
+	ue, smPolicyID := newSessionBoundTo(t, "imsi-001010123456707")
+
+	req := ueIpChangeRequest("", "")
+	req.Ipv6AddressPrefix = openapi.PtrString(testIpv6Prefix)
+	if _, problem := updateSmPolicyContextProcedure(req, smPolicyID); problem != nil {
+		t.Fatalf("update refused: %+v", problem)
+	}
+	if got := ue.SMPolicyFindByIdentifiersIpv6(testIpv6Prefix, &testSnssai, testDnn); got == nil {
+		t.Fatalf("the session cannot be found by the IPv6 prefix it was just given (%s)", testIpv6Prefix)
+	}
+
+	release := ueIpChangeRequest("", "")
+	release.RelIpv6AddressPrefix = openapi.PtrString(testIpv6Prefix)
+	if _, problem := updateSmPolicyContextProcedure(release, smPolicyID); problem != nil {
+		t.Fatalf("release refused: %+v", problem)
+	}
+	if got := ue.SMPolicyFindByIdentifiersIpv6(testIpv6Prefix, &testSnssai, testDnn); got != nil {
+		t.Errorf("the released IPv6 prefix %s still binds to the session", testIpv6Prefix)
+	}
+}
