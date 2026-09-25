@@ -443,6 +443,11 @@ func getSmPolicyContextProcedure(smPolicyID string) (
 	// the same lock -- a reader that copies the whole context names no field and is easy to miss.
 	// Only the copy needs the lock: the writer replaces the address pointers rather than writing
 	// through them, so the strings this copy points at are never modified after it is taken.
+	//
+	// That is all the lock protects. The other fields the update triggers write -- serving network,
+	// access and RAT type, subscribed QoS and AMBR, user location, time zone -- are written without
+	// it, as they always have been, so this copy still races those writes. Taking the lock for them
+	// here alone would not change that: they have readers elsewhere that do not take it either.
 	ue.SmPolicyDataMu.RLock()
 	policyContext := *smPolicyData.PolicyContext
 	ue.SmPolicyDataMu.RUnlock()
