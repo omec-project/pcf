@@ -290,7 +290,7 @@ func PostPoliciesProcedure(polAssoId string,
 	if policyAssociationRequest.Guami != nil {
 		// if policyAssociationRequest.Guami has been subscribed, then no need to subscribe again
 		needSubscribe := true
-		pcfSelf.AMFStatusSubsData.Range(func(key, value interface{}) bool {
+		pcfSelf.AMFStatusSubsData.Range(func(key, value any) bool {
 			data := value.(pcfContext.AMFStatusSubscriptionData)
 			for _, guami := range data.GuamiList {
 				if reflect.DeepEqual(guami, *policyAssociationRequest.Guami) {
