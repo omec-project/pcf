@@ -15,6 +15,7 @@ import (
 	"github.com/omec-project/openapi/v2"
 	"github.com/omec-project/openapi/v2/models"
 	"github.com/omec-project/openapi/v2/nfConfigApi"
+	pcfContext "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/util/idgenerator"
 )
@@ -81,11 +82,11 @@ var createPccPolicies = func(idGenerator *idgenerator.IDGenerator, policyControl
 	if sd, ok := policyControlConfig.Snssai.GetSdOk(); ok {
 		snssai.Sd = sd
 	}
-	pccPolicy := makePccPolicy(idGenerator, policyControlConfig.PccRules)
+	pccPolicy := makePccPolicy(idGenerator, snssai, policyControlConfig.PccRules)
 	pccPolicies[SnssaiToKey(snssai)] = pccPolicy
 }
 
-func makePccPolicy(idGenerator *idgenerator.IDGenerator, pccRules []nfConfigApi.PccRule) (pccPolicy *PccPolicy) {
+func makePccPolicy(idGenerator *idgenerator.IDGenerator, snssai models.Snssai, pccRules []nfConfigApi.PccRule) (pccPolicy *PccPolicy) {
 	pccPolicy = &PccPolicy{
 		TraffContDecs: make(map[string]*models.TrafficControlData),
 		QosDecs:       make(map[string]*models.QosData),
@@ -105,6 +106,7 @@ func makePccPolicy(idGenerator *idgenerator.IDGenerator, pccRules []nfConfigApi.
 			pccPolicy.TraffContDecs[tcData.TcId] = &tcData
 		}
 
+		warnIfGuaranteedRateIsUnenforceable(snssai, pccrule.RuleId, pccrule.Qos)
 		qos := makeQosDesc(id, pccrule.Qos)
 		if hasDefaultQosFlow(flowInfos) {
 			qos.DefQosFlowIndication = openapi.PtrBool(true)
@@ -133,6 +135,44 @@ func hasDefaultQosFlow(flows []models.FlowInformation) bool {
 	return false
 }
 
+// warnIfGuaranteedRateIsUnenforceable reports a guaranteed rate configured against a standardised
+// Non-GBR 5QI, which is a misconfiguration the operator gets no other signal about: the rate is
+// carried, the session is established, and nothing guarantees anything.
+//
+// Warned rather than dropped. Refusing the rate would discard configuration on the strength of a
+// 5QI the operator may be about to correct, and the SMF decides whether to put a GBR IE on the QER
+// by whether the rates are present, so dropping it here would quietly change what the user plane
+// is programmed with rather than only what is logged.
+//
+// Only the standardised Non-GBR values are worth warning about. A value outside table 5.7.4-1 is
+// dynamically assigned and carries its own QoS characteristics, which is how a guarantee has to be
+// expressed over a link that no standardised GBR 5QI fits.
+//
+// It takes the rule id rather than the generated QoS id because the point is to name the rule the
+// operator wrote, in the identifier they wrote it under — and the slice with it, because a rule id
+// is only unique within one, so two slices can each hold a "rule1" and only one of them be wrong.
+func warnIfGuaranteedRateIsUnenforceable(snssai models.Snssai, ruleID string, pccQos nfConfigApi.PccQos) {
+	if !pcfContext.IsStandardisedNonGbr5QI(pccQos.FiveQi) {
+		return
+	}
+	gbrUl, gbrDl := pccQos.GetGbrUl(), pccQos.GetGbrDl()
+	if gbrUl == "" && gbrDl == "" {
+		return
+	}
+	logger.PollConfigLog.Warnf(
+		"PCC rule %q in slice %s configures a guaranteed bit rate (UL %q, DL %q) against 5QI %d, which TS 23.501 table 5.7.4-1 gives a Non-GBR resource type; the rate is carried as configured but nothing will guarantee it",
+		ruleID, describeSnssai(snssai), gbrUl, gbrDl, pccQos.FiveQi)
+}
+
+// describeSnssai names a slice the way an operator configured it. The SD is optional in an
+// S-NSSAI, so it is omitted rather than rendered empty when there is none.
+func describeSnssai(snssai models.Snssai) string {
+	if sd := snssai.GetSd(); sd != "" {
+		return fmt.Sprintf("SST %d SD %s", snssai.GetSst(), sd)
+	}
+	return fmt.Sprintf("SST %d", snssai.GetSst())
+}
+
 func makeQosDesc(id int64, pccQos nfConfigApi.PccQos) models.QosData {
 	qos := models.QosData{
 		QosId: strconv.FormatInt(id, 10),
@@ -148,6 +188,12 @@ func makeQosDesc(id int64, pccQos nfConfigApi.PccQos) models.QosData {
 	}
 	if MaxbrDl, ok := pccQos.GetMaxBrDlOk(); ok {
 		qos.MaxbrDl = *openapi.NewNullableString(MaxbrDl)
+	}
+	if GbrUl, ok := pccQos.GetGbrUlOk(); ok {
+		qos.GbrUl = *openapi.NewNullableString(GbrUl)
+	}
+	if GbrDl, ok := pccQos.GetGbrDlOk(); ok {
+		qos.GbrDl = *openapi.NewNullableString(GbrDl)
 	}
 	switch pccQos.Arp.PreemptCap {
 	case nfConfigApi.PREEMPTCAP_NOT_PREEMPT:
