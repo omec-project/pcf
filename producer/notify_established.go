@@ -174,7 +174,9 @@ func recomputeChangedSessions() []pendingNotification {
 			if smPolicy == nil || smPolicy.PolicyContext == nil {
 				continue
 			}
-			if smPolicy.PolicyDecision == nil {
+			// Through the accessor: the poll loop's own store writes this pointer, so even
+			// reading it to test for nil is a read that needs the lock.
+			if smPolicy.PolicyDecisionPointer() == nil {
 				continue
 			}
 
@@ -212,8 +214,40 @@ func recomputeChangedSessions() []pendingNotification {
 				continue
 			}
 
+			// Compared under the session's policy lock, and only from here: the recompute above
+			// can reach the webconsole, and a read lock held across that would stall every
+			// application-function request for this session behind a network call.
+			//
+			// DeepEqual walks the stored decision's SessRules, PccRules, QosDecs and
+			// TraffContDecs, and walks them *furthest* for a session whose policy did not change,
+			// because it only stops early where it finds a difference. So one slice's
+			// configuration edit reads every other session's maps to the end while the AF
+			// handlers write into those same maps, and a Go map read concurrent with a map write
+			// takes the process down.
+			smPolicy.PolicyMu.RLock()
 			merged := mergeSliceDerived(smPolicy.PolicyDecision, recomputed)
-			if reflect.DeepEqual(*smPolicy.PolicyDecision, merged) {
+			unchanged := reflect.DeepEqual(*smPolicy.PolicyDecision, merged)
+			basedOn := smPolicy.PolicyDecision
+			if !unchanged {
+				// Cloned here and not in the merge, so an unchanged session — which is most of
+				// them on any one configuration edit — costs a comparison and nothing else.
+				//
+				// It has to happen before the lock is released: the merge carries the stored
+				// decision's other containers over by reference, and this is what gets
+				// marshalled during the send, with no lock held, while the AF handlers write
+				// into them. `PolicyDecision.ChgDecs[chgID] = chgData` in the
+				// sponsored-connectivity path is one such write.
+				//
+				// Cloned rather than deep-copied through JSON, which is the other option and is
+				// used on these model types elsewhere in this package. A round trip that is not
+				// perfectly faithful would make every later comparison differ for a reason that
+				// never goes away, and a notification storm once per configuration change is a
+				// worse failure than the sharing it fixes.
+				merged = pcfContext.CloneSmPolicyDecisionContainers(merged)
+			}
+			smPolicy.PolicyMu.RUnlock()
+
+			if unchanged {
 				continue
 			}
 
@@ -228,7 +262,7 @@ func recomputeChangedSessions() []pendingNotification {
 				smPolicyID:  smPolicyID,
 				smPolicy:    smPolicy,
 				decision:    &decision,
-				basedOn:     smPolicy.PolicyDecision,
+				basedOn:     basedOn,
 				arpPriority: defaultQosArpPriority(&decision),
 				notification: models.SmPolicyNotification{
 					ResourceUri: openapi.PtrString(util.GetResourceUri(
@@ -251,6 +285,9 @@ func mergeSliceDerived(stored, recomputed *models.SmPolicyDecision) models.SmPol
 	merged.PccRules = recomputed.PccRules
 	merged.QosDecs = recomputed.QosDecs
 	merged.TraffContDecs = recomputed.TraffContDecs
+
+	// Only those four. Everything else is carried over from the stored decision by reference, so
+	// what this returns is not safe to publish as it stands — see the clone at the call site.
 	return merged
 }
 
@@ -284,7 +321,7 @@ func dispatchPaced(pending []pendingNotification) {
 		// queue, and what was true when it was queued need not still be true. An application
 		// function that claims the session meanwhile installs its PCC rules into the very decision
 		// this notification carries a replacement for, and the SMF would be told to drop them.
-		if p.smPolicy.HasAppSessions() || p.smPolicy.PolicyDecision != p.basedOn {
+		if p.smPolicy.HasAppSessions() || p.smPolicy.PolicyDecisionPointer() != p.basedOn {
 			logger.SMpolicylog.Infof("session %s changed while it was queued; leaving it to the next policy change",
 				p.smPolicyID)
 			skipped++
@@ -333,13 +370,19 @@ func dispatchPaced(pending []pendingNotification) {
 		// with them and its app-session would be left referencing rules the PCF no longer holds.
 		// Not storing costs a re-notification on the next policy change, which is the same price
 		// every other session that could not be reached pays.
-		if p.smPolicy.HasAppSessions() || p.smPolicy.PolicyDecision != p.basedOn {
+		//
+		// Asking whether the session was claimed and replacing its decision cannot be two steps
+		// here: a claim landing between them is written into the decision the second step then
+		// overwrites. Nor can the claim be inferred from the decision pointer — an application
+		// function writes *into* the stored decision and leaves the pointer alone. So both
+		// questions are answered inside StorePolicyDecisionIfUntouched, under the one lock the AF
+		// handlers take before they touch either.
+		//
+		// Recorded only now, either way. Until the SMF has it, this session's stored decision has
+		// to keep saying what the SMF believes, or the next recompute finds nothing to send.
+		if !p.smPolicy.StorePolicyDecisionIfUntouched(p.basedOn, p.decision) {
 			logger.SMpolicylog.Infof("session %s was claimed while it was being notified; leaving its stored policy alone",
 				p.smPolicyID)
-		} else {
-			// Recorded only now. Until the SMF has it, this session's stored decision has to keep
-			// saying what the SMF believes, or the next recompute finds nothing to send.
-			p.smPolicy.PolicyDecision = p.decision
 		}
 
 		if i < len(pending)-1 {

@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/omec-project/openapi/v2"
 	"github.com/omec-project/openapi/v2/models"
@@ -202,7 +203,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 			if err != nil {
 				logger.SMpolicylog.Warnln(err.Error())
 			} else {
-				smPolicyData.RemainGbrDL = &gbrDL
+				smPolicyData.StoreRemainGbrDL(&gbrDL)
 				logger.SMpolicylog.Debugf("SM Policy Dnn[%s] Data Aggregate DL GBR[%.2f Kbps]", request.Dnn, gbrDL)
 			}
 		}
@@ -212,7 +213,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 			if err != nil {
 				logger.SMpolicylog.Warnln(err.Error())
 			} else {
-				smPolicyData.RemainGbrUL = &gbrUL
+				smPolicyData.StoreRemainGbrUL(&gbrUL)
 				logger.SMpolicylog.Debugf("SM Policy Dnn[%s] Data Aggregate UL GBR[%.2f Kbps]", request.Dnn, gbrUL)
 			}
 		}
@@ -237,7 +238,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	// TODO: Trigger about UMC, ADC, NetLoc,...
 	decision.PolicyCtrlReqTriggers = util.PolicyControlReqTrigToArray(0x40780f)
 
-	smPolicyData.PolicyDecision = decision
+	smPolicyData.StorePolicyDecision(decision)
 	// TODO: PCC rule, PraInfo ...
 	locationHeader := util.GetResourceUri(models.SERVICENAME_NPCF_SMPOLICYCONTROL, smPolicyID)
 	header = http.Header{
@@ -438,7 +439,16 @@ func getSmPolicyContextProcedure(smPolicyID string) (
 		logger.SMpolicylog.Warnln(problemDetail.Detail)
 		return nil, problemDetail
 	}
-	response = models.NewSmPolicyControl(*smPolicyData.PolicyContext, *smPolicyData.PolicyDecision)
+	// A snapshot: this response is marshalled by the HTTP layer after this returns, and handing
+	// back the stored decision would mean marshalling containers another goroutine may be writing.
+	stored := smPolicyData.SnapshotPolicyDecision()
+	if stored == nil {
+		problemDetail := util.GetProblemDetail("no policy decision stored for smPolicyID", util.CONTEXT_NOT_FOUND)
+		logger.SMpolicylog.Warnln(problemDetail.Detail)
+
+		return nil, problemDetail
+	}
+	response = models.NewSmPolicyControl(*smPolicyData.PolicyContext, *stored)
 	logger.SMpolicylog.Debugf("SMPolicy smPolicyID[%s] GET", smPolicyID)
 	return response, nil
 }
@@ -479,6 +489,15 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 		logger.SMpolicylog.Warnln(problemDetail.Detail)
 		return nil, problemDetail
 	}
+
+	// See the PolicyMu contract. Held across every change this procedure makes to the session's
+	// stored decision and released before the application-function notifications below, which are
+	// blocking POSTs to each AF. The deferred OnceFunc covers the early returns, and does not undo
+	// the explicit release.
+	smPolicy.PolicyMu.Lock()
+	unlockPolicy := sync.OnceFunc(smPolicy.PolicyMu.Unlock)
+	defer unlockPolicy()
+
 	smPolicyDecision := smPolicy.PolicyDecision
 	smPolicyContext := smPolicy.PolicyContext
 	errCause := ""
@@ -832,6 +851,14 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 		}
 		afEventsNotification.EvNotifs = append(afEventsNotification.EvNotifs, afNotif)
 	}
+	// The response is marshalled by the HTTP layer after this returns, so it cannot be the stored
+	// decision itself. Snapshot taken while the lock is still held, then released — the
+	// notifications below send to application functions over the network, and
+	// sendSmPolicyRelatedAppSessionNotification reads each session's rules under its own read
+	// lock, which would block against this one.
+	answered := snapshotForNotification(smPolicyDecision)
+	unlockPolicy()
+
 	if afEventsNotification.EvNotifs != nil {
 		sendSmPolicyRelatedAppSessionNotification(
 			smPolicy, afEventsNotification, request.AccuUsageReports, successRules, failRules)
@@ -844,7 +871,7 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 	}
 	logger.SMpolicylog.Debugf("SMPolicy smPolicyID[%s] Update", smPolicyID)
 	// message.SendHttpResponseMessage(httpChannel, nil, http.StatusOK, *smPolicyDecision)
-	return smPolicyDecision, nil
+	return answered, nil
 }
 
 func sendSmPolicyRelatedAppSessionNotification(smPolicy *pcfContext.UeSmPolicyData,
@@ -986,7 +1013,7 @@ func sendSmPolicyRelatedAppSessionNotification(smPolicy *pcfContext.UeSmPolicyDa
 					case models.AFEVENTPCF_USAGE_REPORT:
 						for _, report := range usageReports {
 							for _, pccRuleId := range appSession.RelatedPccRuleIds {
-								if pccRule, exist := appSession.SmPolicyData.PolicyDecision.PccRules[pccRuleId]; exist {
+								if pccRule, exist := appSession.SmPolicyData.PccRule(pccRuleId); exist {
 									if pccRule.RefUmData != nil && pccRule.RefUmData[0] == report.RefUmIds {
 										sessionNotif.UsgRep = &models.AccumulatedUsage{
 											Duration:       report.TimeUsage,
