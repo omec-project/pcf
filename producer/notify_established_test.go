@@ -6,6 +6,9 @@ package producer
 import (
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -556,7 +559,7 @@ func TestAFanOutGivesUpOnAnSmfThatIsNotAnswering(t *testing.T) {
 	original := sendNotification
 	sendNotification = func(string, *models.SmPolicyNotification) error {
 		attempts++
-		return errors.New("connection refused")
+		return fmt.Errorf("%w: connection refused", notifyevent.ErrNoAnswer)
 	}
 	t.Cleanup(func() { sendNotification = original })
 
@@ -577,6 +580,187 @@ func TestAFanOutGivesUpOnAnSmfThatIsNotAnswering(t *testing.T) {
 		t.Errorf("attempts = %d, want %d: a run of failures means the far end is down, not that these sessions were unlucky",
 			attempts, maxConsecutiveNotifyFailures)
 	}
+}
+
+// A 5xx answered at once does not count either. On a test deployment the SMF answered 503 for
+// stale sessions, and three of those at the head of the queue stranded every healthy session
+// behind them. A failure that cost nothing is about that session, whatever its status.
+func TestSessionsTheSmfAnswersWithAServerErrorDoNotAbandonTheFanOut(t *testing.T) {
+	unpaced(t)
+
+	attempts := 0
+	original := sendNotification
+	sendNotification = func(string, *models.SmPolicyNotification) error {
+		attempts++
+		if attempts <= maxConsecutiveNotifyFailures {
+			return errors.New("SMF answered 503 Service Unavailable")
+		}
+		return nil
+	}
+	t.Cleanup(func() { sendNotification = original })
+
+	pending := make([]pendingNotification, maxConsecutiveNotifyFailures+3)
+	stored := make([]*pcfContext.UeSmPolicyData, len(pending))
+	for i := range pending {
+		stored[i] = &pcfContext.UeSmPolicyData{PolicyDecision: &models.SmPolicyDecision{}}
+		pending[i] = pendingNotification{
+			smPolicyID: testNotifySession,
+			smPolicy:   stored[i],
+			basedOn:    stored[i].PolicyDecision,
+			decision:   &models.SmPolicyDecision{},
+		}
+	}
+
+	dispatchPaced(pending)
+
+	if attempts != len(pending) {
+		t.Errorf("attempts = %d, want all %d: an SMF that answers is not an SMF that is down", attempts, len(pending))
+	}
+	for i := maxConsecutiveNotifyFailures; i < len(pending); i++ {
+		if stored[i].PolicyDecision == pending[i].basedOn {
+			t.Errorf("healthy session %d was never told, because sessions answered with 503 ahead of it abandoned the fan-out", i)
+		}
+	}
+}
+
+// A slow failure counts, whatever its status. The SD-Core SMF answers 503 only after its PFCP
+// retries have run out when the user plane does not answer, so a dead UPF looks like this, and
+// working through a thousand sessions at that cost is what the bound exists to prevent.
+func TestSlowFailuresAbandonTheFanOutWhateverTheirStatus(t *testing.T) {
+	unpaced(t)
+
+	original := slowNotifyFailure
+	slowNotifyFailure = 2 * time.Millisecond
+	t.Cleanup(func() { slowNotifyFailure = original })
+
+	attempts := 0
+	originalSender := sendNotification
+	sendNotification = func(string, *models.SmPolicyNotification) error {
+		attempts++
+		time.Sleep(5 * time.Millisecond)
+		return errors.New("SMF answered 503 Service Unavailable")
+	}
+	t.Cleanup(func() { sendNotification = originalSender })
+
+	pending := make([]pendingNotification, 2*maxConsecutiveNotifyFailures)
+	for i := range pending {
+		smPolicy := &pcfContext.UeSmPolicyData{PolicyDecision: &models.SmPolicyDecision{}}
+		pending[i] = pendingNotification{
+			smPolicyID: testNotifySession,
+			smPolicy:   smPolicy,
+			basedOn:    smPolicy.PolicyDecision,
+			decision:   &models.SmPolicyDecision{},
+		}
+	}
+
+	dispatchPaced(pending)
+
+	if attempts != maxConsecutiveNotifyFailures {
+		t.Errorf("attempts = %d, want %d: a run of slow failures means the far end cannot act", attempts, maxConsecutiveNotifyFailures)
+	}
+}
+
+// A failed send is paced like a delivered one. Otherwise a run of fast refusals, none of which
+// counts toward giving up, reaches the SMF back to back.
+func TestFailedSendsArePaced(t *testing.T) {
+	original := factory.PcfConfig
+	factory.PcfConfig = factory.Config{Configuration: &factory.Configuration{PolicyNotificationRate: 50}}
+	t.Cleanup(func() { factory.PcfConfig = original })
+
+	originalSender := sendNotification
+	sendNotification = func(string, *models.SmPolicyNotification) error {
+		return errors.New("SMF answered 500 Internal Server Error")
+	}
+	t.Cleanup(func() { sendNotification = originalSender })
+
+	pending := make([]pendingNotification, 4)
+	for i := range pending {
+		smPolicy := &pcfContext.UeSmPolicyData{PolicyDecision: &models.SmPolicyDecision{}}
+		pending[i] = pendingNotification{
+			smPolicyID: testNotifySession,
+			smPolicy:   smPolicy,
+			basedOn:    smPolicy.PolicyDecision,
+			decision:   &models.SmPolicyDecision{},
+		}
+	}
+
+	start := time.Now()
+	dispatchPaced(pending)
+
+	// Three gaps of 20 ms at 50/s. Only the lower bound is asserted, so a slow machine cannot fail it.
+	if elapsed := time.Since(start); elapsed < 3*20*time.Millisecond {
+		t.Errorf("four failed sends took %v, want at least 60ms: they were not paced", elapsed)
+	}
+}
+
+// The sender and the fan-out agree on what counts. Through the real sender, an SMF answering 500
+// for the first sessions does not stop the rest being told, and an SMF that cannot be reached
+// ends the fan-out after three sends.
+func TestTheSenderAndTheFanOutAgreeOnWhatCounts(t *testing.T) {
+	unpaced(t)
+
+	originalSender := sendNotification
+	sendNotification = notifyevent.SendSMPolicyUpdateNotification
+	t.Cleanup(func() { sendNotification = originalSender })
+
+	queue := func(n int, uri string) ([]pendingNotification, []*pcfContext.UeSmPolicyData) {
+		pending := make([]pendingNotification, n)
+		stored := make([]*pcfContext.UeSmPolicyData, n)
+		for i := range pending {
+			stored[i] = &pcfContext.UeSmPolicyData{PolicyDecision: &models.SmPolicyDecision{}}
+			pending[i] = pendingNotification{
+				smPolicyID: testNotifySession,
+				notifyURI:  uri,
+				smPolicy:   stored[i],
+				basedOn:    stored[i].PolicyDecision,
+				decision:   &models.SmPolicyDecision{},
+			}
+		}
+		return pending, stored
+	}
+
+	t.Run("answered 500 for the first sessions", func(t *testing.T) {
+		var requests atomic.Int32
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			if requests.Add(1) <= maxConsecutiveNotifyFailures {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+		}))
+		defer srv.Close()
+
+		pending, stored := queue(maxConsecutiveNotifyFailures+2, srv.URL+"/nsmf-callback/sm-policies/ref-1")
+		dispatchPaced(pending)
+
+		if got := int(requests.Load()); got != len(pending) {
+			t.Errorf("the SMF saw %d requests, want all %d", got, len(pending))
+		}
+		for i := maxConsecutiveNotifyFailures; i < len(pending); i++ {
+			if stored[i].PolicyDecision == pending[i].basedOn {
+				t.Errorf("session %d was never recorded as told", i)
+			}
+		}
+	})
+
+	t.Run("cannot be reached", func(t *testing.T) {
+		srv := httptest.NewServer(http.NotFoundHandler())
+		uri := srv.URL + "/nsmf-callback/sm-policies/ref-1"
+		srv.Close()
+
+		attempts := 0
+		sendNotification = func(u string, n *models.SmPolicyNotification) error {
+			attempts++
+			return notifyevent.SendSMPolicyUpdateNotification(u, n)
+		}
+
+		pending, _ := queue(2*maxConsecutiveNotifyFailures, uri)
+		dispatchPaced(pending)
+
+		if attempts != maxConsecutiveNotifyFailures {
+			t.Errorf("attempts = %d, want %d against an SMF that cannot be reached", attempts, maxConsecutiveNotifyFailures)
+		}
+	})
 }
 
 // An application function that claims the session while it is being notified keeps its rules.
@@ -801,7 +985,7 @@ func TestStaleSessionsDoNotAbandonTheFanOut(t *testing.T) {
 	sendNotification = func(uri string, _ *models.SmPolicyNotification) error {
 		attempts++
 		if attempts <= 3 {
-			return fmt.Errorf("%w: SMF answered 404 Not Found", notifyevent.ErrSessionRejected)
+			return errors.New("SMF answered 404 Not Found")
 		}
 		return nil
 	}

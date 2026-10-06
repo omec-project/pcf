@@ -36,6 +36,15 @@ const defaultPolicyNotificationRate = 10
 // change would otherwise spend minutes discovering the same thing repeatedly.
 const maxConsecutiveNotifyFailures = 3
 
+// slowNotifyFailure is how long a send the SMF did answer must have taken to fail for it to count
+// toward giving up. The bound caps the time spent on an SMF that cannot act, and the status does not
+// say which case a failure is: the SD-Core SMF answers 503 at once for a session being released or
+// one its user plane refuses, and only after its PFCP retries have run out, about nine seconds, when
+// the user plane does not answer at all. Half the client timeout separates the two with room on both
+// sides; that timeout is sendSMPolicyUpdateNotifyTimeout in notifyevent, 10 seconds, and the two
+// move together. A variable so that tests can shorten it.
+var slowNotifyFailure = 5 * time.Second
+
 // sendNotification is a seam: the tests need to observe what was sent and to make sending fail,
 // and the real one performs a synchronous HTTP request.
 var sendNotification = notifyevent.SendSMPolicyUpdateNotification
@@ -292,24 +301,26 @@ func dispatchPaced(pending []pendingNotification) {
 		}
 
 		notification := p.notification
+		sent := time.Now()
 		if err := sendNotification(p.notifyURI, &notification); err != nil {
 			failed++
 			logger.SMpolicylog.Warnf("session %s was not told about the policy change: %v",
 				p.smPolicyID, err)
 
-			// Only a failure that says something about the far end counts toward giving up. A
-			// session the SMF no longer holds answers 404 while every other session is fine, and
-			// counting those would let a few stale sessions abandon the fan-out and strand the
-			// healthy ones behind them — the opposite of what the bound is for.
-			if errors.Is(err, notifyevent.ErrSessionRejected) {
+			// A failure counts toward giving up when it cost what the bound is there to cap: the
+			// SMF did not answer, or took slowNotifyFailure or longer to fail. One answered at once
+			// is about this session -- a session the SMF no longer holds gets 500 straight away --
+			// and counting those would let a few stale sessions abandon the fan-out and strand the
+			// healthy ones behind them.
+			if errors.Is(err, notifyevent.ErrNoAnswer) || time.Since(sent) >= slowNotifyFailure {
+				consecutiveFailures++
+			} else {
 				consecutiveFailures = 0
-				continue
 			}
-			consecutiveFailures++
 
-			// A run of failures means the far end is down, not that these particular sessions were
-			// unlucky. Continuing would spend the client timeout per session against an SMF that is
-			// not answering, and every one of them would fail the same way.
+			// A run of those means the far end cannot act, not that these particular sessions were
+			// unlucky. Continuing would spend that time again per session, and every one of them
+			// would fail the same way.
 			if consecutiveFailures >= maxConsecutiveNotifyFailures {
 				notAttempted := len(pending) - i - 1
 				logger.SMpolicylog.Errorf("giving up after %d consecutive failures: %d of %d sessions keep their previous policy until it changes again",
@@ -319,6 +330,12 @@ func dispatchPaced(pending []pendingNotification) {
 				metrics.AddPcfPolicyNotifyStats("skipped", skipped)
 				metrics.AddPcfPolicyNotifyStats("delivered", delivered)
 				return
+			}
+
+			// Paced like a delivered send. A refusal costs the SMF the same work, and a run of fast
+			// ones would otherwise arrive back to back.
+			if i < len(pending)-1 {
+				time.Sleep(interval)
 			}
 			continue
 		}
