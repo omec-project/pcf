@@ -201,7 +201,7 @@ func (c *PCFContext) PCFUeFindByAppSessionId(appSessionId string) *UeContext {
 // PcfUeFindByIPv4 Find PcfUe which Ipv4 belongs to
 func (c *PCFContext) PcfUeFindByIPv4(v4 string) *UeContext {
 	var ue *UeContext
-	c.UePool.Range(func(key, value interface{}) bool {
+	c.UePool.Range(func(key, value any) bool {
 		ue = value.(*UeContext)
 		if ue.SMPolicyFindByIpv4(v4) != nil {
 			return false
@@ -216,7 +216,7 @@ func (c *PCFContext) PcfUeFindByIPv4(v4 string) *UeContext {
 // PcfUeFindByIPv6 Find PcfUe which Ipv6 belongs to
 func (c *PCFContext) PcfUeFindByIPv6(v6 string) *UeContext {
 	var ue *UeContext
-	c.UePool.Range(func(key, value interface{}) bool {
+	c.UePool.Range(func(key, value any) bool {
 		ue = value.(*UeContext)
 		if ue.SMPolicyFindByIpv6(v6) != nil {
 			return false
@@ -263,7 +263,7 @@ func (c *PCFContext) SessionBinding(req *models.AppSessionContextReqData) (*UeSm
 	}
 
 	if req.GetGpsi() != "" && selectedUE == nil {
-		c.UePool.Range(func(key, value interface{}) bool {
+		c.UePool.Range(func(key, value any) bool {
 			ue := value.(*UeContext)
 			if ue.Gpsi == req.GetGpsi() {
 				selectedUE = ue
@@ -276,7 +276,7 @@ func (c *PCFContext) SessionBinding(req *models.AppSessionContextReqData) (*UeSm
 	if selectedUE != nil {
 		policy, err = ueSMPolicyFindByAppSessionContext(selectedUE, req)
 	} else {
-		c.UePool.Range(func(key, value interface{}) bool {
+		c.UePool.Range(func(key, value any) bool {
 			ue := value.(*UeContext)
 			policy, err = ueSMPolicyFindByAppSessionContext(ue, req)
 			return true
