@@ -537,13 +537,14 @@ func (policy *UeSmPolicyData) mergeGbrDebitLocked(qosId string, gbrUl, gbrDl *st
 //
 // The semantics are modifyRemainBitRate's, unchanged: with no guaranteed rate requested the maximum
 // rate is budgeted instead, falling back to whatever remains when even that does not fit; a
-// guaranteed rate that does not fit is refused, and a refused downlink gives back the uplink taken
-// just before it. It returns an error rather than a ProblemDetails because util, which builds those,
-// imports this package.
+// guaranteed rate that does not fit is refused, and a refusal in either direction leaves the budget
+// as it was before the call. It returns an error rather than a ProblemDetails because util, which
+// builds those, imports this package.
 func (policy *UeSmPolicyData) DebitForAuthorizedQos(qosData *models.QosData, ulExist, dlExist bool) error {
 	policy.gbrMu.Lock()
 	defer policy.gbrMu.Unlock()
 
+	restore := policy.snapshotRemainGbrLocked()
 	if ulExist {
 		if qosData.GetGbrUl() == "" {
 			if err := DecreaseRamainBitRate(policy.RemainGbrUL, qosData.GetMaxbrUl()); err != nil {
@@ -552,6 +553,7 @@ func (policy *UeSmPolicyData) DebitForAuthorizedQos(qosData *models.QosData, ulE
 				qosData.GbrUl = qosData.MaxbrUl
 			}
 		} else if err := DecreaseRamainBitRate(policy.RemainGbrUL, qosData.GetGbrUl()); err != nil {
+			restore()
 			return err
 		}
 	}
@@ -563,11 +565,7 @@ func (policy *UeSmPolicyData) DebitForAuthorizedQos(qosData *models.QosData, ulE
 				qosData.GbrDl = qosData.MaxbrDl
 			}
 		} else if err := DecreaseRamainBitRate(policy.RemainGbrDL, qosData.GetGbrDl()); err != nil {
-			// Give back only the direction actually taken. With ulExist false the uplink was never
-			// touched and qosData.GbrUl may be unset, which the accessor answers as "".
-			if ulExist {
-				IncreaseRamainBitRate(policy.RemainGbrUL, qosData.GetGbrUl())
-			}
+			restore()
 			return err
 		}
 	}
@@ -584,8 +582,33 @@ func (policy *UeSmPolicyData) DebitForAuthorizedQos(qosData *models.QosData, ulE
 		taken := qosData.GetGbrDl()
 		dlDebit = &taken
 	}
-	policy.mergeGbrDebitLocked(qosData.QosId, ulDebit, dlDebit)
+	policy.mergeGbrDebitLocked(qosData.GetQosId(), ulDebit, dlDebit)
 	return nil
+}
+
+// snapshotRemainGbrLocked returns a function that puts both directions of the aggregate budget back
+// to what they are now, for a debit that fails part-way. Restoring the values is exact, where
+// crediting back the rate taken would go through its string form again: the rest of a budget taken
+// to zero is recorded with ConvertBitRateToString's six decimals, not as the value subtracted. The
+// caller holds gbrMu across the snapshot and the restore.
+func (policy *UeSmPolicyData) snapshotRemainGbrLocked() (restore func()) {
+	var ul, dl *float64
+	if policy.RemainGbrUL != nil {
+		v := *policy.RemainGbrUL
+		ul = &v
+	}
+	if policy.RemainGbrDL != nil {
+		v := *policy.RemainGbrDL
+		dl = &v
+	}
+	return func() {
+		if ul != nil {
+			*policy.RemainGbrUL = *ul
+		}
+		if dl != nil {
+			*policy.RemainGbrDL = *dl
+		}
+	}
 }
 
 // RemainingGbrKbps renders what is left of each direction of the aggregate budget, for logging.
@@ -644,7 +667,7 @@ func (policy *UeSmPolicyData) decreaseRemainGBRLocked(req *models.RequestedQos) 
 	}
 	// A guaranteed rate is budgeted for a GBR flow. The 5QI here is derived from the AF's media
 	// type, so the standardised set settles it.
-	if IsStandardisedGbr5QI(req.Var5qi) {
+	if IsStandardisedGbr5QI(req.GetVar5qi()) {
 		err = DecreaseRamainBitRate(policy.RemainGbrDL, req.GetGbrDl())
 		if err != nil {
 			return

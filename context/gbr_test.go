@@ -407,6 +407,32 @@ func TestDebitForAuthorizedQosIsOneTransactionAgainstAConcurrentRelease(t *testi
 
 // A session with no aggregate GBR has nil budgets, which the debit treats as unlimited. Reading them
 // for a log line must not dereference nil -- that panicked on exactly the requests just accepted.
+// A refused downlink must leave the uplink exactly as it was, not as close as its rate written out
+// again comes to it. With no guaranteed rate requested and the maximum not fitting, the rest of the
+// uplink budget is taken and recorded with six decimals, so crediting that back fell short of what
+// had been subtracted.
+func TestDebitForAuthorizedQosRestoresTheBudgetExactlyWhenTheDownlinkIsRefused(t *testing.T) {
+	remainUl, remainDl := 1000.0000004, 5.0
+	policy := newPolicyHoldingGbrRule(66, "", "", &remainUl, &remainDl)
+
+	qosData := models.QosData{QosId: testQosID}
+	qosData.MaxbrUl = *openapi.NewNullableString(openapi.PtrString("2 Mbps")) // does not fit: the rest is taken
+	qosData.GbrDl = *openapi.NewNullableString(openapi.PtrString("10 Kbps"))  // more than the 5 kbps left
+
+	if err := policy.DebitForAuthorizedQos(&qosData, true, true); err == nil {
+		t.Fatal("expected the downlink debit to be refused")
+	}
+	if remainUl != 1000.0000004 {
+		t.Errorf("uplink budget = %v kbps after a refused request, want it back at exactly 1000.0000004", remainUl)
+	}
+	if remainDl != 5 {
+		t.Errorf("downlink budget = %v kbps, want it untouched at 5", remainDl)
+	}
+	if _, held := policy.takeGbrDebit(testQosID); held {
+		t.Error("a debit was recorded for a refused request")
+	}
+}
+
 func TestRemainingGbrKbpsRendersAnAbsentBudget(t *testing.T) {
 	policy := &UeSmPolicyData{}
 	ul, dl := policy.RemainingGbrKbps()
