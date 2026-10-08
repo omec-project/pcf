@@ -21,7 +21,7 @@ import (
 func AmfStatusChangeSubscribe(amfUri string, guamiList []models.Guami) (
 	problemDetails *models.ProblemDetails, err error,
 ) {
-	logger.Consumerlog.Debugf("PCF Subscribe to AMF status[%+v]", amfUri)
+	logger.ConsumerLog.Debugf("PCF Subscribe to AMF status[%+v]", amfUri)
 	pcfSelf := pcf_context.PCF_Self()
 	configuration := Namf_Communication.NewConfiguration()
 	serverConfig := &configuration.Servers[0]
@@ -41,7 +41,7 @@ func AmfStatusChangeSubscribe(amfUri string, guamiList []models.Guami) (
 	res, httpResp, localErr := client.SubscriptionsCollectionCollectionAPI.AMFStatusChangeSubscribeExecute(apiAMFStatusChangeSubscribeRequest)
 	if localErr == nil {
 		locationHeader := httpResp.Header.Get("Location")
-		logger.Consumerlog.Debugf("location header: %+v", locationHeader)
+		logger.ConsumerLog.Debugf("location header: %+v", locationHeader)
 
 		subscriptionID := locationHeader[strings.LastIndex(locationHeader, "/")+1:]
 		amfStatusSubsData := pcf_context.AMFStatusSubscriptionData{
@@ -74,7 +74,7 @@ func AmfStatusChangeSubscribe(amfUri string, guamiList []models.Guami) (
 			// that would report success for a subscribe the AMF had refused. Unobservable
 			// before, because the guard removed above returned before this ran.
 			if closeErr := httpResp.Body.Close(); closeErr != nil {
-				logger.Consumerlog.Errorf("error closing response body: %v", closeErr)
+				logger.ConsumerLog.Errorf("error closing response body: %v", closeErr)
 			}
 		}
 	}()

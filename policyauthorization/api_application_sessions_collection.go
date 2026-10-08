@@ -35,13 +35,13 @@ import (
 // Post /app-sessions
 // Creates a new Individual Application Session Context resource
 func HTTPPostAppSessions(c *gin.Context) {
-	logger.PolicyAuthorizationlog.Infoln("Handle Post /app-sessions")
+	logger.PolicyAuthorizationLog.Infoln("Handle Post /app-sessions")
 	var appSessionContext models.AppSessionContext
 
 	requestBody, err := c.GetRawData()
 	if err != nil {
 		problemDetail := utils.ProblemDetailsSystemFailure(err.Error())
-		logger.PolicyAuthorizationlog.Errorf("Get Request Body error: %+v", err)
+		logger.PolicyAuthorizationLog.Errorf("Get Request Body error: %+v", err)
 		c.JSON(http.StatusInternalServerError, problemDetail)
 		return
 	}
@@ -50,7 +50,7 @@ func HTTPPostAppSessions(c *gin.Context) {
 	if err != nil {
 		problemDetail := "[Request Body] " + err.Error()
 		rsp := utils.ProblemDetailsMalformedRequestSyntax(problemDetail)
-		logger.PolicyAuthorizationlog.Errorln(problemDetail)
+		logger.PolicyAuthorizationLog.Errorln(problemDetail)
 		c.JSON(http.StatusBadRequest, rsp)
 		return
 	}
@@ -59,7 +59,7 @@ func HTTPPostAppSessions(c *gin.Context) {
 	if ascReqData.Get() == nil || ascReqData.Get().SuppFeat == "" || ascReqData.Get().NotifUri == "" {
 		// Check Mandatory IEs
 		rsp := util.GetProblemDetail("Erroneous/Missing mandatory IE", util.ERROR_INITIAL_PARAMETERS)
-		logger.PolicyAuthorizationlog.Errorln(rsp.GetDetail())
+		logger.PolicyAuthorizationLog.Errorln(rsp.GetDetail())
 		c.JSON(int(rsp.GetStatus()), rsp)
 		return
 	}
@@ -72,7 +72,7 @@ func HTTPPostAppSessions(c *gin.Context) {
 	}
 	responseBody, err := openapi.SetBody(rsp.Body, "application/json")
 	if err != nil {
-		logger.PolicyAuthorizationlog.Errorln(err)
+		logger.PolicyAuthorizationLog.Errorln(err)
 		problemDetails := utils.ProblemDetailsSystemFailure(err.Error())
 		c.JSON(http.StatusInternalServerError, problemDetails)
 	} else {

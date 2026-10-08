@@ -26,6 +26,6 @@ import (
 // Post /:$request.body#/ascReqData/evSubsc/notifUri/pdu-session
 func HTTPEventNotificationPduSessionPduSessionPost(c *gin.Context) {
 	detail := "Handle Post /:$request.body#/ascReqData/evSubsc/notifUri/pdu-session is not implemented"
-	logger.PolicyAuthorizationlog.Warnln(detail)
+	logger.PolicyAuthorizationLog.Warnln(detail)
 	writeNotImplementedProblem(c, detail)
 }

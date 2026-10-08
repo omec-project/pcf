@@ -26,6 +26,6 @@ import (
 // Post /:$request.body#/notificationUri/update
 func HTTPSmPolicyUpdateNotificationUpdatePost(c *gin.Context) {
 	detail := "Handle Post /:$request.body#/notificationUri/update is not implemented"
-	logger.SMpolicylog.Warnln(detail)
+	logger.SMpolicyLog.Warnln(detail)
 	writeNotImplementedProblem(c, detail)
 }

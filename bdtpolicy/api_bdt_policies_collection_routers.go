@@ -34,13 +34,13 @@ import (
 // Post /bdtpolicies
 // Create a new Individual BDT policy
 func HTTPCreateBDTPolicy(c *gin.Context) {
-	logger.Bdtpolicylog.Infoln("Handle Post /bdtpolicies")
+	logger.BdtpolicyLog.Infoln("Handle Post /bdtpolicies")
 	var bdtReqData models.BdtReqData
 	// step 1: retrieve http request body
 	requestBody, err := c.GetRawData()
 	if err != nil {
 		problemDetail := utils.ProblemDetailsSystemFailure(err.Error())
-		logger.Bdtpolicylog.Errorf("Get Request Body error: %+v", err)
+		logger.BdtpolicyLog.Errorf("Get Request Body error: %+v", err)
 		c.JSON(http.StatusInternalServerError, problemDetail)
 		return
 	}
@@ -50,7 +50,7 @@ func HTTPCreateBDTPolicy(c *gin.Context) {
 	if err != nil {
 		problemDetail := "[Request Body] " + err.Error()
 		rsp := utils.ProblemDetailsMalformedRequestSyntax(problemDetail)
-		logger.Bdtpolicylog.Errorln(problemDetail)
+		logger.BdtpolicyLog.Errorln(problemDetail)
 		c.JSON(http.StatusBadRequest, rsp)
 		return
 	}
@@ -63,7 +63,7 @@ func HTTPCreateBDTPolicy(c *gin.Context) {
 	}
 	responseBody, err := openapi.SetBody(rsp.Body, "application/json")
 	if err != nil {
-		logger.Bdtpolicylog.Errorln(err)
+		logger.BdtpolicyLog.Errorln(err)
 		problemDetails := utils.ProblemDetailsSystemFailure(err.Error())
 		c.JSON(http.StatusInternalServerError, problemDetails)
 	} else {

@@ -26,6 +26,6 @@ import (
 // Post /:$request.body#/notifUri
 func HTTPBdtNotificationPost(c *gin.Context) {
 	detail := "Handle Post /:$request.body#/notifUri is not implemented"
-	logger.Bdtpolicylog.Warnln(detail)
+	logger.BdtpolicyLog.Warnln(detail)
 	writeNotImplementedProblem(c, detail)
 }

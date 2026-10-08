@@ -17,11 +17,10 @@ var (
 	InitLog                *zap.SugaredLogger
 	CfgLog                 *zap.SugaredLogger
 	HandlerLog             *zap.SugaredLogger
-	Bdtpolicylog           *zap.SugaredLogger
-	PolicyAuthorizationlog *zap.SugaredLogger
-	AMpolicylog            *zap.SugaredLogger
-	SMpolicylog            *zap.SugaredLogger
-	Consumerlog            *zap.SugaredLogger
+	BdtpolicyLog           *zap.SugaredLogger
+	PolicyAuthorizationLog *zap.SugaredLogger
+	AMpolicyLog            *zap.SugaredLogger
+	SMpolicyLog            *zap.SugaredLogger
 	UtilLog                *zap.SugaredLogger
 	CallbackLog            *zap.SugaredLogger
 	OamLog                 *zap.SugaredLogger
@@ -69,13 +68,12 @@ func init() {
 	InitLog = log.Sugar().With("component", "PCF", "category", "Init")
 	CfgLog = log.Sugar().With("component", "PCF", "category", "CFG")
 	HandlerLog = log.Sugar().With("component", "PCF", "category", "Handler")
-	Bdtpolicylog = log.Sugar().With("component", "PCF", "category", "Bdtpolicy")
-	AMpolicylog = log.Sugar().With("component", "PCF", "category", "Ampolicy")
-	PolicyAuthorizationlog = log.Sugar().With("component", "PCF", "category", "PolicyAuth")
-	SMpolicylog = log.Sugar().With("component", "PCF", "category", "SMpolicy")
+	BdtpolicyLog = log.Sugar().With("component", "PCF", "category", "Bdtpolicy")
+	AMpolicyLog = log.Sugar().With("component", "PCF", "category", "Ampolicy")
+	PolicyAuthorizationLog = log.Sugar().With("component", "PCF", "category", "PolicyAuth")
+	SMpolicyLog = log.Sugar().With("component", "PCF", "category", "SMpolicy")
 	UtilLog = log.Sugar().With("component", "PCF", "category", "Util")
 	CallbackLog = log.Sugar().With("component", "PCF", "category", "Callback")
-	Consumerlog = log.Sugar().With("component", "PCF", "category", "Consumer")
 	OamLog = log.Sugar().With("component", "PCF", "category", "OAM")
 	CtxLog = log.Sugar().With("component", "PCF", "category", "Context")
 	ConsumerLog = log.Sugar().With("component", "PCF", "category", "Consumer")

@@ -35,7 +35,7 @@ import (
 // Delete /app-sessions/:appSessionId/events-subscription
 // deletes the Events Subscription subresource
 func HTTPDeleteEventsSubsc(c *gin.Context) {
-	logger.PolicyAuthorizationlog.Infoln("Handle Delete /app-sessions/:appSessionId/events-subscription")
+	logger.PolicyAuthorizationLog.Infoln("Handle Delete /app-sessions/:appSessionId/events-subscription")
 	req := httpwrapper.NewRequest(c.Request, nil)
 	req.Params["appSessionId"], _ = c.Params.Get("appSessionId")
 
@@ -43,7 +43,7 @@ func HTTPDeleteEventsSubsc(c *gin.Context) {
 
 	responseBody, err := openapi.SetBody(rsp.Body, "application/json")
 	if err != nil {
-		logger.PolicyAuthorizationlog.Errorln(err)
+		logger.PolicyAuthorizationLog.Errorln(err)
 		problemDetails := utils.ProblemDetailsSystemFailure(err.Error())
 		c.JSON(http.StatusInternalServerError, problemDetails)
 	} else {
@@ -54,13 +54,13 @@ func HTTPDeleteEventsSubsc(c *gin.Context) {
 // Put /app-sessions/:appSessionId/events-subscription
 // creates or modifies an Events Subscription subresource
 func HTTPUpdateEventsSubsc(c *gin.Context) {
-	logger.PolicyAuthorizationlog.Infoln("Handle Put /app-sessions/:appSessionId/events-subscription")
+	logger.PolicyAuthorizationLog.Infoln("Handle Put /app-sessions/:appSessionId/events-subscription")
 	var eventsSubscReqData models.EventsSubscReqData
 
 	requestBody, err := c.GetRawData()
 	if err != nil {
 		problemDetail := utils.ProblemDetailsSystemFailure(err.Error())
-		logger.PolicyAuthorizationlog.Errorf("Get Request Body error: %+v", err)
+		logger.PolicyAuthorizationLog.Errorf("Get Request Body error: %+v", err)
 		c.JSON(http.StatusInternalServerError, problemDetail)
 		return
 	}
@@ -69,14 +69,14 @@ func HTTPUpdateEventsSubsc(c *gin.Context) {
 	if err != nil {
 		problemDetail := "[Request Body] " + err.Error()
 		rsp := utils.ProblemDetailsMalformedRequestSyntax(problemDetail)
-		logger.PolicyAuthorizationlog.Errorln(problemDetail)
+		logger.PolicyAuthorizationLog.Errorln(problemDetail)
 		c.JSON(http.StatusBadRequest, rsp)
 		return
 	}
 
 	if eventsSubscReqData.Events == nil || eventsSubscReqData.GetNotifUri() == "" {
 		problemDetail := util.GetProblemDetail("Erroneous/Missing mandatory IE", util.ERROR_REQUEST_PARAMETERS)
-		logger.PolicyAuthorizationlog.Errorln(problemDetail.GetDetail())
+		logger.PolicyAuthorizationLog.Errorln(problemDetail.GetDetail())
 		c.JSON(int(problemDetail.GetStatus()), problemDetail)
 		return
 	}
@@ -88,7 +88,7 @@ func HTTPUpdateEventsSubsc(c *gin.Context) {
 
 	responseBody, err := openapi.SetBody(rsp.Body, "application/json")
 	if err != nil {
-		logger.PolicyAuthorizationlog.Errorln(err)
+		logger.PolicyAuthorizationLog.Errorln(err)
 		problemDetails := utils.ProblemDetailsSystemFailure(err.Error())
 		c.JSON(http.StatusInternalServerError, problemDetails)
 	} else {

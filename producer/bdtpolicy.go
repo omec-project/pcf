@@ -23,7 +23,7 @@ import (
 )
 
 func HandleGetBDTPolicyContextRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.Bdtpolicylog.Infoln("handle GetBDTPolicyContext")
+	logger.BdtpolicyLog.Infoln("handle GetBDTPolicyContext")
 	bdtPolicyID := request.Params["bdtPolicyId"]
 	response, problemDetails := getBDTPolicyContextProcedure(bdtPolicyID)
 	if response != nil {
@@ -39,7 +39,7 @@ func HandleGetBDTPolicyContextRequest(request *httpwrapper.Request) *httpwrapper
 func getBDTPolicyContextProcedure(bdtPolicyID string) (
 	response *models.BdtPolicy, problemDetails *models.ProblemDetails,
 ) {
-	logger.Bdtpolicylog.Debugln("handle BDT Policy GET")
+	logger.BdtpolicyLog.Debugln("handle BDT Policy GET")
 	// check bdtPolicyID from pcfUeContext
 	if value, ok := pcfContext.PCF_Self().BdtPolicyPool.Load(bdtPolicyID); ok {
 		bdtPolicy := value.(*models.BdtPolicy)
@@ -47,14 +47,14 @@ func getBDTPolicyContextProcedure(bdtPolicyID string) (
 	} else {
 		// not found
 		problemDetail := utils.ProblemDetailsContextNotFound("Cannot find bdtPolicyID related resource")
-		logger.Bdtpolicylog.Warnln(problemDetail.GetDetail())
+		logger.BdtpolicyLog.Warnln(problemDetail.GetDetail())
 		return nil, problemDetail
 	}
 }
 
 // HandleUpdateBDTPolicyContextProcedure Update an Individual BDT policy (choose policy data)
 func HandleUpdateBDTPolicyContextProcedure(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.Bdtpolicylog.Infoln("handle UpdateBDTPolicyContext")
+	logger.BdtpolicyLog.Infoln("handle UpdateBDTPolicyContext")
 	requestDataType := request.Body.(models.BdtPolicyDataPatch)
 	bdtPolicyID := request.Params["bdtPolicyId"]
 	response, problemDetails := updateBDTPolicyContextProcedure(requestDataType, bdtPolicyID)
@@ -71,7 +71,7 @@ func HandleUpdateBDTPolicyContextProcedure(request *httpwrapper.Request) *httpwr
 func updateBDTPolicyContextProcedure(request models.BdtPolicyDataPatch, bdtPolicyID string) (
 	response *models.BdtPolicy, problemDetails *models.ProblemDetails,
 ) {
-	logger.Bdtpolicylog.Infoln("handle BDTPolicyUpdate")
+	logger.BdtpolicyLog.Infoln("handle BDTPolicyUpdate")
 	// check bdtPolicyID from pcfUeContext
 	pcfSelf := pcfContext.PCF_Self()
 
@@ -81,7 +81,7 @@ func updateBDTPolicyContextProcedure(request models.BdtPolicyDataPatch, bdtPolic
 	} else {
 		// not found
 		problemDetail := utils.ProblemDetailsContextNotFound("Cannot find bdtPolicyID related resource")
-		logger.Bdtpolicylog.Warnln(problemDetail.GetDetail())
+		logger.BdtpolicyLog.Warnln(problemDetail.GetDetail())
 		return nil, problemDetail
 	}
 
@@ -103,16 +103,16 @@ func updateBDTPolicyContextProcedure(request models.BdtPolicyDataPatch, bdtPolic
 			apiCreateIndividualBdtDataRequest = apiCreateIndividualBdtDataRequest.BdtData(bdtData)
 			_, rsp, err := client.IndividualBdtDataDocumentAPI.CreateIndividualBdtDataExecute(apiCreateIndividualBdtDataRequest)
 			if err != nil {
-				logger.Bdtpolicylog.Warnf("put BdtData error[%s]", err.Error())
+				logger.BdtpolicyLog.Warnf("put BdtData error[%s]", err.Error())
 			}
 			if rsp != nil && rsp.Body != nil {
 				defer func() {
 					if rspCloseErr := rsp.Body.Close(); rspCloseErr != nil {
-						logger.Bdtpolicylog.Errorf("PolicyDataBdtDataBdtReferenceIdPut response body cannot close: %+v", rspCloseErr)
+						logger.BdtpolicyLog.Errorf("PolicyDataBdtDataBdtReferenceIdPut response body cannot close: %+v", rspCloseErr)
 					}
 				}()
 			}
-			logger.Bdtpolicylog.Debugf("bdtPolicyID[%s] has Updated with SelTransPolicyId[%d]",
+			logger.BdtpolicyLog.Debugf("bdtPolicyID[%s] has Updated with SelTransPolicyId[%d]",
 				bdtPolicyID, request.SelTransPolicyId)
 			return bdtPolicy, nil
 		}
@@ -120,13 +120,13 @@ func updateBDTPolicyContextProcedure(request models.BdtPolicyDataPatch, bdtPolic
 	problemDetail := utils.ProblemDetailsContextNotFound(
 		fmt.Sprintf("Cannot find TransPolicyId[%d] in TransfPolicies with bdtPolicyID[%s]",
 			request.SelTransPolicyId, bdtPolicyID))
-	logger.Bdtpolicylog.Warnln(problemDetail.GetDetail())
+	logger.BdtpolicyLog.Warnln(problemDetail.GetDetail())
 	return nil, problemDetail
 }
 
 // HandleCreateBDTPolicyContextRequest Create a new Individual BDT policy
 func HandleCreateBDTPolicyContextRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.Bdtpolicylog.Infoln("handle CreateBDTPolicyContext")
+	logger.BdtpolicyLog.Infoln("handle CreateBDTPolicyContext")
 	requestMsg := request.Body.(models.BdtReqData)
 	header, response, problemDetails := createBDTPolicyContextProcedure(&requestMsg)
 	if response != nil {
@@ -143,14 +143,14 @@ func createBDTPolicyContextProcedure(request *models.BdtReqData) (
 	header http.Header, response *models.BdtPolicy, problemDetails *models.ProblemDetails,
 ) {
 	response = &models.BdtPolicy{}
-	logger.Bdtpolicylog.Debugln("handle BDT Policy Create")
+	logger.BdtpolicyLog.Debugln("handle BDT Policy Create")
 
 	pcfSelf := pcfContext.PCF_Self()
 	udrUri := getDefaultUdrUri(pcfSelf)
 	if udrUri == "" {
 		// Can't find any UDR support this Ue
 		problemDetails = utils.ProblemDetailsWithCause("UDR not found", http.StatusServiceUnavailable, "Cannot find any UDR that supports this PCF", utils.CauseUdrNotFound)
-		logger.Bdtpolicylog.Warnln(problemDetails.GetDetail())
+		logger.BdtpolicyLog.Warnln(problemDetails.GetDetail())
 		return nil, nil, problemDetails
 	}
 	pcfSelf.SetDefaultUdrURI(udrUri)
@@ -169,18 +169,18 @@ func createBDTPolicyContextProcedure(request *models.BdtReqData) (
 			detail = fmt.Sprintf("Query to UDR failed: unexpected status %s", httpResponse.Status)
 		}
 		problemDetails = utils.ProblemDetailsWithCause("UDR query failed", http.StatusServiceUnavailable, detail, utils.CauseUdrQueryFailed)
-		logger.Bdtpolicylog.Warnln("query to UDR failed")
+		logger.BdtpolicyLog.Warnln("query to UDR failed")
 		return nil, nil, problemDetails
 	}
 	defer func() {
 		if rspCloseErr := httpResponse.Body.Close(); rspCloseErr != nil {
-			logger.Bdtpolicylog.Errorf("PolicyDataBdtDataGet response body cannot close: %+v", rspCloseErr)
+			logger.BdtpolicyLog.Errorf("PolicyDataBdtDataGet response body cannot close: %+v", rspCloseErr)
 		}
 	}()
 	// TODO: decide BDT Policy from other bdt policy data
 	var reqCopy models.BdtReqData
 	if err = util.DeepCopyViaJSON(*request, &reqCopy); err != nil {
-		logger.Bdtpolicylog.Errorf("failed to copy BDT request data: %v", err)
+		logger.BdtpolicyLog.Errorf("failed to copy BDT request data: %v", err)
 		return nil, nil, utils.ProblemDetailsSystemFailure("failed to copy BDT request data")
 	}
 	response.BdtReqData = &reqCopy
@@ -217,7 +217,7 @@ func createBDTPolicyContextProcedure(request *models.BdtReqData) (
 	bdtPolicyID, err := pcfSelf.AllocBdtPolicyID()
 	if err != nil {
 		problemDetails = utils.ProblemDetailsWithCause("Allocation failed", http.StatusServiceUnavailable, "Allocate bdtPolicyID failed", utils.CauseAllocBdtPolicyIdFailed)
-		logger.Bdtpolicylog.Warnln("allocate bdtPolicyID failed")
+		logger.BdtpolicyLog.Warnln("allocate bdtPolicyID failed")
 		return nil, nil, problemDetails
 	}
 
@@ -229,14 +229,14 @@ func createBDTPolicyContextProcedure(request *models.BdtReqData) (
 	apiCreateIndividualBdtDataRequest = apiCreateIndividualBdtDataRequest.BdtData(*bdtData)
 	_, rsp, rspErr := client.IndividualBdtDataDocumentAPI.CreateIndividualBdtDataExecute(apiCreateIndividualBdtDataRequest)
 	if rspErr != nil {
-		logger.Bdtpolicylog.Warnf("UDR put BdtData error[%s]", rspErr.Error())
+		logger.BdtpolicyLog.Warnf("UDR put BdtData error[%s]", rspErr.Error())
 	} else {
 		updateRsp = rsp
 	}
 	defer func() {
 		if updateRsp != nil && updateRsp.Body != nil {
 			if rspCloseErr := updateRsp.Body.Close(); rspCloseErr != nil {
-				logger.Bdtpolicylog.Errorf("PolicyDataBdtDataBdtReferenceIdPut response body cannot close: %+v", rspCloseErr)
+				logger.BdtpolicyLog.Errorf("PolicyDataBdtDataBdtReferenceIdPut response body cannot close: %+v", rspCloseErr)
 			}
 		}
 	}()
@@ -245,7 +245,7 @@ func createBDTPolicyContextProcedure(request *models.BdtReqData) (
 	header = http.Header{
 		locationHeaderKey: {locationHeader},
 	}
-	logger.Bdtpolicylog.Debugf("BDT Policy Id[%s] Create", bdtPolicyID)
+	logger.BdtpolicyLog.Debugf("BDT Policy Id[%s] Create", bdtPolicyID)
 	return header, response, problemDetails
 }
 

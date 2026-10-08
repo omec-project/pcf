@@ -92,7 +92,7 @@ func NotifyEstablishedSessions() {
 	// from then on, and the reassurance that it "will be picked up by the next change" would be
 	// exactly wrong.
 	if !inFlight.CompareAndSwap(false, true) {
-		logger.SMpolicylog.Warnf("a policy notification fan-out is already running; this change will be recomputed when it finishes")
+		logger.SMpolicyLog.Warnf("a policy notification fan-out is already running; this change will be recomputed when it finishes")
 		return
 	}
 
@@ -110,7 +110,7 @@ func NotifyEstablishedSessions() {
 
 		pending := recomputeChangedSessions()
 		if len(pending) == 0 {
-			logger.SMpolicylog.Debugln("policy changed but no established session's decision moved")
+			logger.SMpolicyLog.Debugln("policy changed but no established session's decision moved")
 			return
 		}
 
@@ -185,7 +185,7 @@ func recomputeChangedSessions() []pendingNotification {
 			// still references them and never crediting its GBR back. Reaching these sessions needs
 			// provenance the decision does not yet carry.
 			if smPolicy.HasAppSessions() {
-				logger.SMpolicylog.Infof("session %s is managed by an application function; leaving its policy alone",
+				logger.SMpolicyLog.Infof("session %s is managed by an application function; leaving its policy alone",
 					smPolicyID)
 				continue
 			}
@@ -199,7 +199,7 @@ func recomputeChangedSessions() []pendingNotification {
 			// never be visible again.
 			notifyURI := ctx.GetNotificationUri()
 			if notifyURI == "" {
-				logger.SMpolicylog.Warnf("session %s has no notification URI; it cannot be told about a policy change",
+				logger.SMpolicyLog.Warnf("session %s has no notification URI; it cannot be told about a policy change",
 					smPolicyID)
 				continue
 			}
@@ -207,7 +207,7 @@ func recomputeChangedSessions() []pendingNotification {
 			recomputed, problem := buildSmPolicyDecision(
 				ue.Supi, sliceInfo, ctx.GetDnn(), ctx.SubsSessAmbr, ctx.SubsDefQos)
 			if problem != nil || recomputed == nil {
-				logger.SMpolicylog.Warnf("could not recompute policy for session %s: %v",
+				logger.SMpolicyLog.Warnf("could not recompute policy for session %s: %v",
 					smPolicyID, problem)
 				continue
 			}
@@ -274,7 +274,7 @@ func dispatchPaced(pending []pendingNotification) {
 	}
 	interval := time.Second / time.Duration(rate)
 
-	logger.SMpolicylog.Infof("notifying %d established sessions of a policy change at %d/s",
+	logger.SMpolicyLog.Infof("notifying %d established sessions of a policy change at %d/s",
 		len(pending), rate)
 
 	var delivered, failed, skipped, consecutiveFailures int
@@ -285,7 +285,7 @@ func dispatchPaced(pending []pendingNotification) {
 		// function that claims the session meanwhile installs its PCC rules into the very decision
 		// this notification carries a replacement for, and the SMF would be told to drop them.
 		if p.smPolicy.HasAppSessions() || p.smPolicy.PolicyDecision != p.basedOn {
-			logger.SMpolicylog.Infof("session %s changed while it was queued; leaving it to the next policy change",
+			logger.SMpolicyLog.Infof("session %s changed while it was queued; leaving it to the next policy change",
 				p.smPolicyID)
 			skipped++
 			continue
@@ -294,7 +294,7 @@ func dispatchPaced(pending []pendingNotification) {
 		notification := p.notification
 		if err := sendNotification(p.notifyURI, &notification); err != nil {
 			failed++
-			logger.SMpolicylog.Warnf("session %s was not told about the policy change: %v",
+			logger.SMpolicyLog.Warnf("session %s was not told about the policy change: %v",
 				p.smPolicyID, err)
 
 			// Only a failure that says something about the far end counts toward giving up. A
@@ -312,7 +312,7 @@ func dispatchPaced(pending []pendingNotification) {
 			// not answering, and every one of them would fail the same way.
 			if consecutiveFailures >= maxConsecutiveNotifyFailures {
 				notAttempted := len(pending) - i - 1
-				logger.SMpolicylog.Errorf("giving up after %d consecutive failures: %d of %d sessions keep their previous policy until it changes again",
+				logger.SMpolicyLog.Errorf("giving up after %d consecutive failures: %d of %d sessions keep their previous policy until it changes again",
 					consecutiveFailures, failed+skipped+notAttempted, len(pending))
 				metrics.AddPcfPolicyNotifyStats("failed", failed)
 				metrics.AddPcfPolicyNotifyStats("abandoned", notAttempted)
@@ -334,7 +334,7 @@ func dispatchPaced(pending []pendingNotification) {
 		// Not storing costs a re-notification on the next policy change, which is the same price
 		// every other session that could not be reached pays.
 		if p.smPolicy.HasAppSessions() || p.smPolicy.PolicyDecision != p.basedOn {
-			logger.SMpolicylog.Infof("session %s was claimed while it was being notified; leaving its stored policy alone",
+			logger.SMpolicyLog.Infof("session %s was claimed while it was being notified; leaving its stored policy alone",
 				p.smPolicyID)
 		} else {
 			// Recorded only now. Until the SMF has it, this session's stored decision has to keep
@@ -348,12 +348,12 @@ func dispatchPaced(pending []pendingNotification) {
 	}
 
 	if failed > 0 || skipped > 0 {
-		logger.SMpolicylog.Warnf("policy change reached %d of %d established sessions (%d failed, %d changed while queued); the rest are retried on the next change",
+		logger.SMpolicyLog.Warnf("policy change reached %d of %d established sessions (%d failed, %d changed while queued); the rest are retried on the next change",
 			delivered, len(pending), failed, skipped)
 	} else {
 		// A fan-out takes minutes by design, so an operator watching a slice-wide change needs a
 		// line saying it finished, not only the one saying it started.
-		logger.SMpolicylog.Infof("policy change reached all %d established sessions", delivered)
+		logger.SMpolicyLog.Infof("policy change reached all %d established sessions", delivered)
 	}
 	metrics.AddPcfPolicyNotifyStats("delivered", delivered)
 	metrics.AddPcfPolicyNotifyStats("failed", failed)

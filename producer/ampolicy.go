@@ -24,7 +24,7 @@ import (
 const locationHeaderKey = "Location"
 
 func HandleDeletePoliciesPolAssoId(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.AMpolicylog.Infoln("handle AM Policy Association Delete")
+	logger.AMpolicyLog.Infoln("handle AM Policy Association Delete")
 
 	polAssoId := request.Params["polAssoId"]
 
@@ -48,7 +48,7 @@ func DeletePoliciesPolAssoIdProcedure(polAssoId string) *models.ProblemDetails {
 
 // HandleGetPoliciesPolAssoId PoliciesPolAssoIdGet -
 func HandleGetPoliciesPolAssoId(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.AMpolicylog.Infoln("handle AM Policy Association Get")
+	logger.AMpolicyLog.Infoln("handle AM Policy Association Get")
 
 	polAssoId := request.Params["polAssoId"]
 
@@ -91,7 +91,7 @@ func GetPoliciesPolAssoIdProcedure(polAssoId string) (*models.PolicyAssociation,
 }
 
 func HandleUpdatePostPoliciesPolAssoId(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.AMpolicylog.Infoln("handle AM Policy Association Update")
+	logger.AMpolicyLog.Infoln("handle AM Policy Association Update")
 
 	polAssoId := request.Params["polAssoId"]
 	policyAssociationUpdateRequest := request.Body.(models.PolicyAssociationUpdateRequest)
@@ -133,27 +133,27 @@ func UpdatePostPoliciesPolAssoIdProcedure(polAssoId string,
 			// TODO: report to AF subscriber
 			if policyAssociationUpdateRequest.UserLoc == nil {
 				problemDetail := util.GetProblemDetail("UserLoc are nli", util.ERROR_REQUEST_PARAMETERS)
-				logger.AMpolicylog.Warnln(
+				logger.AMpolicyLog.Warnln(
 					"UserLoc doesn't exist in Policy Association Requset Update while Triggers include LOC_CH")
 				return nil, problemDetail
 			}
 			amPolicyData.UserLoc = policyAssociationUpdateRequest.UserLoc
-			logger.AMpolicylog.Infof("Ue[%s] UserLocation %+v", ue.Supi, amPolicyData.UserLoc)
+			logger.AMpolicyLog.Infof("Ue[%s] UserLocation %+v", ue.Supi, amPolicyData.UserLoc)
 		case models.REQUESTTRIGGER_PRA_CH:
 			if policyAssociationUpdateRequest.PraStatuses == nil {
 				problemDetail := util.GetProblemDetail("PraStatuses are nli", util.ERROR_REQUEST_PARAMETERS)
-				logger.AMpolicylog.Warnln("PraStatuses doesn't exist in Policy Association",
+				logger.AMpolicyLog.Warnln("PraStatuses doesn't exist in Policy Association",
 					"Requset Update while Triggers include PRA_CH")
 				return nil, problemDetail
 			}
 			for praId, praInfo := range policyAssociationUpdateRequest.GetPraStatuses() {
 				// TODO: report to AF subscriber
-				logger.AMpolicylog.Infof("Policy Association Presence Id[%s] change state to %s", praId, praInfo.PresenceState)
+				logger.AMpolicyLog.Infof("Policy Association Presence Id[%s] change state to %s", praId, praInfo.PresenceState)
 			}
 		case models.REQUESTTRIGGER_SERV_AREA_CH:
 			if policyAssociationUpdateRequest.ServAreaRes == nil {
 				problemDetail := util.GetProblemDetail("ServAreaRes are nli", util.ERROR_REQUEST_PARAMETERS)
-				logger.AMpolicylog.Warnln("ServAreaRes doesn't exist in Policy Association",
+				logger.AMpolicyLog.Warnln("ServAreaRes doesn't exist in Policy Association",
 					"Requset Update while Triggers include SERV_AREA_CH")
 				return nil, problemDetail
 			} else {
@@ -163,7 +163,7 @@ func UpdatePostPoliciesPolAssoIdProcedure(polAssoId string,
 		case models.REQUESTTRIGGER_RFSP_CH:
 			if policyAssociationUpdateRequest.GetRfsp() == 0 {
 				problemDetail := util.GetProblemDetail("Rfsp are nli", util.ERROR_REQUEST_PARAMETERS)
-				logger.AMpolicylog.Warnln("Rfsp doesn't exist in Policy Association Requset Update while Triggers include RFSP_CH")
+				logger.AMpolicyLog.Warnln("Rfsp doesn't exist in Policy Association Requset Update while Triggers include RFSP_CH")
 				return nil, problemDetail
 			} else {
 				amPolicyData.Rfsp = policyAssociationUpdateRequest.GetRfsp()
@@ -181,7 +181,7 @@ func UpdatePostPoliciesPolAssoIdProcedure(polAssoId string,
 
 // HandlePostPolicies Create AM Policy
 func HandlePostPolicies(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.AMpolicylog.Debugln("handle AM Policy Create Request")
+	logger.AMpolicyLog.Debugln("handle AM Policy Create Request")
 
 	polAssoId := request.Params["polAssoId"]
 	policyAssociationRequest := request.Body.(models.PolicyAssociationRequest)
@@ -212,7 +212,7 @@ func PostPoliciesProcedure(polAssoId string,
 		if newUe, err := pcfSelf.NewPCFUe(policyAssociationRequest.Supi); err != nil {
 			// supi format dose not match "imsi-..."
 			problemDetail := util.GetProblemDetail("Supi Format Error", util.ERROR_REQUEST_PARAMETERS)
-			logger.AMpolicylog.Errorln(err.Error())
+			logger.AMpolicyLog.Errorln(err.Error())
 			return nil, "", problemDetail
 		} else {
 			ue = newUe
@@ -223,13 +223,13 @@ func PostPoliciesProcedure(polAssoId string,
 		// Can't find any UDR support this Ue
 		pcfSelf.UePool.Delete(ue.Supi)
 		problemDetail := util.GetProblemDetail("Ue is not supported in PCF", util.USER_UNKNOWN)
-		logger.AMpolicylog.Errorf("Ue[%s] is not supported in PCF", ue.Supi)
+		logger.AMpolicyLog.Errorf("Ue[%s] is not supported in PCF", ue.Supi)
 		return nil, "", problemDetail
 	}
 
 	var reqCopy models.PolicyAssociationRequest
 	if err := util.DeepCopyViaJSON(policyAssociationRequest, &reqCopy); err != nil {
-		logger.AMpolicylog.Errorf("failed to copy policy association request: %v", err)
+		logger.AMpolicyLog.Errorf("failed to copy policy association request: %v", err)
 		return nil, "", utils.ProblemDetailsSystemFailure("failed to copy policy association request")
 	}
 	response.Request = &reqCopy
@@ -243,12 +243,12 @@ func PostPoliciesProcedure(polAssoId string,
 		amData, response, err := client.AccessAndMobilityPolicyDataDocumentAPI.ReadAccessAndMobilityPolicyDataExecute(apiReadAccessAndMobilityPolicyDataRequest)
 		if err != nil || response == nil || response.StatusCode != http.StatusOK {
 			problemDetail := util.GetProblemDetail("Can't find UE AM Policy Data in UDR", util.USER_UNKNOWN)
-			logger.AMpolicylog.Errorf("Can't find UE[%s] AM Policy Data in UDR", ue.Supi)
+			logger.AMpolicyLog.Errorf("Can't find UE[%s] AM Policy Data in UDR", ue.Supi)
 			return nil, "", problemDetail
 		}
 		defer func() {
 			if rspCloseErr := response.Body.Close(); rspCloseErr != nil {
-				logger.AMpolicylog.Errorf("PolicyDataUesUeIdAmDataGet response cannot close: %+v", rspCloseErr)
+				logger.AMpolicyLog.Errorf("PolicyDataUesUeIdAmDataGet response cannot close: %+v", rspCloseErr)
 			}
 		}()
 		if amPolicy == nil {
@@ -262,7 +262,7 @@ func PostPoliciesProcedure(polAssoId string,
 	// amPolicy.Rfsp =
 	var requestSuppFeat pcfContext.SupportedFeature
 	if suppFeat, err := pcfContext.NewSupportedFeature(policyAssociationRequest.SuppFeat); err != nil {
-		logger.AMpolicylog.Warnln(err)
+		logger.AMpolicyLog.Warnln(err)
 	} else {
 		requestSuppFeat = *suppFeat
 	}
@@ -270,7 +270,7 @@ func PostPoliciesProcedure(polAssoId string,
 	result, err := (&reqSuppFeat).NegotiateWith(&requestSuppFeat)
 	if err != nil {
 		problemDetail := util.GetProblemDetail("supported Feature in request is not compatible with PCF", util.ERROR_REQUEST_PARAMETERS)
-		logger.AMpolicylog.Warnf("supported Feature[%s] in request is not compatible with PCF", policyAssociationRequest.SuppFeat)
+		logger.AMpolicyLog.Warnf("supported Feature[%s] in request is not compatible with PCF", policyAssociationRequest.SuppFeat)
 		return nil, "", problemDetail
 	}
 	amPolicy.SuppFeat = result.String()
@@ -284,7 +284,7 @@ func PostPoliciesProcedure(polAssoId string,
 	ue.PolAssociationIDGenerator++
 	// Create location header for update, delete, get
 	locationHeader := util.GetResourceUri(models.SERVICENAME_NPCF_AM_POLICY_CONTROL, assolId)
-	logger.AMpolicylog.Debugf("AMPolicy association Id[%s] Create", assolId)
+	logger.AMpolicyLog.Debugf("AMPolicy association Id[%s] Create", assolId)
 
 	// if consumer is AMF then subscribe this AMF Status
 	if policyAssociationRequest.Guami != nil {
@@ -303,20 +303,20 @@ func PostPoliciesProcedure(polAssoId string,
 		})
 
 		if needSubscribe {
-			logger.AMpolicylog.Debugf("subscribe AMF status change[GUAMI: %+v]", *policyAssociationRequest.Guami)
+			logger.AMpolicyLog.Debugf("subscribe AMF status change[GUAMI: %+v]", *policyAssociationRequest.Guami)
 			amfUri := consumer.SendNFInstancesAMF(pcfSelf.NrfUri, *policyAssociationRequest.Guami, models.SERVICENAME_NAMF_COMM)
 			if amfUri != "" {
 				problemDetails, err := consumer.AmfStatusChangeSubscribe(amfUri, []models.Guami{*policyAssociationRequest.Guami})
 				if err != nil {
-					logger.AMpolicylog.Errorf("subscribe AMF status change error[%+v]", err)
+					logger.AMpolicyLog.Errorf("subscribe AMF status change error[%+v]", err)
 				} else if problemDetails != nil {
-					logger.AMpolicylog.Errorf("subscribe AMF status change failed[%+v]", problemDetails)
+					logger.AMpolicyLog.Errorf("subscribe AMF status change failed[%+v]", problemDetails)
 				} else {
 					amPolicy.Guami = policyAssociationRequest.Guami
 				}
 			}
 		} else {
-			logger.AMpolicylog.Debugf("AMF status[GUAMI: %+v] has been subscribed", *policyAssociationRequest.Guami)
+			logger.AMpolicyLog.Debugf("AMF status[GUAMI: %+v] has been subscribed", *policyAssociationRequest.Guami)
 		}
 	}
 	return &response, locationHeader, nil

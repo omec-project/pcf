@@ -33,7 +33,7 @@ import (
 // Delete /policies/:polAssoId
 // Delete individual AM policy association.
 func HTTPDeleteIndividualAMPolicyAssociation(c *gin.Context) {
-	logger.AMpolicylog.Infoln("Handle Delete /policies/:polAssoId")
+	logger.AMpolicyLog.Infoln("Handle Delete /policies/:polAssoId")
 	req := httpwrapper.NewRequest(c.Request, nil)
 	req.Params["polAssoId"], _ = c.Params.Get("polAssoId")
 
@@ -41,7 +41,7 @@ func HTTPDeleteIndividualAMPolicyAssociation(c *gin.Context) {
 
 	responseBody, err := openapi.SetBody(rsp.Body, "application/json")
 	if err != nil {
-		logger.AMpolicylog.Errorln(err)
+		logger.AMpolicyLog.Errorln(err)
 		problemDetails := utils.ProblemDetailsSystemFailure(err.Error())
 		c.JSON(http.StatusInternalServerError, problemDetails)
 	} else {
@@ -52,7 +52,7 @@ func HTTPDeleteIndividualAMPolicyAssociation(c *gin.Context) {
 // Get /policies/:polAssoId
 // Read individual AM policy association.
 func HTTPReadIndividualAMPolicyAssociation(c *gin.Context) {
-	logger.AMpolicylog.Infoln("Handle Get /policies/:polAssoId")
+	logger.AMpolicyLog.Infoln("Handle Get /policies/:polAssoId")
 	req := httpwrapper.NewRequest(c.Request, nil)
 	req.Params["polAssoId"], _ = c.Params.Get("polAssoId")
 
@@ -60,7 +60,7 @@ func HTTPReadIndividualAMPolicyAssociation(c *gin.Context) {
 
 	responseBody, err := openapi.SetBody(rsp.Body, "application/json")
 	if err != nil {
-		logger.AMpolicylog.Errorln(err)
+		logger.AMpolicyLog.Errorln(err)
 		problemDetails := utils.ProblemDetailsSystemFailure(err.Error())
 		c.JSON(http.StatusInternalServerError, problemDetails)
 	} else {
@@ -71,13 +71,13 @@ func HTTPReadIndividualAMPolicyAssociation(c *gin.Context) {
 // Post /policies/:polAssoId/update
 // Report observed event triggers and obtain updated policies for an individual AM policy association.
 func HTTPReportObservedEventTriggersForIndividualAMPolicyAssociation(c *gin.Context) {
-	logger.AMpolicylog.Infoln("Handle Post /policies/:polAssoId/update")
+	logger.AMpolicyLog.Infoln("Handle Post /policies/:polAssoId/update")
 	var policyAssociationUpdateRequest models.PolicyAssociationUpdateRequest
 
 	requestBody, err := c.GetRawData()
 	if err != nil {
 		problemDetail := utils.ProblemDetailsSystemFailure(err.Error())
-		logger.AMpolicylog.Errorf("Get Request Body error: %+v", err)
+		logger.AMpolicyLog.Errorf("Get Request Body error: %+v", err)
 		c.JSON(http.StatusInternalServerError, problemDetail)
 		return
 	}
@@ -86,7 +86,7 @@ func HTTPReportObservedEventTriggersForIndividualAMPolicyAssociation(c *gin.Cont
 	if err != nil {
 		problemDetail := "[Request Body] " + err.Error()
 		rsp := utils.ProblemDetailsMalformedRequestSyntax(problemDetail)
-		logger.AMpolicylog.Errorln(problemDetail)
+		logger.AMpolicyLog.Errorln(problemDetail)
 		c.JSON(http.StatusBadRequest, rsp)
 		return
 	}
@@ -98,7 +98,7 @@ func HTTPReportObservedEventTriggersForIndividualAMPolicyAssociation(c *gin.Cont
 
 	responseBody, err := openapi.SetBody(rsp.Body, "application/json")
 	if err != nil {
-		logger.AMpolicylog.Errorln(err)
+		logger.AMpolicyLog.Errorln(err)
 		problemDetails := utils.ProblemDetailsSystemFailure(err.Error())
 		c.JSON(http.StatusInternalServerError, problemDetails)
 	} else {

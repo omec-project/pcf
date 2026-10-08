@@ -27,6 +27,6 @@ import (
 // Indicates P-CSCF restoration and does not create an Individual Application Session Context
 func HTTPPcscfRestoration(c *gin.Context) {
 	detail := "Handle Post /app-sessions/pcscf-restoration is not implemented"
-	logger.PolicyAuthorizationlog.Warnln(detail)
+	logger.PolicyAuthorizationLog.Warnln(detail)
 	writeNotImplementedProblem(c, detail)
 }

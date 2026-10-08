@@ -33,13 +33,13 @@ import (
 // Post /sm-policies
 // Create a new Individual SM Policy.
 func HTTPCreateSMPolicy(c *gin.Context) {
-	logger.SMpolicylog.Infoln("Handle Post /sm-policies")
+	logger.SMpolicyLog.Infoln("Handle Post /sm-policies")
 	var smPolicyContextData models.SmPolicyContextData
 	// step 1: retrieve http request body
 	requestBody, err := c.GetRawData()
 	if err != nil {
 		problemDetail := utils.ProblemDetailsSystemFailure(err.Error())
-		logger.SMpolicylog.Errorf("Get Request Body error: %+v", err)
+		logger.SMpolicyLog.Errorf("Get Request Body error: %+v", err)
 		c.JSON(http.StatusInternalServerError, problemDetail)
 		return
 	}
@@ -49,7 +49,7 @@ func HTTPCreateSMPolicy(c *gin.Context) {
 	if err != nil {
 		problemDetail := "[Request Body] " + err.Error()
 		rsp := utils.ProblemDetailsMalformedRequestSyntax(problemDetail)
-		logger.SMpolicylog.Errorln(problemDetail)
+		logger.SMpolicyLog.Errorln(problemDetail)
 		c.JSON(http.StatusBadRequest, rsp)
 		return
 	}
@@ -63,7 +63,7 @@ func HTTPCreateSMPolicy(c *gin.Context) {
 	}
 	responseBody, err := openapi.SetBody(rsp.Body, "application/json")
 	if err != nil {
-		logger.SMpolicylog.Errorln(err)
+		logger.SMpolicyLog.Errorln(err)
 		problemDetails := utils.ProblemDetailsSystemFailure(err.Error())
 		c.JSON(http.StatusInternalServerError, problemDetails)
 	} else {

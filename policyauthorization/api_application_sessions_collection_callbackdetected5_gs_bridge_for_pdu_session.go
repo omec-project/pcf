@@ -26,6 +26,6 @@ import (
 // Post /:$request.body#/ascReqData/evSubsc/notifUri/new-bridge
 func HTTPDetected5GsBridgeForPduSessionNewBridgePost(c *gin.Context) {
 	detail := "Handle Post /:$request.body#/ascReqData/evSubsc/notifUri/new-bridge is not implemented"
-	logger.PolicyAuthorizationlog.Warnln(detail)
+	logger.PolicyAuthorizationLog.Warnln(detail)
 	writeNotImplementedProblem(c, detail)
 }
