@@ -107,7 +107,7 @@ func makePccPolicy(idGenerator *idgenerator.IDGenerator, pccRules []nfConfigApi.
 
 		qos := makeQosDesc(id, pccrule.Qos)
 		if hasDefaultQosFlow(flowInfos) {
-			qos.DefQosFlowIndication = openapi.PtrBool(true)
+			qos.DefQosFlowIndication = new(true)
 		}
 		pccPolicy.QosDecs[qos.QosId] = &qos
 
@@ -137,11 +137,11 @@ func makeQosDesc(id int64, pccQos nfConfigApi.PccQos) models.QosData {
 	qos := models.QosData{
 		QosId: strconv.FormatInt(id, 10),
 		Arp: &models.Arp{
-			PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(pccQos.Arp.GetPriorityLevel())),
+			PriorityLevel: *openapi.NewNullableInt32(new(pccQos.Arp.GetPriorityLevel())),
 		},
 	}
 	if pccQos.FiveQi != 0 {
-		qos.Var5qi = openapi.PtrInt32(pccQos.FiveQi)
+		qos.Var5qi = new(pccQos.GetFiveQi())
 	}
 	if MaxbrUl, ok := pccQos.GetMaxBrUlOk(); ok {
 		qos.MaxbrUl = *openapi.NewNullableString(MaxbrUl)
@@ -190,8 +190,8 @@ func makeFlowInfosAndTrafficContDesc(idGenerator *idgenerator.IDGenerator, pccFl
 		}
 
 		flow := models.FlowInformation{
-			PackFiltId:      openapi.PtrString(strconv.FormatInt(id, 10)),
-			FlowDescription: openapi.PtrString(pccFlow.GetDescription()),
+			PackFiltId:      new(strconv.FormatInt(id, 10)),
+			FlowDescription: new(pccFlow.GetDescription()),
 			FlowDirection:   direction.Ptr(),
 		}
 		parsedFlows = append(parsedFlows, flow)
@@ -221,35 +221,35 @@ func makeFlowInfosAndTrafficContDesc(idGenerator *idgenerator.IDGenerator, pccFl
 }
 
 func (p PccPolicy) String() string {
-	var s string
+	var builder strings.Builder
 
-	s += "PccRules:\n"
+	builder.WriteString("PccRules:\n")
 	for name, rule := range p.PccRules {
-		s += fmt.Sprintf("  PccRule[%v]: RuleId: %v, Precedence: %v\n", name, rule.PccRuleId, rule.Precedence)
+		fmt.Fprintf(&builder, "  PccRule[%v]: RuleId: %v, Precedence: %v\n", name, rule.PccRuleId, rule.Precedence)
 		for i, refQos := range rule.RefQosData {
-			s += fmt.Sprintf("    RefQosData[%v]: %s\n", i, refQos)
+			fmt.Fprintf(&builder, "    RefQosData[%v]: %s\n", i, refQos)
 		}
 		for i, refTc := range rule.RefTcData {
-			s += fmt.Sprintf("    RefTcData[%v]: %s\n", i, refTc)
+			fmt.Fprintf(&builder, "    RefTcData[%v]: %s\n", i, refTc)
 		}
 		for i, flow := range rule.FlowInfos {
-			s += fmt.Sprintf("    FlowInfo[%v]: FlowDesc: %v, TrafficClass: %v, FlowDir: %v\n", i, flow.FlowDescription, flow.TosTrafficClass, flow.FlowDirection)
+			fmt.Fprintf(&builder, "    FlowInfo[%v]: FlowDesc: %v, TrafficClass: %v, FlowDir: %v\n", i, flow.FlowDescription, flow.TosTrafficClass, flow.FlowDirection)
 		}
 	}
 
-	s += "QosDecs:\n"
+	builder.WriteString("QosDecs:\n")
 	for name, qos := range p.QosDecs {
-		s += fmt.Sprintf("  QosDec[%v]: QosId: %v, 5Qi: %v, MaxbrUl: %v, MaxbrDl: %v, GbrDl: %v, GbrUl: %v, PriorityLevel: %v\n",
+		fmt.Fprintf(&builder, "  QosDec[%v]: QosId: %v, 5Qi: %v, MaxbrUl: %v, MaxbrDl: %v, GbrDl: %v, GbrUl: %v, PriorityLevel: %v\n",
 			name, qos.QosId, qos.Var5qi, qos.MaxbrUl, qos.MaxbrDl, qos.GbrDl, qos.GbrUl, qos.PriorityLevel)
 		if qos.Arp != nil {
-			s += fmt.Sprintf("    Arp: PL: %v, PC: %v, PV: %v\n", qos.Arp.PriorityLevel, qos.Arp.PreemptCap, qos.Arp.PreemptVuln)
+			fmt.Fprintf(&builder, "    Arp: PL: %v, PC: %v, PV: %v\n", qos.Arp.PriorityLevel, qos.Arp.PreemptCap, qos.Arp.PreemptVuln)
 		}
 	}
 
-	s += "TrafficControlDecs:\n"
+	builder.WriteString("TrafficControlDecs:\n")
 	for name, tr := range p.TraffContDecs {
-		s += fmt.Sprintf("  TrafficDec[%v]: TcId: %v, FlowStatus: %v\n", name, tr.TcId, tr.FlowStatus)
+		fmt.Fprintf(&builder, "  TrafficDec[%v]: TcId: %v, FlowStatus: %v\n", name, tr.TcId, tr.FlowStatus)
 	}
 
-	return s
+	return builder.String()
 }

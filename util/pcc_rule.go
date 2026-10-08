@@ -67,9 +67,9 @@ func CreatePccRule(id, precedence int32, flowInfo []models.FlowInformation, appI
 func CreateQosData(id, var5qi, arp int32) models.QosData {
 	return models.QosData{
 		QosId:  GetQosId(id),
-		Var5qi: openapi.PtrInt32(var5qi),
+		Var5qi: new(var5qi),
 		Arp: &models.Arp{
-			PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(arp)),
+			PriorityLevel: *openapi.NewNullableInt32(new(arp)),
 		},
 	}
 }
@@ -110,7 +110,7 @@ func ConvertPacketInfoToFlowInformation(infos []models.PacketFilterInfo) (flowIn
 		flowInfo := models.FlowInformation{
 			FlowDescription:   info.PackFiltCont,
 			PackFiltId:        info.PackFiltId,
-			PacketFilterUsage: openapi.PtrBool(true),
+			PacketFilterUsage: new(true),
 			TosTrafficClass:   *openapi.NewNullableString(info.TosTrafficClass),
 			Spi:               *openapi.NewNullableString(info.Spi),
 			FlowLabel:         *openapi.NewNullableString(info.FlowLabel),
