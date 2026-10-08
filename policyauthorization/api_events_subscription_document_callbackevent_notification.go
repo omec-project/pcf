@@ -26,6 +26,6 @@ import (
 // Post /:$request.body#/notifUri/notify
 func HTTPEventNotificationNotifyPost(c *gin.Context) {
 	detail := "Handle Post /:$request.body#/notifUri/notify is not implemented"
-	logger.PolicyAuthorizationlog.Warnln(detail)
+	logger.PolicyAuthorizationLog.Warnln(detail)
 	writeNotImplementedProblem(c, detail)
 }

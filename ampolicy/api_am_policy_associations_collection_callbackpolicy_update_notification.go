@@ -26,6 +26,6 @@ import (
 // Post /:$request.body#/notificationUri/update
 func HTTPPolicyUpdateNotificationUpdatePost(c *gin.Context) {
 	detail := "Handle Post /:$request.body#/notificationUri/update is not implemented"
-	logger.AMpolicylog.Warnln(detail)
+	logger.AMpolicyLog.Warnln(detail)
 	writeNotImplementedProblem(c, detail)
 }

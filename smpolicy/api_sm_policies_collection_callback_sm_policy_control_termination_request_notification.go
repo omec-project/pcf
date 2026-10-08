@@ -26,6 +26,6 @@ import (
 // Post /:$request.body#/notificationUri/terminate
 func HTTPSmPolicyControlTerminationRequestNotificationTerminatePost(c *gin.Context) {
 	detail := "Handle Post /:$request.body#/notificationUri/terminate is not implemented"
-	logger.SMpolicylog.Warnln(detail)
+	logger.SMpolicyLog.Warnln(detail)
 	writeNotImplementedProblem(c, detail)
 }

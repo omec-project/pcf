@@ -26,6 +26,6 @@ import (
 // Post /:$request.body#/notificationUri/terminate
 func HTTPPolicyAssocitionTerminationRequestNotificationTerminatePost(c *gin.Context) {
 	detail := "Handle Post /:$request.body#/notificationUri/terminate is not implemented"
-	logger.AMpolicylog.Warnln(detail)
+	logger.AMpolicyLog.Warnln(detail)
 	writeNotImplementedProblem(c, detail)
 }

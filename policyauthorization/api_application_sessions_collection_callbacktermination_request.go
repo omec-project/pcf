@@ -26,6 +26,6 @@ import (
 // Post /:$request.body#/ascReqData/notifUri/terminate
 func HTTPTerminationRequestTerminatePost(c *gin.Context) {
 	detail := "Handle Post /:$request.body#/ascReqData/notifUri/terminate is not implemented"
-	logger.PolicyAuthorizationlog.Warnln(detail)
+	logger.PolicyAuthorizationLog.Warnln(detail)
 	writeNotImplementedProblem(c, detail)
 }

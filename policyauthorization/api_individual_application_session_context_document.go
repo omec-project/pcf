@@ -34,13 +34,13 @@ import (
 // Post /app-sessions/:appSessionId/delete
 // Deletes an existing Individual Application Session Context
 func HTTPDeleteAppSession(c *gin.Context) {
-	logger.PolicyAuthorizationlog.Infoln("Handle Post /app-sessions/:appSessionId/delete")
+	logger.PolicyAuthorizationLog.Infoln("Handle Post /app-sessions/:appSessionId/delete")
 	var eventsSubscReqData *models.EventsSubscReqData
 
 	requestBody, err := c.GetRawData()
 	if err != nil {
 		problemDetail := utils.ProblemDetailsSystemFailure(err.Error())
-		logger.PolicyAuthorizationlog.Errorf("Get Request Body error: %+v", err)
+		logger.PolicyAuthorizationLog.Errorf("Get Request Body error: %+v", err)
 		c.JSON(http.StatusInternalServerError, problemDetail)
 		return
 	}
@@ -51,7 +51,7 @@ func HTTPDeleteAppSession(c *gin.Context) {
 		if err != nil {
 			problemDetail := "[Request Body] " + err.Error()
 			rsp := utils.ProblemDetailsMalformedRequestSyntax(problemDetail)
-			logger.PolicyAuthorizationlog.Errorln(problemDetail)
+			logger.PolicyAuthorizationLog.Errorln(problemDetail)
 			c.JSON(http.StatusBadRequest, rsp)
 			return
 		}
@@ -64,7 +64,7 @@ func HTTPDeleteAppSession(c *gin.Context) {
 
 	responseBody, err := openapi.SetBody(rsp.Body, "application/json")
 	if err != nil {
-		logger.PolicyAuthorizationlog.Errorln(err)
+		logger.PolicyAuthorizationLog.Errorln(err)
 		problemDetails := utils.ProblemDetailsSystemFailure(err.Error())
 		c.JSON(http.StatusInternalServerError, problemDetails)
 	} else {
@@ -75,7 +75,7 @@ func HTTPDeleteAppSession(c *gin.Context) {
 // Get /app-sessions/:appSessionId
 // Reads an existing Individual Application Session Context
 func HTTPGetAppSession(c *gin.Context) {
-	logger.PolicyAuthorizationlog.Infoln("Handle Get /app-sessions/:appSessionId")
+	logger.PolicyAuthorizationLog.Infoln("Handle Get /app-sessions/:appSessionId")
 	req := httpwrapper.NewRequest(c.Request, nil)
 	req.Params["appSessionId"], _ = c.Params.Get("appSessionId")
 
@@ -83,7 +83,7 @@ func HTTPGetAppSession(c *gin.Context) {
 
 	responseBody, err := openapi.SetBody(rsp.Body, "application/json")
 	if err != nil {
-		logger.PolicyAuthorizationlog.Errorln(err)
+		logger.PolicyAuthorizationLog.Errorln(err)
 		problemDetails := utils.ProblemDetailsSystemFailure(err.Error())
 		c.JSON(http.StatusInternalServerError, problemDetails)
 	} else {
@@ -94,13 +94,13 @@ func HTTPGetAppSession(c *gin.Context) {
 // Patch /app-sessions/:appSessionId
 // Modifies an existing Individual Application Session Context
 func HTTPModAppSession(c *gin.Context) {
-	logger.PolicyAuthorizationlog.Infoln("Handle Patch /app-sessions/:appSessionId")
+	logger.PolicyAuthorizationLog.Infoln("Handle Patch /app-sessions/:appSessionId")
 	var appSessionContextUpdateData models.AppSessionContextUpdateData
 
 	requestBody, err := c.GetRawData()
 	if err != nil {
 		problemDetail := utils.ProblemDetailsSystemFailure(err.Error())
-		logger.PolicyAuthorizationlog.Errorf("Get Request Body error: %+v", err)
+		logger.PolicyAuthorizationLog.Errorf("Get Request Body error: %+v", err)
 		c.JSON(http.StatusInternalServerError, problemDetail)
 		return
 	}
@@ -109,7 +109,7 @@ func HTTPModAppSession(c *gin.Context) {
 	if err != nil {
 		problemDetail := "[Request Body] " + err.Error()
 		rsp := utils.ProblemDetailsMalformedRequestSyntax(problemDetail)
-		logger.PolicyAuthorizationlog.Errorln(problemDetail)
+		logger.PolicyAuthorizationLog.Errorln(problemDetail)
 		c.JSON(http.StatusBadRequest, rsp)
 		return
 	}
@@ -121,7 +121,7 @@ func HTTPModAppSession(c *gin.Context) {
 
 	responseBody, err := openapi.SetBody(rsp.Body, "application/json")
 	if err != nil {
-		logger.PolicyAuthorizationlog.Errorln(err)
+		logger.PolicyAuthorizationLog.Errorln(err)
 		problemDetails := utils.ProblemDetailsSystemFailure(err.Error())
 		c.JSON(http.StatusInternalServerError, problemDetails)
 	} else {

@@ -34,7 +34,7 @@ import (
 // Get /bdtpolicies/:bdtPolicyId
 // Read an Individual BDT policy
 func HTTPGetBDTPolicy(c *gin.Context) {
-	logger.Bdtpolicylog.Infoln("Handle Get /bdtpolicies/:bdtPolicyId")
+	logger.BdtpolicyLog.Infoln("Handle Get /bdtpolicies/:bdtPolicyId")
 	req := httpwrapper.NewRequest(c.Request, nil)
 	req.Params["bdtPolicyId"] = c.Params.ByName("bdtPolicyId")
 
@@ -42,7 +42,7 @@ func HTTPGetBDTPolicy(c *gin.Context) {
 
 	responseBody, err := openapi.SetBody(rsp.Body, "application/json")
 	if err != nil {
-		logger.Bdtpolicylog.Errorln(err)
+		logger.BdtpolicyLog.Errorln(err)
 		problemDetails := utils.ProblemDetailsSystemFailure(err.Error())
 		c.JSON(http.StatusInternalServerError, problemDetails)
 	} else {
@@ -53,13 +53,13 @@ func HTTPGetBDTPolicy(c *gin.Context) {
 // Patch /bdtpolicies/:bdtPolicyId
 // Update an Individual BDT policy
 func HTTPUpdateBDTPolicy(c *gin.Context) {
-	logger.Bdtpolicylog.Infoln("Handle Patch /bdtpolicies/:bdtPolicyId")
+	logger.BdtpolicyLog.Infoln("Handle Patch /bdtpolicies/:bdtPolicyId")
 	var bdtPolicyDataPatch models.BdtPolicyDataPatch
 	// step 1: retrieve http request body
 	requestBody, err := c.GetRawData()
 	if err != nil {
 		problemDetail := utils.ProblemDetailsSystemFailure(err.Error())
-		logger.Bdtpolicylog.Errorf("Get Request Body error: %+v", err)
+		logger.BdtpolicyLog.Errorf("Get Request Body error: %+v", err)
 		c.JSON(http.StatusInternalServerError, problemDetail)
 		return
 	}
@@ -69,7 +69,7 @@ func HTTPUpdateBDTPolicy(c *gin.Context) {
 	if err != nil {
 		problemDetail := "[Request Body] " + err.Error()
 		rsp := utils.ProblemDetailsMalformedRequestSyntax(problemDetail)
-		logger.Bdtpolicylog.Errorln(problemDetail)
+		logger.BdtpolicyLog.Errorln(problemDetail)
 		c.JSON(http.StatusBadRequest, rsp)
 		return
 	}
@@ -81,7 +81,7 @@ func HTTPUpdateBDTPolicy(c *gin.Context) {
 
 	responseBody, err := openapi.SetBody(rsp.Body, "application/json")
 	if err != nil {
-		logger.Bdtpolicylog.Errorln(err)
+		logger.BdtpolicyLog.Errorln(err)
 		problemDetails := utils.ProblemDetailsSystemFailure(err.Error())
 		c.JSON(http.StatusInternalServerError, problemDetails)
 	} else {

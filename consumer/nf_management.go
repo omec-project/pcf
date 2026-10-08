@@ -156,7 +156,7 @@ var SendDeregisterNFInstance = func() error {
 }
 
 var SendUpdateNFInstance = func(patchItem []models.PatchItem) (nfProfile *models.NFProfile, problemDetails *models.ProblemDetails, err error) {
-	logger.Consumerlog.Debugln("send Update NFInstance")
+	logger.ConsumerLog.Debugln("send Update NFInstance")
 
 	pcfSelf := pcfContext.PCF_Self()
 	configuration := Nnrf_NFManagement.NewConfiguration()
@@ -175,7 +175,7 @@ var SendUpdateNFInstance = func(patchItem []models.PatchItem) (nfProfile *models
 		defer func() {
 			if res.Body != nil {
 				if resCloseErr := res.Body.Close(); resCloseErr != nil {
-					logger.Consumerlog.Errorf("UpdateNFInstance response cannot close: %+v", resCloseErr)
+					logger.ConsumerLog.Errorf("UpdateNFInstance response cannot close: %+v", resCloseErr)
 				}
 			}
 		}()
@@ -191,7 +191,7 @@ var SendUpdateNFInstance = func(patchItem []models.PatchItem) (nfProfile *models
 		// problem details it is handed - the subscription path at error level in nf_discovery, the heartbeat at
 		// warn level in nfregistration - so Error here duplicated the caller's line and, for the
 		// heartbeat, was louder than the caller that decides what to do about it.
-		logger.Consumerlog.Warnf("UpdateNFInstance received error response: %v", res.Status)
+		logger.ConsumerLog.Warnf("UpdateNFInstance received error response: %v", res.Status)
 		// ErrorModel accepts the model whether the client stored it by value or by pointer. The
 		// hand-rolled assertion this replaces asked for the value type, and the client returns
 		// *GenericOpenAPIError, so it could never succeed.

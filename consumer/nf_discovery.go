@@ -156,7 +156,7 @@ func SendNFInstancesUDR(nrfUri, id string) string {
 
 	result, err := SendSearchNFInstances(nrfUri, targetNfType, requestNfType, configure)
 	if err != nil {
-		logger.Consumerlog.Error(err.Error())
+		logger.ConsumerLog.Error(err.Error())
 		return ""
 	}
 	for _, profile := range result.NfInstances {
@@ -185,7 +185,7 @@ func SendNFInstancesAMF(nrfUri string, guami models.Guami, serviceName models.Se
 
 	result, err := SendSearchNFInstances(nrfUri, targetNfType, requestNfType, configure)
 	if err != nil {
-		logger.Consumerlog.Error(err.Error())
+		logger.ConsumerLog.Error(err.Error())
 		return ""
 	}
 	for _, profile := range result.NfInstances {

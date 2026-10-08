@@ -35,13 +35,13 @@ import (
 // Post /policies
 // Create individual AM policy association.
 func HTTPCreateIndividualAMPolicyAssociation(c *gin.Context) {
-	logger.AMpolicylog.Infoln("Handle Post /policies")
+	logger.AMpolicyLog.Infoln("Handle Post /policies")
 	var policyAssociationRequest models.PolicyAssociationRequest
 
 	requestBody, err := c.GetRawData()
 	if err != nil {
 		problemDetail := utils.ProblemDetailsSystemFailure(err.Error())
-		logger.AMpolicylog.Errorf("Get Request Body error: %+v", err)
+		logger.AMpolicyLog.Errorf("Get Request Body error: %+v", err)
 		c.JSON(http.StatusInternalServerError, problemDetail)
 		return
 	}
@@ -50,7 +50,7 @@ func HTTPCreateIndividualAMPolicyAssociation(c *gin.Context) {
 	if err != nil {
 		problemDetail := "[Request Body] " + err.Error()
 		rsp := utils.ProblemDetailsMalformedRequestSyntax(problemDetail)
-		logger.AMpolicylog.Errorln(problemDetail)
+		logger.AMpolicyLog.Errorln(problemDetail)
 		c.JSON(http.StatusBadRequest, rsp)
 		return
 	}
@@ -73,7 +73,7 @@ func HTTPCreateIndividualAMPolicyAssociation(c *gin.Context) {
 
 	responseBody, err := openapi.SetBody(rsp.Body, "application/json")
 	if err != nil {
-		logger.AMpolicylog.Errorln(err)
+		logger.AMpolicyLog.Errorln(err)
 		problemDetails := utils.ProblemDetailsSystemFailure(err.Error())
 		c.JSON(http.StatusInternalServerError, problemDetails)
 	} else {

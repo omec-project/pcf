@@ -34,7 +34,7 @@ import (
 // Post /sm-policies/:smPolicyId/delete
 // Delete an existing Individual SM Policy.
 func HTTPDeleteSMPolicy(c *gin.Context) {
-	logger.SMpolicylog.Infoln("Handle Post /sm-policies/:smPolicyId/delete")
+	logger.SMpolicyLog.Infoln("Handle Post /sm-policies/:smPolicyId/delete")
 	req := httpwrapper.NewRequest(c.Request, nil)
 	req.Params["smPolicyId"] = c.Params.ByName("smPolicyId")
 
@@ -42,7 +42,7 @@ func HTTPDeleteSMPolicy(c *gin.Context) {
 
 	responseBody, err := openapi.SetBody(rsp.Body, "application/json")
 	if err != nil {
-		logger.SMpolicylog.Errorln(err)
+		logger.SMpolicyLog.Errorln(err)
 		problemDetails := utils.ProblemDetailsSystemFailure(err.Error())
 		c.JSON(http.StatusInternalServerError, problemDetails)
 	} else {
@@ -53,7 +53,7 @@ func HTTPDeleteSMPolicy(c *gin.Context) {
 // Get /sm-policies/:smPolicyId
 // Read an Individual SM Policy
 func HTTPGetSMPolicy(c *gin.Context) {
-	logger.SMpolicylog.Infoln("Handle Get /sm-policies/:smPolicyId")
+	logger.SMpolicyLog.Infoln("Handle Get /sm-policies/:smPolicyId")
 	req := httpwrapper.NewRequest(c.Request, nil)
 	req.Params["smPolicyId"] = c.Params.ByName("smPolicyId")
 
@@ -61,7 +61,7 @@ func HTTPGetSMPolicy(c *gin.Context) {
 
 	responseBody, err := openapi.SetBody(rsp.Body, "application/json")
 	if err != nil {
-		logger.SMpolicylog.Errorln(err)
+		logger.SMpolicyLog.Errorln(err)
 		problemDetails := utils.ProblemDetailsSystemFailure(err.Error())
 		c.JSON(http.StatusInternalServerError, problemDetails)
 	} else {
@@ -72,13 +72,13 @@ func HTTPGetSMPolicy(c *gin.Context) {
 // Post /sm-policies/:smPolicyId/update
 // Update an existing Individual SM Policy
 func HTTPUpdateSMPolicy(c *gin.Context) {
-	logger.SMpolicylog.Infoln("Handle Post /sm-policies/:smPolicyId/update")
+	logger.SMpolicyLog.Infoln("Handle Post /sm-policies/:smPolicyId/update")
 	var smPolicyUpdateContextData models.SmPolicyUpdateContextData
 	// step 1: retrieve http request body
 	requestBody, err := c.GetRawData()
 	if err != nil {
 		problemDetail := utils.ProblemDetailsSystemFailure(err.Error())
-		logger.SMpolicylog.Errorf("Get Request Body error: %+v", err)
+		logger.SMpolicyLog.Errorf("Get Request Body error: %+v", err)
 		c.JSON(http.StatusInternalServerError, problemDetail)
 		return
 	}
@@ -88,7 +88,7 @@ func HTTPUpdateSMPolicy(c *gin.Context) {
 	if err != nil {
 		problemDetail := "[Request Body] " + err.Error()
 		rsp := utils.ProblemDetailsMalformedRequestSyntax(problemDetail)
-		logger.SMpolicylog.Errorln(problemDetail)
+		logger.SMpolicyLog.Errorln(problemDetail)
 		c.JSON(http.StatusBadRequest, rsp)
 		return
 	}
@@ -100,7 +100,7 @@ func HTTPUpdateSMPolicy(c *gin.Context) {
 
 	responseBody, err := openapi.SetBody(rsp.Body, "application/json")
 	if err != nil {
-		logger.SMpolicylog.Errorln(err)
+		logger.SMpolicyLog.Errorln(err)
 		problemDetails := utils.ProblemDetailsSystemFailure(err.Error())
 		c.JSON(http.StatusInternalServerError, problemDetails)
 	} else {
