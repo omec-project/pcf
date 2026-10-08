@@ -15,6 +15,8 @@ import (
 	pcfContext "github.com/omec-project/pcf/context"
 )
 
+const testNfInstanceID = "nf-instance"
+
 func TestSendNfDiscoveryToNrf_DoesNotPanicOnNilResponse(t *testing.T) {
 	originalStore := StoreApiSearchNFInstances
 	defer func() { StoreApiSearchNFInstances = originalStore }()
@@ -35,46 +37,52 @@ func TestSendNfDiscoveryToNrf_DoesNotStoreSubscriptionOnCreateFailure(t *testing
 	defer func() {
 		StoreApiSearchNFInstances = originalStore
 		CreateSubscription = originalCreate
-		pcfContext.PCF_Self().NfStatusSubscriptions.Delete("nf-instance")
+		pcfContext.PCF_Self().NfStatusSubscriptions.Delete(testNfInstanceID)
 	}()
 
-	pcfContext.PCF_Self().NfStatusSubscriptions.Delete("nf-instance")
+	pcfContext.PCF_Self().NfStatusSubscriptions.Delete(testNfInstanceID)
 	StoreApiSearchNFInstances = func(*Nnrf_NFDiscovery.NFInstancesStoreAPIService, Nnrf_NFDiscovery.ApiSearchNFInstancesRequest) (*models.SearchResult, *http.Response, error) {
-		return &models.SearchResult{NfInstances: []models.NFProfileDiscovery{{NfInstanceId: "nf-instance"}}}, nil, nil
+		return &models.SearchResult{NfInstances: []models.NFProfileDiscovery{{NfInstanceId: testNfInstanceID}}}, nil, nil
 	}
 	CreateSubscription = func(string, models.SubscriptionData) (*models.SubscriptionData, *models.ProblemDetails, error) {
 		return nil, nil, errors.New("create failed")
 	}
 
-	_, err := SendNfDiscoveryToNrf(context.Background(), "http://nrf", models.NFTYPE_UDR, models.NFTYPE_PCF, Nnrf_NFDiscovery.ApiSearchNFInstancesRequest{})
-	if err == nil || err.Error() != "create failed" {
+	result, err := SendNfDiscoveryToNrf(context.Background(), "http://nrf", models.NFTYPE_UDR, models.NFTYPE_PCF, Nnrf_NFDiscovery.ApiSearchNFInstancesRequest{})
+	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if value, ok := pcfContext.PCF_Self().NfStatusSubscriptions.Load("nf-instance"); ok {
+	if result == nil || len(result.NfInstances) != 1 || result.NfInstances[0].NfInstanceId != testNfInstanceID {
+		t.Fatalf("unexpected result: %+v", result)
+	}
+	if value, ok := pcfContext.PCF_Self().NfStatusSubscriptions.Load(testNfInstanceID); ok {
 		t.Fatalf("expected no stored subscription, got %v", value)
 	}
 }
 
-func TestSendNfDiscoveryToNrf_PropagatesSubscriptionProblemDetails(t *testing.T) {
+func TestSendNfDiscoveryToNrf_IgnoresSubscriptionProblemDetails(t *testing.T) {
 	originalStore := StoreApiSearchNFInstances
 	originalCreate := CreateSubscription
 	defer func() {
 		StoreApiSearchNFInstances = originalStore
 		CreateSubscription = originalCreate
-		pcfContext.PCF_Self().NfStatusSubscriptions.Delete("nf-instance")
+		pcfContext.PCF_Self().NfStatusSubscriptions.Delete(testNfInstanceID)
 	}()
 
 	problem := models.NewProblemDetails()
 	problem.SetCause("SERVER_ERROR")
 	StoreApiSearchNFInstances = func(*Nnrf_NFDiscovery.NFInstancesStoreAPIService, Nnrf_NFDiscovery.ApiSearchNFInstancesRequest) (*models.SearchResult, *http.Response, error) {
-		return &models.SearchResult{NfInstances: []models.NFProfileDiscovery{{NfInstanceId: "nf-instance"}}}, nil, nil
+		return &models.SearchResult{NfInstances: []models.NFProfileDiscovery{{NfInstanceId: testNfInstanceID}}}, nil, nil
 	}
 	CreateSubscription = func(string, models.SubscriptionData) (*models.SubscriptionData, *models.ProblemDetails, error) {
 		return nil, problem, nil
 	}
 
-	_, err := SendNfDiscoveryToNrf(context.Background(), "http://nrf", models.NFTYPE_UDR, models.NFTYPE_PCF, Nnrf_NFDiscovery.ApiSearchNFInstancesRequest{})
-	if err == nil || err.Error() != "SendCreateSubscription to NRF failed: SERVER_ERROR" {
+	result, err := SendNfDiscoveryToNrf(context.Background(), "http://nrf", models.NFTYPE_UDR, models.NFTYPE_PCF, Nnrf_NFDiscovery.ApiSearchNFInstancesRequest{})
+	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if result == nil || len(result.NfInstances) != 1 || result.NfInstances[0].NfInstanceId != testNfInstanceID {
+		t.Fatalf("unexpected result: %+v", result)
 	}
 }
