@@ -536,7 +536,7 @@ func TestHandlePolledPolicyControl_ExpectPccConfigToBeUpdated(t *testing.T) {
 						"1": {
 							QosId: "1",
 							Arp: &models.Arp{
-								PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(0)),
+								PriorityLevel: *openapi.NewNullableInt32(new(int32(0))),
 							},
 						},
 					},
@@ -567,7 +567,7 @@ func TestHandlePolledPolicyControl_ExpectPccConfigToBeUpdated(t *testing.T) {
 						"1": {
 							QosId: "1",
 							Arp: &models.Arp{
-								PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(0)),
+								PriorityLevel: *openapi.NewNullableInt32(new(int32(0))),
 							},
 						},
 					},
@@ -623,12 +623,6 @@ func TestFetchPlmnConfig(t *testing.T) {
 		t.Fail()
 	}
 
-	var expectedPolicyControl []nfConfigApi.PolicyControl
-	err = json.Unmarshal(validJson, &expectedPolicyControl)
-	if err != nil {
-		t.Fatalf("failed to unmarshal expectedPolicyControl: %v", err)
-	}
-
 	tests := []struct {
 		name           string
 		statusCode     int
@@ -643,7 +637,7 @@ func TestFetchPlmnConfig(t *testing.T) {
 			contentType:    applicationJson,
 			responseBody:   string(validJson),
 			expectedError:  "",
-			expectedResult: expectedPolicyControl,
+			expectedResult: validPolicyControl,
 		},
 		{
 			name:          "200 OK with invalid Content-Type",
