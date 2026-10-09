@@ -55,9 +55,9 @@ func TestGetImsiSessionRules_Success(t *testing.T) {
 						Downlink: testMbrDownlink500Mbps,
 					},
 					AuthDefQos: &models.AuthorizedDefaultQos{
-						Var5qi: openapi.PtrInt32(9),
+						Var5qi: new(int32(9)),
 						Arp: &models.Arp{
-							PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(2)),
+							PriorityLevel: *openapi.NewNullableInt32(new(int32(2))),
 							PreemptCap:    models.PREEMPTIONCAPABILITY_NOT_PREEMPT,
 							PreemptVuln:   models.PREEMPTIONVULNERABILITY_PREEMPTABLE,
 						},
@@ -91,9 +91,9 @@ func TestGetImsiSessionRules_Success(t *testing.T) {
 						Downlink: testMbrDownlink500Mbps,
 					},
 					AuthDefQos: &models.AuthorizedDefaultQos{
-						Var5qi: openapi.PtrInt32(9),
+						Var5qi: new(int32(9)),
 						Arp: &models.Arp{
-							PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(2)),
+							PriorityLevel: *openapi.NewNullableInt32(new(int32(2))),
 							PreemptCap:    models.PREEMPTIONCAPABILITY_NOT_PREEMPT,
 							PreemptVuln:   models.PREEMPTIONVULNERABILITY_PREEMPTABLE,
 						},
@@ -106,9 +106,9 @@ func TestGetImsiSessionRules_Success(t *testing.T) {
 						Downlink: "12 Kbps",
 					},
 					AuthDefQos: &models.AuthorizedDefaultQos{
-						Var5qi: openapi.PtrInt32(8),
+						Var5qi: new(int32(8)),
 						Arp: &models.Arp{
-							PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(1)),
+							PriorityLevel: *openapi.NewNullableInt32(new(int32(1))),
 							PreemptCap:    models.PREEMPTIONCAPABILITY_NOT_PREEMPT,
 							PreemptVuln:   models.PREEMPTIONVULNERABILITY_PREEMPTABLE,
 						},
@@ -121,9 +121,9 @@ func TestGetImsiSessionRules_Success(t *testing.T) {
 						Downlink: "90 Mbps",
 					},
 					AuthDefQos: &models.AuthorizedDefaultQos{
-						Var5qi: openapi.PtrInt32(2),
+						Var5qi: new(int32(2)),
 						Arp: &models.Arp{
-							PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(7)),
+							PriorityLevel: *openapi.NewNullableInt32(new(int32(7))),
 							PreemptCap:    models.PREEMPTIONCAPABILITY_NOT_PREEMPT,
 							PreemptVuln:   models.PREEMPTIONVULNERABILITY_PREEMPTABLE,
 						},

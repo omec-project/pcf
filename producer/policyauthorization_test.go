@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/omec-project/openapi/v2"
 	"github.com/omec-project/openapi/v2/models"
 	pcfContext "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/util"
@@ -112,8 +111,8 @@ func TestHandleCombinedMediaSubComponentsCreatesRuleAndUsesActiveStatus(t *testi
 		{FNum: 2, FStatus: models.FLOWSTATUS_ENABLED.Ptr()},
 	}
 	flowInfos := []models.FlowInformation{
-		{FlowDescription: openapi.PtrString("permit out ip from any to 10.0.0.1")},
-		{FlowDescription: openapi.PtrString("permit in ip from 10.0.0.1 to any")},
+		{FlowDescription: new("permit out ip from any to 10.0.0.1")},
+		{FlowDescription: new("permit in ip from 10.0.0.1 to any")},
 	}
 
 	pccRule, problemDetails := handleCombinedMediaSubComponents(smPolicy, medComp, medSubComps, 9, flowInfos)
@@ -153,16 +152,16 @@ func TestHandleCombinedMediaSubComponentsCreatesRuleAndUsesActiveStatus(t *testi
 func TestHandleCombinedMediaSubComponentsReusesExistingRuleAndAddsNewFlow(t *testing.T) {
 	smPolicy := newCombinedMediaTestPolicy()
 	existingRule := util.CreatePccRule(7, 10, []models.FlowInformation{{
-		FlowDescription: openapi.PtrString("permit out ip from any to 10.0.0.1"),
-		PackFiltId:      openapi.PtrString("77"),
+		FlowDescription: new("permit out ip from any to 10.0.0.1"),
+		PackFiltId:      new("77"),
 	}}, "")
 	smPolicy.PolicyDecision.PccRules[existingRule.GetPccRuleId()] = *existingRule
 	smPolicy.PackFiltMapToPccRuleId["77"] = existingRule.GetPccRuleId()
 	smPolicy.PackFiltIdGenarator = 5
 
 	flowInfos := []models.FlowInformation{
-		{FlowDescription: openapi.PtrString("permit out ip from any to 10.0.0.1")},
-		{FlowDescription: openapi.PtrString("permit in ip from 10.0.0.1 to any")},
+		{FlowDescription: new("permit out ip from any to 10.0.0.1")},
+		{FlowDescription: new("permit in ip from 10.0.0.1 to any")},
 	}
 
 	pccRule, problemDetails := handleCombinedMediaSubComponents(
