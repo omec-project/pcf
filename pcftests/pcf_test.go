@@ -19,7 +19,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/omec-project/openapi/v2"
 	"github.com/omec-project/openapi/v2/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/v2/models"
 	"github.com/omec-project/openapi/v2/utils"
@@ -96,12 +95,12 @@ func TestGetUDRUri(t *testing.T) {
 			},
 			Scheme:          "https",
 			NfServiceStatus: models.NFSERVICESTATUS_REGISTERED,
-			ApiPrefix:       openapi.PtrString(udrUri1),
+			ApiPrefix:       new(udrUri1),
 			IpEndPoints: []models.IpEndPoint{
 				{
-					Ipv4Address: openapi.PtrString("10.0.13.1"),
+					Ipv4Address: new("10.0.13.1"),
 					Transport:   models.TRANSPORTPROTOCOL_TCP.Ptr(),
-					Port:        openapi.PtrInt32(8090),
+					Port:        new(int32(8090)),
 				},
 			},
 		},
@@ -133,12 +132,12 @@ func TestGetUDRUri(t *testing.T) {
 			},
 			Scheme:          "https",
 			NfServiceStatus: models.NFSERVICESTATUS_REGISTERED,
-			ApiPrefix:       openapi.PtrString(udrUri2),
+			ApiPrefix:       new(udrUri2),
 			IpEndPoints: []models.IpEndPoint{
 				{
-					Ipv4Address: openapi.PtrString("10.0.13.1"),
+					Ipv4Address: new("10.0.13.1"),
 					Transport:   models.TRANSPORTPROTOCOL_TCP.Ptr(),
-					Port:        openapi.PtrInt32(8090),
+					Port:        new(int32(8090)),
 				},
 			},
 		},

@@ -104,9 +104,9 @@ func makeSessionRule(id string, dnnQoS nfConfigApi.ImsiQos) *models.SessionRule 
 	return &models.SessionRule{
 		SessRuleId: id,
 		AuthDefQos: &models.AuthorizedDefaultQos{
-			Var5qi: openapi.PtrInt32(dnnQoS.GetFiveQi()),
+			Var5qi: new(dnnQoS.GetFiveQi()),
 			Arp: &models.Arp{
-				PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(dnnQoS.ArpPriorityLevel)),
+				PriorityLevel: *openapi.NewNullableInt32(new(dnnQoS.ArpPriorityLevel)),
 				PreemptCap:    models.PREEMPTIONCAPABILITY_NOT_PREEMPT,
 				PreemptVuln:   models.PREEMPTIONVULNERABILITY_PREEMPTABLE,
 			},

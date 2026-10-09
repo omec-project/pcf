@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"reflect"
 
-	"github.com/omec-project/openapi/v2"
 	"github.com/omec-project/openapi/v2/models"
 	"github.com/omec-project/openapi/v2/utils"
 	"github.com/omec-project/pcf/consumer"
@@ -73,7 +72,7 @@ func GetPoliciesPolAssoIdProcedure(polAssoId string) (*models.PolicyAssociation,
 		SuppFeat: amPolicyData.SuppFeat,
 	}
 	if amPolicyData.Rfsp != 0 {
-		rsp.Rfsp = openapi.PtrInt32(amPolicyData.Rfsp)
+		rsp.SetRfsp(amPolicyData.Rfsp)
 	}
 	if amPolicyData.ServAreaRes != nil {
 		rsp.ServAreaRes = amPolicyData.ServAreaRes
@@ -275,7 +274,7 @@ func PostPoliciesProcedure(polAssoId string,
 	}
 	amPolicy.SuppFeat = result.String()
 	if amPolicy.Rfsp != 0 {
-		response.Rfsp = openapi.PtrInt32(amPolicy.Rfsp)
+		response.SetRfsp(amPolicy.Rfsp)
 	}
 	response.SuppFeat = amPolicy.SuppFeat
 	// TODO: add Reports
