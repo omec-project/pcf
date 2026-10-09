@@ -6,7 +6,6 @@ package util
 import (
 	"testing"
 
-	"github.com/omec-project/openapi/v2"
 	"github.com/omec-project/openapi/v2/models"
 )
 
@@ -32,7 +31,7 @@ func TestSearchNFServiceUri_UsesNfServiceListWhenNfServicesEmpty(t *testing.T) {
 			NfServiceStatus: models.NFSERVICESTATUS_REGISTERED,
 			Scheme:          models.URISCHEME_HTTPS,
 			IpEndPoints: []models.IpEndPoint{
-				{Ipv4Address: openapi.PtrString("10.0.0.2"), Port: openapi.PtrInt32(9443)},
+				{Ipv4Address: new("10.0.0.2"), Port: new(int32(9443))},
 			},
 		},
 	}
@@ -54,7 +53,7 @@ func TestSearchNFServiceUri_NfServiceListTakesPrecedenceOverNfServices(t *testin
 			NfServiceStatus: models.NFSERVICESTATUS_REGISTERED,
 			Scheme:          models.URISCHEME_HTTPS,
 			IpEndPoints: []models.IpEndPoint{
-				{Ipv4Address: openapi.PtrString("10.0.0.2"), Port: openapi.PtrInt32(9443)},
+				{Ipv4Address: new("10.0.0.2"), Port: new(int32(9443))},
 			},
 		},
 	}
@@ -65,7 +64,7 @@ func TestSearchNFServiceUri_NfServiceListTakesPrecedenceOverNfServices(t *testin
 			NfServiceStatus: models.NFSERVICESTATUS_REGISTERED,
 			Scheme:          models.URISCHEME_HTTP,
 			IpEndPoints: []models.IpEndPoint{
-				{Ipv4Address: openapi.PtrString("10.0.0.1"), Port: openapi.PtrInt32(8080)},
+				{Ipv4Address: new("10.0.0.1"), Port: new(int32(8080))},
 			},
 		}},
 		NfServiceList: &nfServiceList,
@@ -84,7 +83,7 @@ func TestSearchNFServiceUri_NfServiceListSelectionIsDeterministic(t *testing.T) 
 			NfServiceStatus: models.NFSERVICESTATUS_REGISTERED,
 			Scheme:          models.URISCHEME_HTTPS,
 			IpEndPoints: []models.IpEndPoint{
-				{Ipv4Address: openapi.PtrString("10.0.0.2"), Port: openapi.PtrInt32(9443)},
+				{Ipv4Address: new("10.0.0.2"), Port: new(int32(9443))},
 			},
 		},
 		"service-a": {
@@ -92,7 +91,7 @@ func TestSearchNFServiceUri_NfServiceListSelectionIsDeterministic(t *testing.T) 
 			NfServiceStatus: models.NFSERVICESTATUS_REGISTERED,
 			Scheme:          models.URISCHEME_HTTPS,
 			IpEndPoints: []models.IpEndPoint{
-				{Ipv4Address: openapi.PtrString("10.0.0.1"), Port: openapi.PtrInt32(9443)},
+				{Ipv4Address: new("10.0.0.1"), Port: new(int32(9443))},
 			},
 		},
 	}

@@ -26,7 +26,7 @@ import (
 
 var testSnssai = models.Snssai{
 	Sst: 1,
-	Sd:  openapi.PtrString("010203"),
+	Sd:  new("010203"),
 }
 
 var (
@@ -40,9 +40,9 @@ var (
 
 var testQos = &models.SubscribedDefaultQos{
 	Var5qi:        6,
-	PriorityLevel: openapi.PtrInt32(8),
+	PriorityLevel: new(int32(8)),
 	Arp: models.Arp{
-		PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(10)),
+		PriorityLevel: *openapi.NewNullableInt32(new(int32(10))),
 	},
 }
 
@@ -135,21 +135,19 @@ func TestBuildSmPolicyDecision_FoundInLocalPolicy(t *testing.T) {
 			TcId: testTcId1,
 		},
 	}
+	authSessAmbr := models.NewAmbr("55 Mbps", "515 Mbps")
+	authDefQos := models.NewAuthorizedDefaultQos()
+	authDefQos.SetVar5qi(7)
+	arp := models.NewArpWithDefaults()
+	arp.SetPriorityLevel(9)
+	arp.SetPreemptCap(models.PREEMPTIONCAPABILITY_NOT_PREEMPT)
+	arp.SetPreemptVuln(models.PREEMPTIONVULNERABILITY_PREEMPTABLE)
+	authDefQos.SetArp(*arp)
 	sessRules := map[string]models.SessionRule{
 		testSessRuleIdInternet1: {
-			SessRuleId: testSessRuleIdInternet1,
-			AuthSessAmbr: &models.Ambr{
-				Uplink:   "55 Mbps",
-				Downlink: "515 Mbps",
-			},
-			AuthDefQos: &models.AuthorizedDefaultQos{
-				Var5qi: openapi.PtrInt32(7),
-				Arp: &models.Arp{
-					PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(9)),
-					PreemptCap:    models.PREEMPTIONCAPABILITY_NOT_PREEMPT,
-					PreemptVuln:   models.PREEMPTIONVULNERABILITY_PREEMPTABLE,
-				},
-			},
+			SessRuleId:   testSessRuleIdInternet1,
+			AuthSessAmbr: authSessAmbr,
+			AuthDefQos:   authDefQos,
 		},
 	}
 
@@ -162,7 +160,7 @@ func TestBuildSmPolicyDecision_FoundInLocalPolicy(t *testing.T) {
 		QosDecs:       &qosDecs,
 		TraffContDecs: &traffContDecs,
 		SessRules:     &sessRules,
-		OfflineChOnly: openapi.PtrBool(false),
+		OfflineChOnly: new(false),
 	}
 
 	if !util.CompareViaJSON(decision, expectedDecision) {
@@ -283,11 +281,11 @@ func TestBuildSmPolicyDecision_FallbackToDefault(t *testing.T) {
 			inputAmbr: testAmbr,
 			inputQos:  testQos,
 			expectedQos: &models.AuthorizedDefaultQos{
-				Var5qi: openapi.PtrInt32(6),
+				Var5qi: new(int32(6)),
 				Arp: &models.Arp{
-					PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(10)),
+					PriorityLevel: *openapi.NewNullableInt32(new(int32(10))),
 				},
-				AverWindow: *openapi.NewNullableInt32(openapi.PtrInt32(2000)),
+				AverWindow: *openapi.NewNullableInt32(new(int32(2000))),
 			},
 			expectedAmbr: &models.Ambr{
 				Downlink: "500 Mbps",
@@ -299,11 +297,11 @@ func TestBuildSmPolicyDecision_FallbackToDefault(t *testing.T) {
 			inputAmbr: nil,
 			inputQos:  nil,
 			expectedQos: &models.AuthorizedDefaultQos{
-				Var5qi: openapi.PtrInt32(5),
+				Var5qi: new(int32(5)),
 				Arp: &models.Arp{
-					PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(1)),
+					PriorityLevel: *openapi.NewNullableInt32(new(int32(1))),
 				},
-				AverWindow: *openapi.NewNullableInt32(openapi.PtrInt32(2000)),
+				AverWindow: *openapi.NewNullableInt32(new(int32(2000))),
 			},
 			expectedAmbr: &models.Ambr{
 				Downlink: defaultFallbackAmbrRate,
@@ -315,11 +313,11 @@ func TestBuildSmPolicyDecision_FallbackToDefault(t *testing.T) {
 			inputAmbr: nil,
 			inputQos:  testQos,
 			expectedQos: &models.AuthorizedDefaultQos{
-				Var5qi: openapi.PtrInt32(5),
+				Var5qi: new(int32(5)),
 				Arp: &models.Arp{
-					PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(1)),
+					PriorityLevel: *openapi.NewNullableInt32(new(int32(1))),
 				},
-				AverWindow: *openapi.NewNullableInt32(openapi.PtrInt32(2000)),
+				AverWindow: *openapi.NewNullableInt32(new(int32(2000))),
 			},
 			expectedAmbr: &models.Ambr{
 				Downlink: defaultFallbackAmbrRate,
@@ -331,11 +329,11 @@ func TestBuildSmPolicyDecision_FallbackToDefault(t *testing.T) {
 			inputAmbr: testAmbr,
 			inputQos:  nil,
 			expectedQos: &models.AuthorizedDefaultQos{
-				Var5qi: openapi.PtrInt32(5),
+				Var5qi: new(int32(5)),
 				Arp: &models.Arp{
-					PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(1)),
+					PriorityLevel: *openapi.NewNullableInt32(new(int32(1))),
 				},
-				AverWindow: *openapi.NewNullableInt32(openapi.PtrInt32(2000)),
+				AverWindow: *openapi.NewNullableInt32(new(int32(2000))),
 			},
 			expectedAmbr: &models.Ambr{
 				Downlink: defaultFallbackAmbrRate,
@@ -413,7 +411,7 @@ func TestBuildSmPolicyDecision_FallbackToDefault(t *testing.T) {
 				QosDecs:       &qosDecs,
 				TraffContDecs: &traffContDecs,
 				SessRules:     &sessRules,
-				OfflineChOnly: openapi.PtrBool(false),
+				OfflineChOnly: new(false),
 			}
 
 			if !util.CompareViaJSON(decision, expectedDecision) {
@@ -444,10 +442,10 @@ func TestBuildSmPolicyDecision_FallbackToDefault(t *testing.T) {
 func TestInitSmPolicyDecisionPreservesNullableFields(t *testing.T) {
 	qos := &models.QosData{
 		QosId:   testQosId1,
-		MaxbrUl: *openapi.NewNullableString(openapi.PtrString("100 Mbps")),
-		MaxbrDl: *openapi.NewNullableString(openapi.PtrString("200 Mbps")),
+		MaxbrUl: *openapi.NewNullableString(new("100 Mbps")),
+		MaxbrDl: *openapi.NewNullableString(new("200 Mbps")),
 		Arp: &models.Arp{
-			PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(5)),
+			PriorityLevel: *openapi.NewNullableInt32(new(int32(5))),
 			PreemptCap:    models.PREEMPTIONCAPABILITY_NOT_PREEMPT,
 			PreemptVuln:   models.PREEMPTIONVULNERABILITY_NOT_PREEMPTABLE,
 		},

@@ -18,7 +18,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/omec-project/openapi/v2"
 	"github.com/omec-project/openapi/v2/models"
 	"github.com/omec-project/pcf/consumer"
 )
@@ -162,7 +161,8 @@ func TestNfRegistrationService_WhenConfigChanged_ThenRegisterNFSuccessAndStartTi
 	registerCalled := make(chan struct{}, 1)
 	discoverCalled := make(chan struct{}, 1)
 	consumer.SendRegisterNFInstance = func(nfProfileDynamicConfig consumer.NfProfileDynamicConfig) (*models.NFProfile, string, error) {
-		profile := &models.NFProfile{HeartBeatTimer: openapi.PtrInt32(60)}
+		profile := models.NewNFProfileWithDefaults()
+		profile.SetHeartBeatTimer(int32(60))
 		registrationMu.Lock()
 		registrations = append(registrations, nfProfileDynamicConfig)
 		registrationMu.Unlock()
@@ -329,7 +329,8 @@ func TestNfRegistrationService_ConfigChanged_RetryIfRegisterNFFails(t *testing.T
 
 	var called atomic.Int32
 	consumer.SendRegisterNFInstance = func(nfProfileDynamicConfig consumer.NfProfileDynamicConfig) (*models.NFProfile, string, error) {
-		profile := &models.NFProfile{HeartBeatTimer: openapi.PtrInt32(60)}
+		profile := models.NewNFProfileWithDefaults()
+		profile.SetHeartBeatTimer(int32(60))
 		called.Add(1)
 		return profile, "", errors.New("mock error")
 	}
@@ -450,7 +451,8 @@ func TestHeartbeatNF_Success(t *testing.T) {
 	}
 	consumer.SendRegisterNFInstance = func(nfProfileDynamicConfig consumer.NfProfileDynamicConfig) (*models.NFProfile, string, error) {
 		calledRegister = true
-		profile := &models.NFProfile{HeartBeatTimer: openapi.PtrInt32(60)}
+		profile := models.NewNFProfileWithDefaults()
+		profile.SetHeartBeatTimer(int32(60))
 		return profile, "", nil
 	}
 	nfProfileConfig := consumer.NfProfileDynamicConfig{}
@@ -489,7 +491,8 @@ func TestHeartbeatNF_WhenNfUpdateFails_ThenNfRegistersIsCalled(t *testing.T) {
 	}
 
 	consumer.SendRegisterNFInstance = func(nfProfileDynamicConfig consumer.NfProfileDynamicConfig) (*models.NFProfile, string, error) {
-		profile := &models.NFProfile{HeartBeatTimer: openapi.PtrInt32(60)}
+		profile := models.NewNFProfileWithDefaults()
+		profile.SetHeartBeatTimer(int32(60))
 		calledRegister = true
 		return profile, "", nil
 	}

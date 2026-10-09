@@ -30,7 +30,7 @@ func decisionWithArp(levels ...int32) *models.SmPolicyDecision {
 	qosDecs := map[string]models.QosData{}
 	for i, level := range levels {
 		qosDecs[string(rune('a'+i))] = models.QosData{
-			Arp: &models.Arp{PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(level))},
+			Arp: &models.Arp{PriorityLevel: *openapi.NewNullableInt32(new(level))},
 		}
 	}
 	d := &models.SmPolicyDecision{}
@@ -114,21 +114,19 @@ func establishedSession(t *testing.T, sessionAmbr *models.Ambr, given *models.Sm
 
 	supi := "imsi-208930100007487"
 	smPolicyID := supi + "-10"
-	sst := int32(1)
-	sd := "010203"
 
 	ue := &pcfContext.UeContext{Supi: supi, SmPolicyData: map[string]*pcfContext.UeSmPolicyData{}}
 	ctx := &models.SmPolicyContextData{
 		Supi:            supi,
 		PduSessionId:    10,
 		Dnn:             "internet",
-		SliceInfo:       models.Snssai{Sst: sst, Sd: openapi.PtrString(sd)},
+		SliceInfo:       models.Snssai{Sst: int32(1), Sd: new("010203")},
 		NotificationUri: "http://smf:29502/nsmf-callback",
 		SubsSessAmbr:    sessionAmbr,
 		// The SMF always supplies this at policy-create, and the recompute reads back the same
 		// stored context — so a session that established successfully always has one here.
 		SubsDefQos: &models.SubscribedDefaultQos{Var5qi: 9, Arp: models.Arp{
-			PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(8)),
+			PriorityLevel: *openapi.NewNullableInt32(new(int32(8))),
 		}},
 	}
 	// Stamped the way createSmPolicyContextProcedure stamps it. These fields are per-session and
@@ -136,9 +134,9 @@ func establishedSession(t *testing.T, sessionAmbr *models.Ambr, given *models.Sm
 	// the SMF that created the session, PolicyCtrlReqTriggers is what that SMF reports on, and
 	// Online came from the subscriber's UDR record. A fixture holding an empty decision cannot see
 	// them being dropped, which is exactly how it was missed.
-	given.SuppFeat = openapi.PtrString("0f")
-	given.PolicyCtrlReqTriggers = util.PolicyControlReqTrigToArray(0x40780f)
-	given.Online = openapi.PtrBool(true)
+	given.SetSuppFeat("0f")
+	given.SetPolicyCtrlReqTriggers(util.PolicyControlReqTrigToArray(0x40780f))
+	given.SetOnline(true)
 
 	// AppSessions is made by NewUeSmPolicyData in production; a fixture that leaves it nil cannot
 	// exercise an application function claiming the session.
@@ -192,8 +190,8 @@ func TestPolicyRuleChangeReachesAnEstablishedSession(t *testing.T) {
 
 	getSlicePccPolicy = func(models.Snssai) *polling.PccPolicy {
 		return &polling.PccPolicy{
-			PccRules: map[string]*models.PccRule{testPccRuleId1: {PccRuleId: testPccRuleId1, Precedence: openapi.PtrInt32(200)}},
-			QosDecs:  map[string]*models.QosData{testQosId1: {QosId: testQosId1, Var5qi: openapi.PtrInt32(10)}},
+			PccRules: map[string]*models.PccRule{testPccRuleId1: {PccRuleId: testPccRuleId1, Precedence: new(int32(200))}},
+			QosDecs:  map[string]*models.QosData{testQosId1: {QosId: testQosId1, Var5qi: new(int32(10))}},
 		}
 	}
 
@@ -282,8 +280,8 @@ func TestPerSessionDecisionStateSurvivesAPolicyEdit(t *testing.T) {
 
 	getSlicePccPolicy = func(models.Snssai) *polling.PccPolicy {
 		return &polling.PccPolicy{
-			PccRules: map[string]*models.PccRule{testPccRuleId1: {PccRuleId: testPccRuleId1, Precedence: openapi.PtrInt32(200)}},
-			QosDecs:  map[string]*models.QosData{testQosId1: {QosId: testQosId1, Var5qi: openapi.PtrInt32(10)}},
+			PccRules: map[string]*models.PccRule{testPccRuleId1: {PccRuleId: testPccRuleId1, Precedence: new(int32(200))}},
+			QosDecs:  map[string]*models.QosData{testQosId1: {QosId: testQosId1, Var5qi: new(int32(10))}},
 		}
 	}
 
@@ -325,7 +323,7 @@ func TestAfManagedSessionIsLeftAlone(t *testing.T) {
 		}
 	}
 
-	afRule := map[string]models.PccRule{"af-installed": {PccRuleId: "af-installed", AppId: openapi.PtrString("ims")}}
+	afRule := map[string]models.PccRule{"af-installed": {PccRuleId: "af-installed", AppId: new("ims")}}
 	given := &models.SmPolicyDecision{}
 	given.SetPccRules(afRule)
 	smPolicy := establishedSession(t, nil, given)
@@ -381,8 +379,8 @@ func TestAFanOutThatCannotStartLeavesTheSessionsAlone(t *testing.T) {
 	t.Cleanup(func() { getSlicePccPolicy = original })
 	getSlicePccPolicy = func(models.Snssai) *polling.PccPolicy {
 		return &polling.PccPolicy{
-			PccRules: map[string]*models.PccRule{testPccRuleId1: {PccRuleId: testPccRuleId1, Precedence: openapi.PtrInt32(200)}},
-			QosDecs:  map[string]*models.QosData{testQosId1: {QosId: testQosId1, Var5qi: openapi.PtrInt32(10)}},
+			PccRules: map[string]*models.PccRule{testPccRuleId1: {PccRuleId: testPccRuleId1, Precedence: new(int32(200))}},
+			QosDecs:  map[string]*models.QosData{testQosId1: {QosId: testQosId1, Var5qi: new(int32(10))}},
 		}
 	}
 
@@ -500,8 +498,8 @@ func simplePolicy(t *testing.T) {
 	t.Cleanup(func() { getSlicePccPolicy = original })
 	getSlicePccPolicy = func(models.Snssai) *polling.PccPolicy {
 		return &polling.PccPolicy{
-			PccRules: map[string]*models.PccRule{testPccRuleId1: {PccRuleId: testPccRuleId1, Precedence: openapi.PtrInt32(200)}},
-			QosDecs:  map[string]*models.QosData{testQosId1: {QosId: testQosId1, Var5qi: openapi.PtrInt32(10)}},
+			PccRules: map[string]*models.PccRule{testPccRuleId1: {PccRuleId: testPccRuleId1, Precedence: new(int32(200))}},
+			QosDecs:  map[string]*models.QosData{testQosId1: {QosId: testQosId1, Var5qi: new(int32(10))}},
 		}
 	}
 }

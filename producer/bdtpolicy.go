@@ -11,7 +11,6 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	"github.com/omec-project/openapi/v2"
 	"github.com/omec-project/openapi/v2/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/v2/models"
 	"github.com/omec-project/openapi/v2/utils"
@@ -89,11 +88,11 @@ func updateBDTPolicyContextProcedure(request models.BdtPolicyDataPatch, bdtPolic
 		if policy.TransPolicyId == request.SelTransPolicyId {
 			polData := bdtPolicy.BdtPolData
 			polReq := bdtPolicy.BdtReqData
-			polData.SelTransPolicyId = openapi.PtrInt32(request.SelTransPolicyId)
+			polData.SetSelTransPolicyId(request.GetSelTransPolicyId())
 			bdtData := models.BdtData{
 				AspId:       polReq.AspId,
 				TransPolicy: policy,
-				BdtRefId:    openapi.PtrString(polData.BdtRefId),
+				BdtRefId:    new(polData.GetBdtRefId()),
 			}
 			if polReq.NwAreaInfo != nil {
 				bdtData.NwAreaInfo = polReq.NwAreaInfo
@@ -202,14 +201,14 @@ func createBDTPolicyContextProcedure(request *models.BdtReqData) (
 		// use default bdt policy, TODO: decide bdt transfer data policy
 		bdtData = &models.BdtData{
 			AspId:       request.AspId,
-			BdtRefId:    openapi.PtrString(uuid.New().String()),
+			BdtRefId:    new(uuid.New().String()),
 			TransPolicy: getDefaultTransferPolicy(1, request.DesTimeInt),
 		}
 	}
 	if request.NwAreaInfo != nil {
 		bdtData.NwAreaInfo = request.NwAreaInfo
 	}
-	bdtPolicyData.SelTransPolicyId = openapi.PtrInt32(bdtData.TransPolicy.TransPolicyId)
+	bdtPolicyData.SetSelTransPolicyId(bdtData.TransPolicy.GetTransPolicyId())
 	// no support feature in subclause 5.8 of TS29554
 	bdtPolicyData.BdtRefId = bdtData.GetBdtRefId()
 	bdtPolicyData.TransfPolicies = append(bdtPolicyData.TransfPolicies, bdtData.TransPolicy)

@@ -232,7 +232,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	if err != nil {
 		logger.SMpolicyLog.Errorf("NegotiateWith error: %+v", err)
 	}
-	decision.SuppFeat = openapi.PtrString(result.String())
+	decision.SetSuppFeat(result.String())
 	decision.QosFlowUsage = request.QosFlowUsage
 	// TODO: Trigger about UMC, ADC, NetLoc,...
 	decision.PolicyCtrlReqTriggers = util.PolicyControlReqTrigToArray(0x40780f)
@@ -344,7 +344,7 @@ func buildDefaultSessionRule(key string, ambr *models.Ambr, qos *models.Subscrib
 		sessionRule.SetAuthSessAmbr(*ambr)
 	} else {
 		authDefQos.SetVar5qi(5)
-		authDefQos.SetArp(models.Arp{PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(1))})
+		authDefQos.SetArp(models.Arp{PriorityLevel: *openapi.NewNullableInt32(new(int32(1)))})
 		sessionRule.SetAuthDefQos(*authDefQos)
 		sessionRule.SetAuthSessAmbr(models.Ambr{
 			Downlink: defaultFallbackAmbrRate,
@@ -522,7 +522,7 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 				}
 				// Set PackFiltId
 				for i := range infos {
-					infos[i].PackFiltId = openapi.PtrString(util.GetPackFiltId(smPolicy.PackFiltIdGenarator))
+					infos[i].SetPackFiltId(util.GetPackFiltId(smPolicy.PackFiltIdGenarator))
 					smPolicy.PackFiltIdGenarator++
 				}
 				pccRule := util.CreatePccRule(id, req.GetPrecedence(), infos, "")
@@ -537,8 +537,8 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 					logger.SMpolicyLog.Warnln(problemDetail.Detail)
 					return nil, problemDetail
 				}
-				qosData.GbrDl = *openapi.NewNullableString(openapi.PtrString(gbrDl))
-				qosData.GbrUl = *openapi.NewNullableString(openapi.PtrString(gbrUl))
+				qosData.SetGbrDl(gbrDl)
+				qosData.SetGbrUl(gbrUl)
 				if qosData.GetGbrDl() != "" {
 					logger.SMpolicyLog.Debugf("SM Policy Dnn[%s] Data Aggregate decrease %s and then DL GBR remain[%.2f Kbps]",
 						smPolicyContext.Dnn, qosData.GbrDl, *smPolicy.RemainGbrDL)
@@ -587,9 +587,9 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 								logger.SMpolicyLog.Warnln(problemDetail.Detail)
 								return nil, problemDetail
 							}
-							qosData.Var5qi = openapi.PtrInt32(req.ReqQos.GetVar5qi())
-							qosData.GbrDl = *openapi.NewNullableString(openapi.PtrString(gbrDl))
-							qosData.GbrUl = *openapi.NewNullableString(openapi.PtrString(gbrUl))
+							qosData.Var5qi = new(req.ReqQos.GetVar5qi())
+							qosData.SetGbrDl(gbrDl)
+							qosData.SetGbrUl(gbrUl)
 							if qosData.GetGbrDl() != "" {
 								logger.SMpolicyLog.Debugf("SM Policy Dnn[%s] Data Aggregate decrease %s and then DL GBR remain[%.2f Kbps]",
 									smPolicyContext.Dnn, qosData.GbrDl, *smPolicy.RemainGbrDL)
@@ -613,7 +613,7 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 					case models.RULEOPERATION_MODIFY_PCC_RULE_AND_ADD_PACKET_FILTERS:
 						// Set PackFiltId
 						for i := range infos {
-							infos[i].PackFiltId = openapi.PtrString(util.GetPackFiltId(smPolicy.PackFiltIdGenarator))
+							infos[i].SetPackFiltId(util.GetPackFiltId(smPolicy.PackFiltIdGenarator))
 							smPolicy.PackFiltMapToPccRuleId[infos[i].GetPackFiltId()] = req.GetPccRuleId()
 							smPolicy.PackFiltIdGenarator++
 						}
@@ -625,7 +625,7 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 						}
 						// Set PackFiltId
 						for i := range infos {
-							infos[i].PackFiltId = openapi.PtrString(util.GetPackFiltId(smPolicy.PackFiltIdGenarator))
+							infos[i].SetPackFiltId(util.GetPackFiltId(smPolicy.PackFiltIdGenarator))
 							smPolicy.PackFiltMapToPccRuleId[infos[i].GetPackFiltId()] = req.GetPccRuleId()
 							smPolicy.PackFiltIdGenarator++
 						}
@@ -673,10 +673,10 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 		case models.POLICYCONTROLREQUESTTRIGGER_UE_IP_CH: // SMF notice PCF "ipv4Address" & ipv6AddressPrefix (always)
 			// TODO: Decide new Session Rule / Pcc rule
 			if request.RelIpv4Address == smPolicyContext.Ipv4Address {
-				smPolicyContext.Ipv4Address = openapi.PtrString("")
+				smPolicyContext.SetIpv4Address("")
 			}
 			if request.RelIpv6AddressPrefix == smPolicyContext.Ipv6AddressPrefix {
-				smPolicyContext.Ipv6AddressPrefix = openapi.PtrString("")
+				smPolicyContext.SetIpv6AddressPrefix("")
 			}
 			if request.GetIpv4Address() != "" {
 				smPolicyContext.Ipv4Address = request.Ipv4Address
@@ -726,9 +726,9 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 				(*smPolicyDecision.SessRules)[sessRuleId] = tmp
 			}
 			authQos := smPolicyDecision.GetSessRules()[sessRuleId].AuthDefQos
-			authQos.Var5qi = openapi.PtrInt32(request.SubsDefQos.Var5qi)
-			authQos.Arp = &request.SubsDefQos.Arp
-			authQos.PriorityLevel = *openapi.NewNullableInt32(request.SubsDefQos.PriorityLevel)
+			authQos.SetVar5qi(request.SubsDefQos.GetVar5qi())
+			authQos.SetArp(request.SubsDefQos.GetArp())
+			authQos.SetPriorityLevel(request.SubsDefQos.GetPriorityLevel())
 			logger.SMpolicyLog.Debugf("SM Policy Update(%s) Successfully", trigger)
 		case models.POLICYCONTROLREQUESTTRIGGER_SE_AMBR_CH: // Session Ambr Change (subsclause 4.2.4.4 in TS29512) (always)
 			if request.SubsSessAmbr == nil {

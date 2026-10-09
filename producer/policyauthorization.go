@@ -18,7 +18,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/omec-project/openapi/v2"
 	"github.com/omec-project/openapi/v2/models"
 	"github.com/omec-project/openapi/v2/utils"
 	pcfContext "github.com/omec-project/pcf/context"
@@ -173,13 +172,13 @@ func transferMedCompRmToMedComp(medCompRm *models.MediaComponentRm) *models.Medi
 		ContVer:     medCompRm.ContVer,
 		Codecs:      medCompRm.Codecs,
 		FStatus:     medCompRm.FStatus,
-		MarBwDl:     openapi.PtrString(medCompRm.GetMarBwDl()),
-		MarBwUl:     openapi.PtrString(medCompRm.GetMarBwUl()),
+		MarBwDl:     new(medCompRm.GetMarBwDl()),
+		MarBwUl:     new(medCompRm.GetMarBwUl()),
 		MedCompN:    medCompRm.MedCompN,
 		MedSubComps: &medSubComps,
 		MedType:     medCompRm.MedType,
-		MirBwDl:     openapi.PtrString(medCompRm.GetMirBwDl()),
-		MirBwUl:     openapi.PtrString(medCompRm.GetMirBwUl()),
+		MirBwDl:     new(medCompRm.GetMirBwDl()),
+		MirBwUl:     new(medCompRm.GetMirBwUl()),
 		ResPrio:     medCompRm.ResPrio,
 	}
 	return &medComp
@@ -455,7 +454,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 					for _, qosID := range pccRule.RefQosData {
 						if smPolicy.PolicyDecision.QosDecs != nil {
 							if qosData, ok := (*smPolicy.PolicyDecision.QosDecs)[qosID]; ok {
-								qosData.Qnc = openapi.PtrBool(true)
+								qosData.SetQnc(true)
 								(*smPolicy.PolicyDecision.QosDecs)[qosID] = qosData
 							} else {
 								logger.PolicyAuthorizationLog.Warnf("  QoS Data reference [%s] not found in PolicyDecision", qosID)
@@ -520,7 +519,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 	// Allocate App Session Id
 	appSessID := ue.AllocUeAppSessionId(pcfSelf)
 	ascRespData := models.AppSessionContextRespData{
-		SuppFeat: openapi.PtrString(nSuppFeat),
+		SuppFeat: new(nSuppFeat),
 	}
 	appSessCtx.SetAscRespData(ascRespData)
 	// Associate App Session to SMPolicy
@@ -582,7 +581,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 		filteredDecision := buildRelatedSmPolicyDecision(smPolicy.PolicyDecision, relatedPccRuleIds)
 		smPolicyID := fmt.Sprintf("%s-%d", ue.Supi, smPolicy.PolicyContext.PduSessionId)
 		notification := models.SmPolicyNotification{
-			ResourceUri:      openapi.PtrString(util.GetResourceUri(models.SERVICENAME_NPCF_SMPOLICYCONTROL, smPolicyID)),
+			ResourceUri:      new(util.GetResourceUri(models.SERVICENAME_NPCF_SMPOLICYCONTROL, smPolicyID)),
 			SmPolicyDecision: filteredDecision,
 		}
 		logger.PolicyAuthorizationLog.Debugw("smPolicyDecision data", "decision", filteredDecision)
@@ -887,7 +886,7 @@ func DeleteAppSessionContextProcedure(appSessID string,
 	// Notify SMF About Pcc Rule moval
 	smPolicyID := fmt.Sprintf("%s-%d", smPolicy.PcfUe.Supi, smPolicy.PolicyContext.PduSessionId)
 	notification := models.SmPolicyNotification{
-		ResourceUri:      openapi.PtrString(util.GetResourceUri(models.SERVICENAME_NPCF_SMPOLICYCONTROL, smPolicyID)),
+		ResourceUri:      new(util.GetResourceUri(models.SERVICENAME_NPCF_SMPOLICYCONTROL, smPolicyID)),
 		SmPolicyDecision: smPolicy.PolicyDecision,
 	}
 	notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(smPolicy.PolicyContext.NotificationUri, &notification)
@@ -1116,7 +1115,7 @@ func ModAppSessionContextProcedure(appSessID string,
 					pccRule := smPolicy.PolicyDecision.PccRules[pccRuleID]
 					for _, qosID := range pccRule.RefQosData {
 						qosData := (*smPolicy.PolicyDecision.QosDecs)[qosID]
-						qosData.Qnc = openapi.PtrBool(true)
+						qosData.SetQnc(true)
 						(*smPolicy.PolicyDecision.QosDecs)[qosID] = qosData
 					}
 				}
@@ -1212,7 +1211,7 @@ func ModAppSessionContextProcedure(appSessID string,
 	if updateSMpolicy {
 		smPolicyID := fmt.Sprintf("%s-%d", smPolicy.PcfUe.Supi, smPolicy.PolicyContext.PduSessionId)
 		notification := models.SmPolicyNotification{
-			ResourceUri:      openapi.PtrString(util.GetResourceUri(models.SERVICENAME_NPCF_SMPOLICYCONTROL, smPolicyID)),
+			ResourceUri:      new(util.GetResourceUri(models.SERVICENAME_NPCF_SMPOLICYCONTROL, smPolicyID)),
 			SmPolicyDecision: smPolicy.PolicyDecision,
 		}
 		notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(smPolicy.PolicyContext.NotificationUri, &notification)
@@ -1260,7 +1259,7 @@ func DeleteEventsSubscContextProcedure(appSessID string) *models.ProblemDetails 
 	if changed := appSession.SmPolicyData.ArrangeExistEventSubscription(); changed {
 		smPolicyID := fmt.Sprintf("%s-%d", smPolicy.PcfUe.Supi, smPolicy.PolicyContext.PduSessionId)
 		notification := models.SmPolicyNotification{
-			ResourceUri:      openapi.PtrString(util.GetResourceUri(models.SERVICENAME_NPCF_SMPOLICYCONTROL, smPolicyID)),
+			ResourceUri:      new(util.GetResourceUri(models.SERVICENAME_NPCF_SMPOLICYCONTROL, smPolicyID)),
 			SmPolicyDecision: smPolicy.PolicyDecision,
 		}
 		notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(smPolicy.PolicyContext.NotificationUri, &notification)
@@ -1352,7 +1351,7 @@ func UpdateEventsSubscContextProcedure(appSessID string, eventsSubscReqData mode
 				pccRule := smPolicy.PolicyDecision.PccRules[pccRuleID]
 				for _, qosID := range pccRule.RefQosData {
 					qosData := (*smPolicy.PolicyDecision.QosDecs)[qosID]
-					qosData.Qnc = openapi.PtrBool(true)
+					qosData.SetQnc(true)
 					(*smPolicy.PolicyDecision.QosDecs)[qosID] = qosData
 				}
 			}
@@ -1423,7 +1422,7 @@ func UpdateEventsSubscContextProcedure(appSessID string, eventsSubscReqData mode
 	if updataSmPolicy || changed {
 		smPolicyID := fmt.Sprintf("%s-%d", smPolicy.PcfUe.Supi, smPolicy.PolicyContext.PduSessionId)
 		notification := models.SmPolicyNotification{
-			ResourceUri:      openapi.PtrString(util.GetResourceUri(models.SERVICENAME_NPCF_SMPOLICYCONTROL, smPolicyID)),
+			ResourceUri:      new(util.GetResourceUri(models.SERVICENAME_NPCF_SMPOLICYCONTROL, smPolicyID)),
 			SmPolicyDecision: smPolicy.PolicyDecision,
 		}
 		notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(smPolicy.PolicyContext.NotificationUri, &notification)
@@ -1474,7 +1473,7 @@ func handleBDTPolicyInd(pcfSelf *pcfContext.PCFContext, appSessCtx *models.AppSe
 
 	respData := models.AppSessionContextRespData{
 		ServAuthInfo: models.SERVAUTHINFO_TP_NOT_KNOWN.Ptr(),
-		SuppFeat:     openapi.PtrString(suppFeat.String()),
+		SuppFeat:     new(suppFeat.String()),
 	}
 	client := util.GetNudrClient(getDefaultUdrUri(pcfSelf))
 	apiReadIndividualBdtDataRequest := client.IndividualBdtDataDocumentAPI.ReadIndividualBdtData(context.Background(), req.Get().GetBdtRefId())
@@ -1727,8 +1726,8 @@ func updateQosInMedComp(qosData models.QosData, comp *models.MediaComponent) (mo
 	var ulExist bool
 	updatedQosData := qosData
 	if comp.GetFStatus() == models.FLOWSTATUS_REMOVED {
-		updatedQosData.MaxbrDl = *openapi.NewNullableString(openapi.PtrString(""))
-		updatedQosData.MaxbrUl = *openapi.NewNullableString(openapi.PtrString(""))
+		updatedQosData.SetMaxbrDl("")
+		updatedQosData.SetMaxbrUl("")
 		return updatedQosData, ulExist, dlExist
 	}
 	maxBwUl := 0.0
@@ -1828,25 +1827,25 @@ func updateQosInMedComp(qosData models.QosData, comp *models.MediaComponent) (mo
 	}
 	// update Downlink MBR
 	if maxBwDl == 0.0 {
-		updatedQosData.MaxbrDl = *openapi.NewNullableString(openapi.PtrString(comp.GetMarBwDl()))
+		updatedQosData.SetMaxbrDl(comp.GetMarBwDl())
 	} else {
-		updatedQosData.MaxbrDl = *openapi.NewNullableString(openapi.PtrString(pcfContext.ConvertBitRateToString(maxBwDl)))
+		updatedQosData.SetMaxbrDl(pcfContext.ConvertBitRateToString(maxBwDl))
 	}
 	// update Uplink MBR
 	if maxBwUl == 0.0 {
-		updatedQosData.MaxbrUl = *openapi.NewNullableString(openapi.PtrString(comp.GetMarBwUl()))
+		updatedQosData.SetMaxbrUl(comp.GetMarBwUl())
 	} else {
-		updatedQosData.MaxbrUl = *openapi.NewNullableString(openapi.PtrString(pcfContext.ConvertBitRateToString(maxBwUl)))
+		updatedQosData.SetMaxbrUl(pcfContext.ConvertBitRateToString(maxBwUl))
 	}
 	// if gbr == 0 then assign gbr = mbr
 
 	// update Downlink GBR
 	if minBwDl != 0.0 {
-		updatedQosData.GbrDl = *openapi.NewNullableString(openapi.PtrString(pcfContext.ConvertBitRateToString(minBwDl)))
+		updatedQosData.SetGbrDl(pcfContext.ConvertBitRateToString(minBwDl))
 	}
 	// update Uplink GBR
 	if minBwUl != 0.0 {
-		updatedQosData.GbrUl = *openapi.NewNullableString(openapi.PtrString(pcfContext.ConvertBitRateToString(minBwUl)))
+		updatedQosData.SetGbrUl(pcfContext.ConvertBitRateToString(minBwUl))
 	}
 	return updatedQosData, ulExist, dlExist
 }
@@ -1856,8 +1855,8 @@ func updateQosInMedSubComp(qosData *models.QosData, comp *models.MediaComponent,
 ) (updatedQosData models.QosData, ulExist, dlExist bool) {
 	updatedQosData = *qosData
 	if comp.GetFStatus() == models.FLOWSTATUS_REMOVED {
-		updatedQosData.MaxbrDl = *openapi.NewNullableString(openapi.PtrString(""))
-		updatedQosData.MaxbrUl = *openapi.NewNullableString(openapi.PtrString(""))
+		updatedQosData.SetMaxbrDl("")
+		updatedQosData.SetMaxbrUl("")
 		return updatedQosData, false, false
 	}
 	maxBwUl := 0.0
@@ -1956,24 +1955,24 @@ func updateQosInMedSubComp(qosData *models.QosData, comp *models.MediaComponent,
 
 	// update Downlink MBR
 	if maxBwDl == 0.0 {
-		updatedQosData.MaxbrDl = *openapi.NewNullableString(openapi.PtrString(comp.GetMarBwDl()))
+		updatedQosData.SetMaxbrDl(comp.GetMarBwDl())
 	} else {
-		updatedQosData.MaxbrDl = *openapi.NewNullableString(openapi.PtrString(pcfContext.ConvertBitRateToString(maxBwDl)))
+		updatedQosData.SetMaxbrDl(pcfContext.ConvertBitRateToString(maxBwDl))
 	}
 	// update Uplink MBR
 	if maxBwUl == 0.0 {
-		updatedQosData.MaxbrUl = *openapi.NewNullableString(openapi.PtrString(comp.GetMarBwUl()))
+		updatedQosData.SetMaxbrUl(comp.GetMarBwUl())
 	} else {
-		updatedQosData.MaxbrUl = *openapi.NewNullableString(openapi.PtrString(pcfContext.ConvertBitRateToString(maxBwUl)))
+		updatedQosData.SetMaxbrUl(pcfContext.ConvertBitRateToString(maxBwUl))
 	}
 	// if gbr == 0 then assign gbr = mbr
 	// update Downlink GBR
 	if minBwDl != 0.0 {
-		updatedQosData.GbrDl = *openapi.NewNullableString(openapi.PtrString(pcfContext.ConvertBitRateToString(minBwDl)))
+		updatedQosData.SetGbrDl(pcfContext.ConvertBitRateToString(minBwDl))
 	}
 	// update Uplink GBR
 	if minBwUl != 0.0 {
-		updatedQosData.GbrUl = *openapi.NewNullableString(openapi.PtrString(pcfContext.ConvertBitRateToString(minBwUl)))
+		updatedQosData.SetGbrUl(pcfContext.ConvertBitRateToString(minBwUl))
 	}
 	return updatedQosData, ulExist, dlExist
 }
@@ -2070,9 +2069,9 @@ func modifyRemainBitRate(smPolicy *pcfContext.UeSmPolicyData, qosData *models.Qo
 		if qosData.GetGbrUl() == "" {
 			// err = pcfContext.DecreaseRamainBitRate(smPolicy.RemainGbrUL, qosData.MaxbrUl)
 			if err := pcfContext.DecreaseRamainBitRate(smPolicy.RemainGbrUL, qosData.GetMaxbrUl()); err != nil {
-				qosData.GbrUl = *openapi.NewNullableString(openapi.PtrString(pcfContext.DecreaseRamainBitRateToZero(smPolicy.RemainGbrUL)))
+				qosData.SetGbrUl(pcfContext.DecreaseRamainBitRateToZero(smPolicy.RemainGbrUL))
 			} else {
-				qosData.GbrUl = qosData.MaxbrUl
+				qosData.SetGbrUl(qosData.GetMaxbrUl())
 			}
 		} else {
 			// err = pcfContext.DecreaseRamainBitRate(smPolicy.RemainGbrUL, qosData.GbrUl)
@@ -2087,9 +2086,9 @@ func modifyRemainBitRate(smPolicy *pcfContext.UeSmPolicyData, qosData *models.Qo
 		if qosData.GetGbrDl() == "" {
 			// err = pcfContext.DecreaseRamainBitRate(smPolicy.RemainGbrDL, qosData.MaxbrDl)
 			if err := pcfContext.DecreaseRamainBitRate(smPolicy.RemainGbrDL, qosData.GetMaxbrDl()); err != nil {
-				qosData.GbrDl = *openapi.NewNullableString(openapi.PtrString(pcfContext.DecreaseRamainBitRateToZero(smPolicy.RemainGbrDL)))
+				qosData.SetGbrDl(pcfContext.DecreaseRamainBitRateToZero(smPolicy.RemainGbrDL))
 			} else {
-				qosData.GbrDl = qosData.MaxbrDl
+				qosData.SetGbrDl(qosData.GetMaxbrDl())
 			}
 		} else {
 			// err = pcfContext.DecreaseRamainBitRate(smPolicy.RemainGbrDL, qosData.GbrDl)

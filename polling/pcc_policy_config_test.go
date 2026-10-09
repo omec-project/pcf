@@ -41,7 +41,7 @@ func TestGetSlicePccPolicy_Found(t *testing.T) {
 	originalPccPolicies := pccPolicies
 	defer func() { pccPolicies = originalPccPolicies }()
 	pccPolicies = make(map[SnssaiKey]*PccPolicy)
-	snssai := models.Snssai{Sst: 1, Sd: openapi.PtrString("010203")}
+	snssai := models.Snssai{Sst: 1, Sd: new("010203")}
 
 	testPolicy := &PccPolicy{
 		PccRules: map[string]*models.PccRule{
@@ -67,7 +67,7 @@ func TestGetSlicePccPolicy_NotFound(t *testing.T) {
 	originalPccPolicies := pccPolicies
 	defer func() { pccPolicies = originalPccPolicies }()
 	pccPolicies = make(map[SnssaiKey]*PccPolicy)
-	snssai := models.Snssai{Sst: 2, Sd: openapi.PtrString("040506")}
+	snssai := models.Snssai{Sst: 2, Sd: new("040506")}
 
 	result := GetSlicePccPolicy(snssai)
 
@@ -82,7 +82,7 @@ func TestUpdatePolicyControl_EmptyInputClearsPolicies(t *testing.T) {
 	defer func() { pccPolicies = originalPccPolicies }()
 	pccPolicies = make(map[SnssaiKey]*PccPolicy)
 
-	snssai := models.Snssai{Sst: 1, Sd: openapi.PtrString("010203")}
+	snssai := models.Snssai{Sst: 1, Sd: new("010203")}
 	pccPolicies[SnssaiToKey(snssai)] = &PccPolicy{}
 
 	updatePccPolicy([]nfConfigApi.PolicyControl{})
@@ -101,7 +101,7 @@ func TestUpdatePolicyControl_CreatesPolicies(t *testing.T) {
 	}()
 	pccPolicies = make(map[SnssaiKey]*PccPolicy)
 	createPccPolicies = func(idGenerator *idgenerator.IDGenerator, pc nfConfigApi.PolicyControl) {
-		snssai := models.Snssai{Sst: 1, Sd: openapi.PtrString("abc123")}
+		snssai := models.Snssai{Sst: 1, Sd: new("abc123")}
 		pccPolicies[SnssaiToKey(snssai)] = &PccPolicy{}
 	}
 
@@ -145,11 +145,10 @@ func TestCreatePccPolicies_OnePolicyControlElement(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			sd := openapi.PtrString("112233")
 			input := nfConfigApi.PolicyControl{
 				Snssai: nfConfigApi.Snssai{
 					Sst: 1,
-					Sd:  sd,
+					Sd:  new("112233"),
 				},
 				PccRules: []nfConfigApi.PccRule{
 					{
@@ -157,8 +156,8 @@ func TestCreatePccPolicies_OnePolicyControlElement(t *testing.T) {
 						Precedence: 255,
 						Qos: nfConfigApi.PccQos{
 							FiveQi:  9,
-							MaxBrUl: openapi.PtrString("500Mbps"),
-							MaxBrDl: openapi.PtrString("1Gbps"),
+							MaxBrUl: new("500Mbps"),
+							MaxBrDl: new("1Gbps"),
 							Arp: nfConfigApi.Arp{
 								PriorityLevel: 5,
 								PreemptCap:    nfConfigApi.PREEMPTCAP_MAY_PREEMPT,
@@ -178,18 +177,18 @@ func TestCreatePccPolicies_OnePolicyControlElement(t *testing.T) {
 			idGenerator := idgenerator.NewGenerator(1, math.MaxInt64)
 			createPccPolicies(idGenerator, input)
 
-			snssai := models.Snssai{Sst: 1, Sd: sd}
+			snssai := models.Snssai{Sst: 1, Sd: new("112233")}
 			expectedPccPolicies := map[SnssaiKey]*PccPolicy{
 				SnssaiToKey(snssai): {
 					PccRules: map[string]*models.PccRule{
 						testPccRuleId1: {
 							PccRuleId:  "1",
-							Precedence: openapi.PtrInt32(255),
+							Precedence: new(int32(255)),
 							RefQosData: []string{"1"},
 							RefTcData:  []string{"2"},
 							FlowInfos: []models.FlowInformation{{
-								FlowDescription: openapi.PtrString("permit out ip from any to any"),
-								PackFiltId:      openapi.PtrString("2"),
+								FlowDescription: new("permit out ip from any to any"),
+								PackFiltId:      new("2"),
 								FlowDirection:   models.FLOWDIRECTIONRM_BIDIRECTIONAL.Ptr(),
 							}},
 						},
@@ -197,11 +196,11 @@ func TestCreatePccPolicies_OnePolicyControlElement(t *testing.T) {
 					QosDecs: map[string]*models.QosData{
 						"1": {
 							QosId:   "1",
-							Var5qi:  openapi.PtrInt32(9),
-							MaxbrUl: *openapi.NewNullableString(openapi.PtrString("500Mbps")),
-							MaxbrDl: *openapi.NewNullableString(openapi.PtrString("1Gbps")),
+							Var5qi:  new(int32(9)),
+							MaxbrUl: *openapi.NewNullableString(new("500Mbps")),
+							MaxbrDl: *openapi.NewNullableString(new("1Gbps")),
 							Arp: &models.Arp{
-								PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(5)),
+								PriorityLevel: *openapi.NewNullableInt32(new(int32(5))),
 								PreemptCap:    models.PREEMPTIONCAPABILITY_MAY_PREEMPT,
 								PreemptVuln:   models.PREEMPTIONVULNERABILITY_PREEMPTABLE,
 							},
@@ -230,19 +229,17 @@ func TestCreatePccPolicies_MultiplePolicyControlElement(t *testing.T) {
 	}()
 	pccPolicies = make(map[SnssaiKey]*PccPolicy)
 
-	sd1 := openapi.PtrString("112233")
-	sd2 := openapi.PtrString("445566")
 	input := []nfConfigApi.PolicyControl{
 		{
-			Snssai: nfConfigApi.Snssai{Sst: 1, Sd: sd1},
+			Snssai: nfConfigApi.Snssai{Sst: 1, Sd: new("112233")},
 			PccRules: []nfConfigApi.PccRule{
 				{
 					RuleId:     "rule55",
 					Precedence: 10,
 					Qos: nfConfigApi.PccQos{
 						FiveQi:  5,
-						MaxBrUl: openapi.PtrString("200Mbps"),
-						MaxBrDl: openapi.PtrString("300Mbps"),
+						MaxBrUl: new("200Mbps"),
+						MaxBrDl: new("300Mbps"),
 						Arp: nfConfigApi.Arp{
 							PriorityLevel: 88,
 							PreemptCap:    nfConfigApi.PREEMPTCAP_NOT_PREEMPT,
@@ -265,7 +262,7 @@ func TestCreatePccPolicies_MultiplePolicyControlElement(t *testing.T) {
 			},
 		},
 		{
-			Snssai: nfConfigApi.Snssai{Sst: 2, Sd: sd2},
+			Snssai: nfConfigApi.Snssai{Sst: 2, Sd: new("445566")},
 			PccRules: []nfConfigApi.PccRule{
 				{
 					RuleId:     "rule2",
@@ -296,26 +293,26 @@ func TestCreatePccPolicies_MultiplePolicyControlElement(t *testing.T) {
 		t.Errorf("expected two pcc policies, got %d", len(pccPolicies))
 	}
 
-	snssai1 := models.Snssai{Sst: 1, Sd: sd1}
-	snssai2 := models.Snssai{Sst: 2, Sd: sd2}
+	snssai1 := models.Snssai{Sst: 1, Sd: new("112233")}
+	snssai2 := models.Snssai{Sst: 2, Sd: new("445566")}
 
 	expectedPccPolicies := map[SnssaiKey]*PccPolicy{
 		SnssaiToKey(snssai1): {
 			PccRules: map[string]*models.PccRule{
 				"rule55": {
 					PccRuleId:  "1",
-					Precedence: openapi.PtrInt32(10),
+					Precedence: new(int32(10)),
 					RefQosData: []string{"1"},
 					RefTcData:  []string{"2", "3"},
 					FlowInfos: []models.FlowInformation{
 						{
-							FlowDescription: openapi.PtrString("flow-A1"),
-							PackFiltId:      openapi.PtrString("2"),
+							FlowDescription: new("flow-A1"),
+							PackFiltId:      new("2"),
 							FlowDirection:   models.FLOWDIRECTIONRM_UPLINK.Ptr(),
 						},
 						{
-							FlowDescription: openapi.PtrString("permit out ip from any to assigned"),
-							PackFiltId:      openapi.PtrString("3"),
+							FlowDescription: new("permit out ip from any to assigned"),
+							PackFiltId:      new("3"),
 							FlowDirection:   models.FLOWDIRECTIONRM_DOWNLINK.Ptr(),
 						},
 					},
@@ -324,12 +321,12 @@ func TestCreatePccPolicies_MultiplePolicyControlElement(t *testing.T) {
 			QosDecs: map[string]*models.QosData{
 				"1": {
 					QosId:                "1",
-					DefQosFlowIndication: openapi.PtrBool(true),
-					Var5qi:               openapi.PtrInt32(5),
-					MaxbrUl:              *openapi.NewNullableString(openapi.PtrString("200Mbps")),
-					MaxbrDl:              *openapi.NewNullableString(openapi.PtrString("300Mbps")),
+					DefQosFlowIndication: new(true),
+					Var5qi:               new(int32(5)),
+					MaxbrUl:              *openapi.NewNullableString(new("200Mbps")),
+					MaxbrDl:              *openapi.NewNullableString(new("300Mbps")),
 					Arp: &models.Arp{
-						PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(88)),
+						PriorityLevel: *openapi.NewNullableInt32(new(int32(88))),
 						PreemptCap:    models.PREEMPTIONCAPABILITY_NOT_PREEMPT,
 						PreemptVuln:   models.PREEMPTIONVULNERABILITY_NOT_PREEMPTABLE,
 					},
@@ -350,12 +347,12 @@ func TestCreatePccPolicies_MultiplePolicyControlElement(t *testing.T) {
 			PccRules: map[string]*models.PccRule{
 				"rule2": {
 					PccRuleId:  "4",
-					Precedence: openapi.PtrInt32(20),
+					Precedence: new(int32(20)),
 					RefQosData: []string{"4"},
 					RefTcData:  []string{"5"},
 					FlowInfos: []models.FlowInformation{{
-						FlowDescription: openapi.PtrString("flow-B1"),
-						PackFiltId:      openapi.PtrString("5"),
+						FlowDescription: new("flow-B1"),
+						PackFiltId:      new("5"),
 						FlowDirection:   models.FLOWDIRECTIONRM_BIDIRECTIONAL.Ptr(),
 					}},
 				},
@@ -363,9 +360,9 @@ func TestCreatePccPolicies_MultiplePolicyControlElement(t *testing.T) {
 			QosDecs: map[string]*models.QosData{
 				"4": {
 					QosId:  "4",
-					Var5qi: openapi.PtrInt32(7),
+					Var5qi: new(int32(7)),
 					Arp: &models.Arp{
-						PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(3)),
+						PriorityLevel: *openapi.NewNullableInt32(new(int32(3))),
 						PreemptCap:    models.PREEMPTIONCAPABILITY_MAY_PREEMPT,
 						PreemptVuln:   models.PREEMPTIONVULNERABILITY_PREEMPTABLE,
 					},
