@@ -10,7 +10,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/omec-project/openapi/v2"
 	"github.com/omec-project/openapi/v2/models"
 	pcfContext "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/factory"
@@ -231,7 +230,7 @@ func recomputeChangedSessions() []pendingNotification {
 				basedOn:     smPolicy.PolicyDecision,
 				arpPriority: defaultQosArpPriority(&decision),
 				notification: models.SmPolicyNotification{
-					ResourceUri: openapi.PtrString(util.GetResourceUri(
+					ResourceUri: new(util.GetResourceUri(
 						models.SERVICENAME_NPCF_SMPOLICYCONTROL, smPolicyID)),
 					SmPolicyDecision: &decision,
 				},

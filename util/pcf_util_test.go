@@ -50,9 +50,9 @@ func TestCompareViaJSONDetectsTypedMapKeyDifferences(t *testing.T) {
 func TestDeepCopyViaJSONPreservesNullableField(t *testing.T) {
 	src := models.QosData{
 		QosId:   "qos1",
-		MaxbrUl: *openapi.NewNullableString(openapi.PtrString("100 Mbps")),
+		MaxbrUl: *openapi.NewNullableString(new("100 Mbps")),
 		Arp: &models.Arp{
-			PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(5)),
+			PriorityLevel: *openapi.NewNullableInt32(new(int32(5))),
 			PreemptCap:    models.PREEMPTIONCAPABILITY_NOT_PREEMPT,
 			PreemptVuln:   models.PREEMPTIONVULNERABILITY_NOT_PREEMPTABLE,
 		},

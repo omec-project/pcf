@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/omec-project/openapi/v2"
 	"github.com/omec-project/openapi/v2/models"
 	"github.com/omec-project/pcf/factory"
 	"github.com/omec-project/pcf/logger"
@@ -131,9 +130,9 @@ func (c *PCFContext) InitNFService(serviceList []factory.Service, version string
 			},
 			Scheme:            c.UriScheme,
 			NfServiceStatus:   models.NFSERVICESTATUS_REGISTERED,
-			ApiPrefix:         openapi.PtrString(c.GetIPv4Uri()),
+			ApiPrefix:         new(c.GetIPv4Uri()),
 			IpEndPoints:       []models.IpEndPoint{*ipEndPoints},
-			SupportedFeatures: openapi.PtrString(service.SuppFeat),
+			SupportedFeatures: new(service.SuppFeat),
 		}
 	}
 }
