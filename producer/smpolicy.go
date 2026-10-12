@@ -728,7 +728,11 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 			authQos := smPolicyDecision.GetSessRules()[sessRuleId].AuthDefQos
 			authQos.SetVar5qi(request.SubsDefQos.GetVar5qi())
 			authQos.SetArp(request.SubsDefQos.GetArp())
-			authQos.SetPriorityLevel(request.SubsDefQos.GetPriorityLevel())
+			if request.SubsDefQos.HasPriorityLevel() {
+				authQos.SetPriorityLevel(request.SubsDefQos.GetPriorityLevel())
+			} else {
+				authQos.SetPriorityLevelNil()
+			}
 			logger.SMpolicyLog.Debugf("SM Policy Update(%s) Successfully", trigger)
 		case models.POLICYCONTROLREQUESTTRIGGER_SE_AMBR_CH: // Session Ambr Change (subsclause 4.2.4.4 in TS29512) (always)
 			if request.SubsSessAmbr == nil {

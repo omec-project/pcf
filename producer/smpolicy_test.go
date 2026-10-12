@@ -136,7 +136,7 @@ func TestBuildSmPolicyDecision_FoundInLocalPolicy(t *testing.T) {
 		},
 	}
 	authSessAmbr := models.NewAmbr("55 Mbps", "515 Mbps")
-	authDefQos := models.NewAuthorizedDefaultQos()
+	authDefQos := &models.AuthorizedDefaultQos{}
 	authDefQos.SetVar5qi(7)
 	arp := models.NewArpWithDefaults()
 	arp.SetPriorityLevel(9)
