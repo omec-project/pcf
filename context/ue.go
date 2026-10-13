@@ -119,11 +119,9 @@ type UeSmPolicyData struct {
 	//
 	// It is a leaf: nothing else is acquired while it is held, so it cannot take part in a cycle.
 	//
-	// The budget this mirrors -- RemainGbrUL and RemainGbrDL -- is written without any lock today,
-	// and that is pre-existing, but the two failure modes are not the same size. A racy *float64 is
-	// a wrong number; a concurrent map write is a fatal runtime throw that takes the element down.
-	// New shared state should not escalate an existing race into a crash, and both the application
-	// function handlers and the SM policy update handler reach this map for the same session.
+	// It also guards RemainGbrUL and RemainGbrDL themselves: every read and write of the budget
+	// takes it, including the seeding at session creation (SeedRemainGbr), which runs after the
+	// session is already reachable by the application function handlers.
 	gbrMu sync.Mutex
 	// gbrDebits is what was actually taken from the aggregate budget, keyed by QoS data id, so the
 	// credit can be the exact mirror of the debit rather than a reading of whatever rates the
@@ -372,26 +370,6 @@ func (policy *UeSmPolicyData) PccRule(pccRuleID string) (models.PccRule, bool) {
 	}
 
 	return *rule, true
-}
-
-// StoreRemainGbrDL and StoreRemainGbrUL seed the session's aggregate GBR budget at policy create.
-//
-// The budget is guarded state: the application-function path decrements it through these pointers
-// while authorising a flow. Nothing else should have reached it before the session exists, but
-// "nothing should" is not what the field's contract says, and a setter costs less than the
-// argument.
-func (policy *UeSmPolicyData) StoreRemainGbrDL(budget *float64) {
-	policy.PolicyMu.Lock()
-	defer policy.PolicyMu.Unlock()
-
-	policy.RemainGbrDL = budget
-}
-
-func (policy *UeSmPolicyData) StoreRemainGbrUL(budget *float64) {
-	policy.PolicyMu.Lock()
-	defer policy.PolicyMu.Unlock()
-
-	policy.RemainGbrUL = budget
 }
 
 // StorePolicyDecision installs a session's first decision, at policy create.
@@ -742,18 +720,6 @@ func (policy *UeSmPolicyData) ReplaceGbrDebit(qosId string, req *models.Requeste
 	return gbrDl, gbrUl, nil
 }
 
-// RecordGbrDebit notes what DecreaseRemainGBR took for a QoS data id, so IncreaseRemainGBR can give
-// back exactly that. Called by the caller rather than by DecreaseRemainGBR itself, because the id is
-// assigned around the debit and is not known inside it.
-func (policy *UeSmPolicyData) RecordGbrDebit(qosId, gbrUl, gbrDl string) {
-	if gbrUl == "" && gbrDl == "" {
-		return
-	}
-	policy.gbrMu.Lock()
-	defer policy.gbrMu.Unlock()
-	policy.recordGbrDebitLocked(qosId, gbrUl, gbrDl)
-}
-
 // mergeGbrDebitLocked updates only the directions it is given, leaving the other as already
 // recorded. A nil argument means "this direction was not part of this operation". The caller holds
 // gbrMu.
@@ -890,7 +856,8 @@ func (policy *UeSmPolicyData) RemainingGbrKbps() (ul, dl string) {
 	return render(policy.RemainGbrUL), render(policy.RemainGbrDL)
 }
 
-// recordGbrDebitLocked is RecordGbrDebit for a caller that already holds gbrMu.
+// recordGbrDebitLocked records what was taken for qosId, so IncreaseRemainGBR can give back exactly
+// that. The caller holds gbrMu.
 func (policy *UeSmPolicyData) recordGbrDebitLocked(qosId, gbrUl, gbrDl string) {
 	if gbrUl == "" && gbrDl == "" {
 		return
@@ -914,14 +881,37 @@ func IncreaseRamainBitRate(remainBitRate *float64, reqBitRate string) (orig *flo
 	return
 }
 
-// Decrease remain GBR of this policy and returns UL DL GBR
+// DecreaseRemainGBR takes the guaranteed rates req asks for from the aggregate budget, records what
+// it took against qosId so IncreaseRemainGBR can give back exactly that, and returns the rates. The
+// debit and the record are one transaction under gbrMu: recorded separately, a release of the same
+// id between the two would find nothing to credit, and the record written afterwards would hold a
+// debit for a rule already gone.
 //
 // The caller holds PolicyMu and this does not take it: a handler's locked region reaches here, and
 // a sync.RWMutex is not reentrant. See the PolicyMu field's comment.
-func (policy *UeSmPolicyData) DecreaseRemainGBR(req *models.RequestedQos) (gbrDl, gbrUl string, err error) {
+func (policy *UeSmPolicyData) DecreaseRemainGBR(qosId string, req *models.RequestedQos) (gbrDl, gbrUl string, err error) {
 	policy.gbrMu.Lock()
 	defer policy.gbrMu.Unlock()
-	return policy.decreaseRemainGBRLocked(req)
+	gbrDl, gbrUl, err = policy.decreaseRemainGBRLocked(req)
+	if err == nil {
+		policy.recordGbrDebitLocked(qosId, gbrUl, gbrDl)
+	}
+	return gbrDl, gbrUl, err
+}
+
+// SeedRemainGbr sets the aggregate budget a session starts with, nil for a direction that has none.
+// Both directions are set under gbrMu in one step: the session is already published when it is
+// seeded, so a handler can reach it in between, and an unlocked write would race the locked reads
+// and could show it one direction seeded and the other not.
+func (policy *UeSmPolicyData) SeedRemainGbr(ul, dl *float64) {
+	// PolicyMu as well, because its contract covers the budget too. It is taken before gbrMu, as
+	// on every other path that holds both.
+	policy.PolicyMu.Lock()
+	defer policy.PolicyMu.Unlock()
+	policy.gbrMu.Lock()
+	defer policy.gbrMu.Unlock()
+	policy.RemainGbrUL = ul
+	policy.RemainGbrDL = dl
 }
 
 // decreaseRemainGBRLocked is DecreaseRemainGBR for a caller that already holds gbrMu.

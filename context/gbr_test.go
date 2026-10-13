@@ -53,7 +53,7 @@ func TestDecreaseRemainGBRBudgetsGbr5QIAboveFour(t *testing.T) {
 	req.SetGbrUl("1 Mbps")
 	req.SetGbrDl("2 Mbps")
 
-	gbrDl, gbrUl, err := policy.DecreaseRemainGBR(req)
+	gbrDl, gbrUl, err := policy.DecreaseRemainGBR(testQosID, req)
 	if err != nil {
 		t.Fatalf("DecreaseRemainGBR: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestDecreaseRemainGBRLeavesNonGbr5QIUnbudgeted(t *testing.T) {
 	req.SetGbrUl("1 Mbps")
 	req.SetGbrDl("2 Mbps")
 
-	gbrDl, gbrUl, err := policy.DecreaseRemainGBR(req)
+	gbrDl, gbrUl, err := policy.DecreaseRemainGBR(testQosID, req)
 	if err != nil {
 		t.Fatalf("DecreaseRemainGBR: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestRemovePccRuleRestoresBudgetForGbr5QIAboveFour(t *testing.T) {
 	// the mirror of the recorded debit, not a reading of the rates the stored QoS data carries.
 	remainUl -= 1024
 	remainDl -= 2048
-	policy.RecordGbrDebit(testQosID, "1 Mbps", "2 Mbps")
+	recordFixtureDebit(policy)
 
 	if err := policy.RemovePccRule("rule-1", nil); err != nil {
 		t.Fatalf("RemovePccRule: %v", err)
@@ -127,7 +127,8 @@ func TestRemovePccRuleLeavesBudgetAloneForNonGbr5QI(t *testing.T) {
 
 // The invariant the two gates exist to keep, stated end to end: whatever a GBR flow takes from
 // the aggregate on allocation it gives back on release. Asserted on a 5QI of 66 because that is
-// the value the two gates used to disagree about.
+// the value the two gates used to disagree about. DecreaseRemainGBR records its own debit, so
+// nothing between the allocation and the release records it here.
 func TestDecreaseThenRemoveLeavesAggregateUnchanged(t *testing.T) {
 	remainUl, remainDl := 4096.0, 8192.0
 	policy := newPolicyHoldingGbrRule(66, "1 Mbps", "2 Mbps", &remainUl, &remainDl)
@@ -135,14 +136,12 @@ func TestDecreaseThenRemoveLeavesAggregateUnchanged(t *testing.T) {
 	req := models.NewRequestedQos(66)
 	req.SetGbrUl("1 Mbps")
 	req.SetGbrDl("2 Mbps")
-	gbrDl, gbrUl, err := policy.DecreaseRemainGBR(req)
-	if err != nil {
+	if _, _, err := policy.DecreaseRemainGBR(testQosID, req); err != nil {
 		t.Fatalf("DecreaseRemainGBR: %v", err)
 	}
 	if remainUl == 4096 || remainDl == 8192 {
 		t.Fatalf("budget was not debited, so the test cannot show it being credited back")
 	}
-	policy.RecordGbrDebit(testQosID, gbrUl, gbrDl)
 
 	if err := policy.RemovePccRule("rule-1", nil); err != nil {
 		t.Fatalf("RemovePccRule: %v", err)
@@ -150,6 +149,14 @@ func TestDecreaseThenRemoveLeavesAggregateUnchanged(t *testing.T) {
 	if remainUl != 4096 || remainDl != 8192 {
 		t.Errorf("aggregate = (%v, %v) kbps after allocate and release, want (4096, 8192)", remainUl, remainDl)
 	}
+}
+
+// recordFixtureDebit notes a debit of 1 Mbps up and 2 Mbps down for the fixture's QoS data id
+// without taking it from the budget, as the state a rule debited earlier leaves behind.
+func recordFixtureDebit(policy *UeSmPolicyData) {
+	policy.gbrMu.Lock()
+	defer policy.gbrMu.Unlock()
+	policy.recordGbrDebitLocked(testQosID, "1 Mbps", "2 Mbps")
 }
 
 // A policy holding one PCC rule whose QoS data carries the given 5QI and guaranteed rates,
@@ -187,7 +194,7 @@ func TestRemovePccRuleCreditsNothingForARuleThatWasNeverDebited(t *testing.T) {
 	remainUl, remainDl := 4096.0, 8192.0
 	policy := newPolicyHoldingGbrRule(66, "1 Mbps", "2 Mbps", &remainUl, &remainDl)
 
-	// No RecordGbrDebit: this is a slice-derived rule, so nothing was taken for it.
+	// No recorded debit: this is a slice-derived rule, so nothing was taken for it.
 	if err := policy.RemovePccRule("rule-1", nil); err != nil {
 		t.Fatalf("RemovePccRule: %v", err)
 	}
@@ -208,7 +215,7 @@ func TestDecreaseRemainGBRPutsTheDownlinkBackWhenTheUplinkDoesNotFit(t *testing.
 	req := models.NewRequestedQos(66)
 	req.SetGbrUl("1 Mbps") // more than the 512 kbps left uplink
 	req.SetGbrDl("2 Mbps") // fits, and is taken first
-	gbrDl, _, err := policy.DecreaseRemainGBR(req)
+	gbrDl, _, err := policy.DecreaseRemainGBR(testQosID, req)
 	if err == nil {
 		t.Fatal("expected the uplink debit to be refused")
 	}
@@ -238,7 +245,7 @@ func TestGbrLedgerSurvivesConcurrentRecordAndRelease(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < iterations; i++ {
-			policy.RecordGbrDebit(testQosID, "1 Mbps", "2 Mbps")
+			recordFixtureDebit(policy)
 		}
 	}()
 	go func() {
@@ -259,7 +266,7 @@ func TestReplaceGbrDebitRestoresTheLedgerWhenTheNewRequestDoesNotFit(t *testing.
 	policy := newPolicyHoldingGbrRule(66, "1 Mbps", "2 Mbps", &remainUl, &remainDl)
 
 	// The rule is already holding 1 Mbps up / 2 Mbps down of the aggregate.
-	policy.RecordGbrDebit(testQosID, "1 Mbps", "2 Mbps")
+	recordFixtureDebit(policy)
 
 	// Ask for more uplink than the session can carry even after the old debit is credited back.
 	req := models.NewRequestedQos(66)
@@ -317,7 +324,7 @@ func TestReplaceGbrDebitIsOneTransactionAgainstAConcurrentRelease(t *testing.T) 
 	for i := 0; i < iterations; i++ {
 		remainUl, remainDl := 100000.0, 100000.0
 		policy := newPolicyHoldingGbrRule(66, "1 Mbps", "2 Mbps", &remainUl, &remainDl)
-		policy.RecordGbrDebit(testQosID, "1 Mbps", "2 Mbps")
+		recordFixtureDebit(policy)
 
 		req := models.NewRequestedQos(66)
 		req.SetGbrUl("1 Mbps")
@@ -429,6 +436,46 @@ func TestDebitForAuthorizedQosRestoresTheBudgetExactlyWhenTheDownlinkIsRefused(t
 	}
 	if _, held := policy.takeGbrDebit(testQosID); held {
 		t.Error("a debit was recorded for a refused request")
+	}
+}
+
+// The budget is seeded after the session is published, so an application function handler can
+// reach it while it is being seeded. Seeding takes the same lock as every debit; run under -race,
+// which reports an unlocked write against the locked reads.
+func TestSeedRemainGbrIsLockedAgainstAConcurrentDebit(t *testing.T) {
+	const iterations = 100
+	for i := 0; i < iterations; i++ {
+		policy := newPolicyHoldingGbrRule(66, "", "", nil, nil)
+		qosData := models.QosData{QosId: testQosID}
+		qosData.SetGbrUl("1 Mbps")
+		qosData.SetGbrDl("2 Mbps")
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			ul, dl := 100000.0, 100000.0
+			policy.SeedRemainGbr(&ul, &dl)
+		}()
+		go func() {
+			defer wg.Done()
+			// Either order fits: before the seeding the budget is unlimited, after it ample.
+			if err := policy.DebitForAuthorizedQos(&qosData, true, true); err != nil {
+				t.Errorf("iteration %d: debit refused: %v", i, err)
+			}
+		}()
+		wg.Wait()
+	}
+}
+
+// Both directions are set together, so no reader sees one direction seeded and the other not.
+func TestSeedRemainGbrSetsBothDirections(t *testing.T) {
+	policy := newPolicyHoldingGbrRule(66, "", "", nil, nil)
+	ul, dl := 4096.0, 8192.0
+	policy.SeedRemainGbr(&ul, &dl)
+	gotUl, gotDl := policy.RemainingGbrKbps()
+	if gotUl != "4096.00 Kbps" || gotDl != "8192.00 Kbps" {
+		t.Errorf("remaining = (%s, %s), want (4096.00 Kbps, 8192.00 Kbps)", gotUl, gotDl)
 	}
 }
 
