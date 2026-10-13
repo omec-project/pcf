@@ -24,22 +24,22 @@ var MediaTypeTo5qiMap = map[models.MediaType]int32{
 	models.MEDIATYPE_OTHER:       9,
 }
 
-// GetPccRuleId returns the PCC Rule ID as a plain numeric string.
-func GetPccRuleId(id int32) string {
+// getPccRuleId returns the PCC Rule ID as a plain numeric string.
+func getPccRuleId(id int32) string {
 	return fmt.Sprintf("%d", id)
 }
 
-// GetQosId returns the QoS ID as a plain numeric string.
-func GetQosId(id int32) string {
+// getQosId returns the QoS ID as a plain numeric string.
+func getQosId(id int32) string {
 	return fmt.Sprintf("%d", id)
 }
 
-// GetTcId returns the Traffic Control ID as a plain numeric string.
-func GetTcId(id int32) string {
+// getTcId returns the Traffic Control ID as a plain numeric string.
+func getTcId(id int32) string {
 	return fmt.Sprintf("%d", id)
 }
 
-// GetChgId returns the Charging ID in the format "ChgId-<id>".
+// GetChgId returns the Charging Identity(ChgId-%d)
 func GetChgId(id int32) string {
 	return fmt.Sprintf("ChgId-%d", id)
 }
@@ -55,9 +55,9 @@ func GetPackFiltId(id int32) string {
 	return fmt.Sprintf("%d", id)
 }
 
-// CreatePccRule with param id, precedence, flow information, appID
+// Create Pcc Rule with param id, precedence, flow information, appID
 func CreatePccRule(id, precedence int32, flowInfo []models.FlowInformation, appID string) *models.PccRule {
-	rule := models.NewPccRule(GetPccRuleId(id))
+	rule := models.NewPccRule(getPccRuleId(id))
 	rule.SetAppId(appID)
 	rule.SetFlowInfos(flowInfo)
 	rule.SetPrecedence(precedence)
@@ -66,7 +66,7 @@ func CreatePccRule(id, precedence int32, flowInfo []models.FlowInformation, appI
 
 func CreateQosData(id, var5qi, arp int32) models.QosData {
 	return models.QosData{
-		QosId:  GetQosId(id),
+		QosId:  getQosId(id),
 		Var5qi: new(var5qi),
 		Arp: &models.Arp{
 			PriorityLevel: *openapi.NewNullableInt32(new(arp)),
@@ -79,7 +79,7 @@ func CreateTcData(id int32, fullID string, flowStatus models.FlowStatus) *models
 		flowStatus = models.FLOWSTATUS_ENABLED
 	}
 	if fullID == "" {
-		fullID = GetTcId(id)
+		fullID = getTcId(id)
 	}
 	return &models.TrafficControlData{
 		TcId:       fullID,
