@@ -39,7 +39,7 @@ func getTcId(id int32) string {
 	return fmt.Sprintf("%d", id)
 }
 
-// GetChgId returns the Charging Identity(ChgId-%d)
+// GetChgId returns the charging ID in the format "ChgId-<id>".
 func GetChgId(id int32) string {
 	return fmt.Sprintf("ChgId-%d", id)
 }
@@ -55,7 +55,7 @@ func GetPackFiltId(id int32) string {
 	return fmt.Sprintf("%d", id)
 }
 
-// Create Pcc Rule with param id, precedence, flow information, appID
+// CreatePccRule creates a PCC rule with the supplied ID, precedence, flow information, and application ID.
 func CreatePccRule(id, precedence int32, flowInfo []models.FlowInformation, appID string) *models.PccRule {
 	rule := models.NewPccRule(getPccRuleId(id))
 	rule.SetAppId(appID)
