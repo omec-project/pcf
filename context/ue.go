@@ -483,8 +483,9 @@ func (policy *UeSmPolicyData) RecordGbrDebit(qosId, gbrUl, gbrDl string) {
 	policy.recordGbrDebitLocked(qosId, gbrUl, gbrDl)
 }
 
-// MergeGbrDebit updates only the directions it is given, leaving the other as already recorded.
-// A nil argument means "this direction was not part of this operation".
+// mergeGbrDebitLocked updates only the directions it is given, leaving the other as already
+// recorded. A nil argument means "this direction was not part of this operation". The caller holds
+// gbrMu.
 //
 // Replacing both directions from the QoS data is wrong for a caller that debited only one of them.
 // The rates sitting on a stored QosData are not a record of what was taken: two of the paths that
@@ -492,16 +493,6 @@ func (policy *UeSmPolicyData) RecordGbrDebit(qosId, gbrUl, gbrDl string) {
 // the slice policy and been debited by nobody, or from an earlier operation that debited only the
 // other direction. Recording them wholesale would credit an aggregate that was never charged --
 // which is the defect the ledger exists to prevent, arriving through the write instead of the read.
-func (policy *UeSmPolicyData) MergeGbrDebit(qosId string, gbrUl, gbrDl *string) {
-	if gbrUl == nil && gbrDl == nil {
-		return
-	}
-	policy.gbrMu.Lock()
-	defer policy.gbrMu.Unlock()
-	policy.mergeGbrDebitLocked(qosId, gbrUl, gbrDl)
-}
-
-// mergeGbrDebitLocked is MergeGbrDebit for a caller that already holds gbrMu.
 func (policy *UeSmPolicyData) mergeGbrDebitLocked(qosId string, gbrUl, gbrDl *string) {
 	if gbrUl == nil && gbrDl == nil {
 		return
