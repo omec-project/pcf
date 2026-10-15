@@ -28,17 +28,18 @@ func getNfProfile(pcfContext *pcfContext.PCFContext, nfProfileDynamicConfig NfPr
 	if pcfContext == nil {
 		return profile, fmt.Errorf("pcf context has not been initialized. NF profile cannot be built")
 	}
-	profile.NfInstanceId = pcfContext.NfId
-	profile.NfType = models.NFTYPE_PCF
-	profile.NfStatus = models.NFSTATUS_REGISTERED
-	profile.Ipv4Addresses = append(profile.Ipv4Addresses, pcfContext.RegisterIPv4)
+	profile = *models.NewNFProfileWithDefaults()
+	profile.SetNfInstanceId(pcfContext.NfId)
+	profile.SetNfType(models.NFTYPE_PCF)
+	profile.SetNfStatus(models.NFSTATUS_REGISTERED)
+	profile.SetIpv4Addresses(append(profile.GetIpv4Addresses(), pcfContext.RegisterIPv4))
 	service := []models.NFService{}
 	serviceList := map[string]models.NFService{}
 	for _, nfService := range pcfContext.NfService {
 		service = append(service, nfService)
 		serviceList[nfService.GetServiceInstanceId()] = nfService
 	}
-	profile.NfServices = service
+	profile.SetNfServices(service)
 	profile.SetNfServiceList(serviceList)
 
 	if len(nfProfileDynamicConfig.Plmns) > 0 {
@@ -46,7 +47,7 @@ func getNfProfile(pcfContext *pcfContext.PCFContext, nfProfileDynamicConfig NfPr
 		for plmn := range nfProfileDynamicConfig.Plmns {
 			plmnCopy = append(plmnCopy, plmn)
 		}
-		profile.PlmnList = plmnCopy
+		profile.SetPlmnList(plmnCopy)
 	}
 
 	var dnnList []string
@@ -59,18 +60,9 @@ func getNfProfile(pcfContext *pcfContext.PCFContext, nfProfileDynamicConfig NfPr
 		}
 	}
 
-	profile.PcfInfo = &models.PcfInfo{
-		DnnList: dnnList,
-		// SupiRanges: &[]models.SupiRange{
-		// 	{
-		// 		//from TS 29.510 6.1.6.2.9 example2
-		//		//no need to set SUPI range at this moment 2019/10/4
-		// 		Start:   "123456789040000",
-		// 		End:     "123456789059999",
-		// 		Pattern: "^imsi-12345678904[0-9]{4}$",
-		// 	},
-		// },
-	}
+	pcfInfo := models.NewPcfInfo()
+	pcfInfo.SetDnnList(dnnList)
+	profile.SetPcfInfo(*pcfInfo)
 	return profile, err
 }
 
@@ -78,7 +70,7 @@ var SendRegisterNFInstance = func(nfProfileDynamicConfig NfProfileDynamicConfig)
 	self := pcfContext.PCF_Self()
 	nfProfile, err := getNfProfile(self, nfProfileDynamicConfig)
 	if err != nil {
-		return &models.NFProfile{}, "", err
+		return models.NewNFProfileWithDefaults(), "", err
 	}
 
 	configuration := Nnrf_NFManagement.NewConfiguration()
@@ -92,10 +84,10 @@ var SendRegisterNFInstance = func(nfProfileDynamicConfig NfProfileDynamicConfig)
 	apiRegisterNFInstanceRequest = apiRegisterNFInstanceRequest.NFProfile(nfProfile)
 	receivedNfProfile, res, err := client.NFInstanceIDDocumentAPI.RegisterNFInstanceExecute(apiRegisterNFInstanceRequest)
 	if err != nil {
-		return &models.NFProfile{}, "", err
+		return models.NewNFProfileWithDefaults(), "", err
 	}
 	if res == nil {
-		return &models.NFProfile{}, "", fmt.Errorf("no response from server")
+		return models.NewNFProfileWithDefaults(), "", fmt.Errorf("no response from server")
 	}
 	defer func() {
 		if res.Body != nil {
