@@ -4,9 +4,11 @@
 package notifyevent
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/omec-project/openapi/v2/models"
 )
@@ -70,5 +72,55 @@ func TestUnroutedCallbackIsReportedAsAFailure(t *testing.T) {
 		&models.SmPolicyNotification{})
 	if err == nil {
 		t.Fatal("a 404 was reported as a successful delivery")
+	}
+}
+
+// A send the SMF never answered is marked as such, and it is the only failure that is. A caller
+// notifying many sessions gives up on that and nothing else, so an answered failure carrying the
+// mark would abandon a fan-out over a single session.
+func TestOnlyAnUnansweredSendIsMarkedAsNoAnswer(t *testing.T) {
+	t.Run("no server listening", func(t *testing.T) {
+		srv := httptest.NewServer(http.NotFoundHandler())
+		url := srv.URL
+		srv.Close()
+
+		err := SendSMPolicyUpdateNotification(url+"/nsmf-callback/sm-policies/ref-1", &models.SmPolicyNotification{})
+		if !errors.Is(err, ErrNoAnswer) {
+			t.Errorf("a refused connection gave %v, want it marked ErrNoAnswer", err)
+		}
+	})
+
+	t.Run("timed out", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			time.Sleep(200 * time.Millisecond)
+			w.WriteHeader(http.StatusNoContent)
+		}))
+		defer srv.Close()
+
+		original := sendSMPolicyUpdateNotifyHTTPClient
+		sendSMPolicyUpdateNotifyHTTPClient = &http.Client{Timeout: 20 * time.Millisecond}
+		t.Cleanup(func() { sendSMPolicyUpdateNotifyHTTPClient = original })
+
+		err := SendSMPolicyUpdateNotification(srv.URL+"/nsmf-callback/sm-policies/ref-1", &models.SmPolicyNotification{})
+		if !errors.Is(err, ErrNoAnswer) {
+			t.Errorf("a request that timed out gave %v, want it marked ErrNoAnswer", err)
+		}
+	})
+
+	for _, status := range []int{http.StatusNotFound, http.StatusInternalServerError, http.StatusServiceUnavailable} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(status)
+			}))
+			defer srv.Close()
+
+			err := SendSMPolicyUpdateNotification(srv.URL+"/nsmf-callback/sm-policies/ref-1", &models.SmPolicyNotification{})
+			if err == nil {
+				t.Fatalf("a %d was reported as delivered", status)
+			}
+			if errors.Is(err, ErrNoAnswer) {
+				t.Errorf("an answered %d was marked ErrNoAnswer: %v", status, err)
+			}
+		})
 	}
 }

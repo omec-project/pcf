@@ -53,14 +53,15 @@ func (e SendSMpolicyUpdateNotifyEvent) Handle() {
 // directly and has no dispatcher to do it.
 const smPolicyUpdateNotificationPath = "/update"
 
-// ErrSessionRejected marks a failure that is about this session rather than about the far end.
+// ErrNoAnswer marks a send the SMF never answered: the connection failed, or the request timed out
+// before a response came back.
 //
-// The distinction matters to a caller notifying many sessions in turn. An SMF that is down fails
-// every send the same way and there is nothing to gain by working through the rest; a session the
-// SMF no longer holds answers 404 while every other session is fine. Treating the second as
-// evidence of the first would let a few stale sessions abandon a fan-out and strand the healthy
-// ones behind them.
-var ErrSessionRejected = errors.New("the SMF rejected this session's notification")
+// A caller notifying many sessions in turn needs to tell an SMF it cannot reach from a session the
+// SMF could not act on. Any HTTP status is an answer, and what it means depends on how long it took:
+// the SD-Core SMF answers 500 at once for a session it no longer holds, and 503 either at once or
+// only after its own PFCP retries have run out. So the mark says only that there was no answer, and
+// the caller weighs the rest.
+var ErrNoAnswer = errors.New("the SMF did not answer")
 
 // SendSMPolicyUpdateNotification posts the notification and reports what happened.
 //
@@ -97,7 +98,7 @@ func SendSMPolicyUpdateNotification(uri string, request *models.SmPolicyNotifica
 	logger.NotifyEventLog.Infoln("send SM Policy Update Notification to SMF")
 	httpResponse, err := sendSMPolicyUpdateNotifyHTTPClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("sending to %s: %w", uri, err)
+		return fmt.Errorf("%w: sending to %s: %w", ErrNoAnswer, uri, err)
 	}
 	if httpResponse == nil {
 		return errors.New("HTTP response is nil")
@@ -109,9 +110,6 @@ func SendSMPolicyUpdateNotification(uri string, request *models.SmPolicyNotifica
 	}()
 
 	if httpResponse.StatusCode != http.StatusOK && httpResponse.StatusCode != http.StatusNoContent {
-		if httpResponse.StatusCode >= 400 && httpResponse.StatusCode < 500 {
-			return fmt.Errorf("%w: SMF answered %s", ErrSessionRejected, httpResponse.Status)
-		}
 		return fmt.Errorf("SMF answered %s", httpResponse.Status)
 	}
 	return nil
