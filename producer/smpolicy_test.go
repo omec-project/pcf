@@ -16,7 +16,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/omec-project/openapi/v2"
 	"github.com/omec-project/openapi/v2/models"
 	"github.com/omec-project/openapi/v2/nfConfigApi"
 	"github.com/omec-project/pcf/factory"
@@ -24,27 +23,25 @@ import (
 	"github.com/omec-project/pcf/util"
 )
 
-var testSnssai = models.Snssai{
-	Sst: 1,
-	Sd:  new("010203"),
-}
+var testSnssai = func() models.Snssai {
+	snssai := models.NewSnssai(1)
+	snssai.SetSd("010203")
+	return *snssai
+}()
 
 var (
 	testDnn  = "internet"
 	testImsi = "imsi-001010123456789"
-	testAmbr = &models.Ambr{
-		Downlink: "500 Mbps",
-		Uplink:   "250 Mbps",
-	}
+	testAmbr = models.NewAmbr("500 Mbps", "250 Mbps")
 )
 
-var testQos = &models.SubscribedDefaultQos{
-	Var5qi:        6,
-	PriorityLevel: new(int32(8)),
-	Arp: models.Arp{
-		PriorityLevel: *openapi.NewNullableInt32(new(int32(10))),
-	},
-}
+var testQos = func() *models.SubscribedDefaultQos {
+	arp := models.NewArpWithDefaults()
+	arp.SetPriorityLevel(10)
+	qos := models.NewSubscribedDefaultQos(6, *arp)
+	qos.SetPriorityLevel(8)
+	return qos
+}()
 
 const applicationJson = "application/json"
 
@@ -66,19 +63,13 @@ func TestBuildSmPolicyDecision_FoundInLocalPolicy(t *testing.T) {
 	getSlicePccPolicy = func(snssai models.Snssai) *polling.PccPolicy {
 		return &polling.PccPolicy{
 			PccRules: map[string]*models.PccRule{
-				testPccRuleId1: {
-					PccRuleId: testPccRuleId1,
-				},
+				testPccRuleId1: models.NewPccRule(testPccRuleId1),
 			},
 			QosDecs: map[string]*models.QosData{
-				testQosId1: {
-					QosId: testQosId1,
-				},
+				testQosId1: models.NewQosData(testQosId1),
 			},
 			TraffContDecs: map[string]*models.TrafficControlData{
-				testTcId1: {
-					TcId: testTcId1,
-				},
+				testTcId1: models.NewTrafficControlData(testTcId1),
 			},
 		}
 	}
@@ -126,42 +117,34 @@ func TestBuildSmPolicyDecision_FoundInLocalPolicy(t *testing.T) {
 	}
 
 	qosDecs := map[string]models.QosData{
-		testQosId1: {
-			QosId: testQosId1,
-		},
+		testQosId1: *models.NewQosData(testQosId1),
 	}
 	traffContDecs := map[string]models.TrafficControlData{
-		testTcId1: {
-			TcId: testTcId1,
-		},
+		testTcId1: *models.NewTrafficControlData(testTcId1),
 	}
 	authSessAmbr := models.NewAmbr("55 Mbps", "515 Mbps")
-	authDefQos := &models.AuthorizedDefaultQos{}
+	authDefQos := models.NewAuthorizedDefaultQos()
 	authDefQos.SetVar5qi(7)
 	arp := models.NewArpWithDefaults()
 	arp.SetPriorityLevel(9)
 	arp.SetPreemptCap(models.PREEMPTIONCAPABILITY_NOT_PREEMPT)
 	arp.SetPreemptVuln(models.PREEMPTIONVULNERABILITY_PREEMPTABLE)
 	authDefQos.SetArp(*arp)
+	sessRule := models.NewSessionRule(testSessRuleIdInternet1)
+	sessRule.SetAuthSessAmbr(*authSessAmbr)
+	sessRule.SetAuthDefQos(*authDefQos)
 	sessRules := map[string]models.SessionRule{
-		testSessRuleIdInternet1: {
-			SessRuleId:   testSessRuleIdInternet1,
-			AuthSessAmbr: authSessAmbr,
-			AuthDefQos:   authDefQos,
-		},
+		testSessRuleIdInternet1: *sessRule,
 	}
 
-	expectedDecision := &models.SmPolicyDecision{
-		PccRules: map[string]models.PccRule{
-			testPccRuleId1: {
-				PccRuleId: testPccRuleId1,
-			},
-		},
-		QosDecs:       &qosDecs,
-		TraffContDecs: &traffContDecs,
-		SessRules:     &sessRules,
-		OfflineChOnly: new(false),
-	}
+	expectedDecision := models.NewSmPolicyDecision()
+	expectedDecision.SetPccRules(map[string]models.PccRule{
+		testPccRuleId1: *models.NewPccRule(testPccRuleId1),
+	})
+	expectedDecision.SetQosDecs(qosDecs)
+	expectedDecision.SetTraffContDecs(traffContDecs)
+	expectedDecision.SetSessRules(sessRules)
+	expectedDecision.SetOfflineChOnly(false)
 
 	if !util.CompareViaJSON(decision, expectedDecision) {
 		t.Errorf("SmPolicyDecision mismatch")
@@ -261,6 +244,17 @@ func TestBuildSmPolicyDecision_SessionRulesEmpty(t *testing.T) {
 	}
 }
 
+// newFallbackAuthorizedQos builds the AuthorizedDefaultQos expected when buildDefaultSessionRule
+// falls back to a given/default 5QI and ARP priority level.
+func newFallbackAuthorizedQos(var5qi, priorityLevel int32) *models.AuthorizedDefaultQos {
+	q := models.NewAuthorizedDefaultQos()
+	q.SetVar5qi(var5qi)
+	arp := models.NewArpWithDefaults()
+	arp.SetPriorityLevel(priorityLevel)
+	q.SetArp(*arp)
+	return q
+}
+
 func TestBuildSmPolicyDecision_FallbackToDefault(t *testing.T) {
 	originalGetSlicePccPolicy := getSlicePccPolicy
 	originalPcfConfig := factory.PcfConfig
@@ -277,81 +271,45 @@ func TestBuildSmPolicyDecision_FallbackToDefault(t *testing.T) {
 		expectedAmbr *models.Ambr
 	}{
 		{
-			name:      "fallback with given QoS and ambr",
-			inputAmbr: testAmbr,
-			inputQos:  testQos,
-			expectedQos: &models.AuthorizedDefaultQos{
-				Var5qi: new(int32(6)),
-				Arp: &models.Arp{
-					PriorityLevel: *openapi.NewNullableInt32(new(int32(10))),
-				},
-				AverWindow: *openapi.NewNullableInt32(new(int32(2000))),
-			},
-			expectedAmbr: &models.Ambr{
-				Downlink: "500 Mbps",
-				Uplink:   "250 Mbps",
-			},
+			name:         "fallback with given QoS and ambr",
+			inputAmbr:    testAmbr,
+			inputQos:     testQos,
+			expectedQos:  newFallbackAuthorizedQos(6, 10),
+			expectedAmbr: models.NewAmbr("500 Mbps", "250 Mbps"),
 		},
 		{
-			name:      "fallback without QoS nor ambr",
-			inputAmbr: nil,
-			inputQos:  nil,
-			expectedQos: &models.AuthorizedDefaultQos{
-				Var5qi: new(int32(5)),
-				Arp: &models.Arp{
-					PriorityLevel: *openapi.NewNullableInt32(new(int32(1))),
-				},
-				AverWindow: *openapi.NewNullableInt32(new(int32(2000))),
-			},
-			expectedAmbr: &models.Ambr{
-				Downlink: defaultFallbackAmbrRate,
-				Uplink:   defaultFallbackAmbrRate,
-			},
+			name:         "fallback without QoS nor ambr",
+			inputAmbr:    nil,
+			inputQos:     nil,
+			expectedQos:  newFallbackAuthorizedQos(5, 1),
+			expectedAmbr: models.NewAmbr(defaultFallbackAmbrRate, defaultFallbackAmbrRate),
 		},
 		{
-			name:      "fallback with QoS but no ambr",
-			inputAmbr: nil,
-			inputQos:  testQos,
-			expectedQos: &models.AuthorizedDefaultQos{
-				Var5qi: new(int32(5)),
-				Arp: &models.Arp{
-					PriorityLevel: *openapi.NewNullableInt32(new(int32(1))),
-				},
-				AverWindow: *openapi.NewNullableInt32(new(int32(2000))),
-			},
-			expectedAmbr: &models.Ambr{
-				Downlink: defaultFallbackAmbrRate,
-				Uplink:   defaultFallbackAmbrRate,
-			},
+			name:         "fallback with QoS but no ambr",
+			inputAmbr:    nil,
+			inputQos:     testQos,
+			expectedQos:  newFallbackAuthorizedQos(5, 1),
+			expectedAmbr: models.NewAmbr(defaultFallbackAmbrRate, defaultFallbackAmbrRate),
 		},
 		{
-			name:      "fallback without QoS but with ambr",
-			inputAmbr: testAmbr,
-			inputQos:  nil,
-			expectedQos: &models.AuthorizedDefaultQos{
-				Var5qi: new(int32(5)),
-				Arp: &models.Arp{
-					PriorityLevel: *openapi.NewNullableInt32(new(int32(1))),
-				},
-				AverWindow: *openapi.NewNullableInt32(new(int32(2000))),
-			},
-			expectedAmbr: &models.Ambr{
-				Downlink: defaultFallbackAmbrRate,
-				Uplink:   defaultFallbackAmbrRate,
-			},
+			name:         "fallback without QoS but with ambr",
+			inputAmbr:    testAmbr,
+			inputQos:     nil,
+			expectedQos:  newFallbackAuthorizedQos(5, 1),
+			expectedAmbr: models.NewAmbr(defaultFallbackAmbrRate, defaultFallbackAmbrRate),
 		},
 	}
 
 	getSlicePccPolicy = func(snssai models.Snssai) *polling.PccPolicy {
 		return &polling.PccPolicy{
 			PccRules: map[string]*models.PccRule{
-				testPccRuleId1: {PccRuleId: testPccRuleId1},
+				testPccRuleId1: models.NewPccRule(testPccRuleId1),
 			},
 			QosDecs: map[string]*models.QosData{
-				testQosId1: {QosId: testQosId1},
+				testQosId1: models.NewQosData(testQosId1),
 			},
 			TraffContDecs: map[string]*models.TrafficControlData{
-				testTcId1: {TcId: testTcId1},
+				testTcId1: models.NewTrafficControlData(testTcId1),
 			},
 		}
 	}
@@ -385,34 +343,26 @@ func TestBuildSmPolicyDecision_FallbackToDefault(t *testing.T) {
 			}
 
 			qosDecs := map[string]models.QosData{
-				testQosId1: {
-					QosId: testQosId1,
-				},
+				testQosId1: *models.NewQosData(testQosId1),
 			}
 			traffContDecs := map[string]models.TrafficControlData{
-				testTcId1: {
-					TcId: testTcId1,
-				},
+				testTcId1: *models.NewTrafficControlData(testTcId1),
 			}
+			sessRule := models.NewSessionRule(testSessRuleIdInternet1)
+			sessRule.SetAuthDefQos(*tc.expectedQos)
+			sessRule.SetAuthSessAmbr(*tc.expectedAmbr)
 			sessRules := map[string]models.SessionRule{
-				testSessRuleIdInternet1: {
-					SessRuleId:   testSessRuleIdInternet1,
-					AuthDefQos:   tc.expectedQos,
-					AuthSessAmbr: tc.expectedAmbr,
-				},
+				testSessRuleIdInternet1: *sessRule,
 			}
 
-			expectedDecision := &models.SmPolicyDecision{
-				PccRules: map[string]models.PccRule{
-					testPccRuleId1: {
-						PccRuleId: testPccRuleId1,
-					},
-				},
-				QosDecs:       &qosDecs,
-				TraffContDecs: &traffContDecs,
-				SessRules:     &sessRules,
-				OfflineChOnly: new(false),
-			}
+			expectedDecision := models.NewSmPolicyDecision()
+			expectedDecision.SetPccRules(map[string]models.PccRule{
+				testPccRuleId1: *models.NewPccRule(testPccRuleId1),
+			})
+			expectedDecision.SetQosDecs(qosDecs)
+			expectedDecision.SetTraffContDecs(traffContDecs)
+			expectedDecision.SetSessRules(sessRules)
+			expectedDecision.SetOfflineChOnly(false)
 
 			if !util.CompareViaJSON(decision, expectedDecision) {
 				t.Errorf("SmPolicyDecision mismatch")
@@ -440,16 +390,14 @@ func TestBuildSmPolicyDecision_FallbackToDefault(t *testing.T) {
 // QoS max-bitrates (NullableString) and ARP priority (NullableInt32) must survive the
 // JSON deep copy used in initSmPolicyDecisionFromPccPolicy.
 func TestInitSmPolicyDecisionPreservesNullableFields(t *testing.T) {
-	qos := &models.QosData{
-		QosId:   testQosId1,
-		MaxbrUl: *openapi.NewNullableString(new("100 Mbps")),
-		MaxbrDl: *openapi.NewNullableString(new("200 Mbps")),
-		Arp: &models.Arp{
-			PriorityLevel: *openapi.NewNullableInt32(new(int32(5))),
-			PreemptCap:    models.PREEMPTIONCAPABILITY_NOT_PREEMPT,
-			PreemptVuln:   models.PREEMPTIONVULNERABILITY_NOT_PREEMPTABLE,
-		},
-	}
+	arp := models.NewArpWithDefaults()
+	arp.SetPriorityLevel(5)
+	arp.SetPreemptCap(models.PREEMPTIONCAPABILITY_NOT_PREEMPT)
+	arp.SetPreemptVuln(models.PREEMPTIONVULNERABILITY_NOT_PREEMPTABLE)
+	qos := models.NewQosData(testQosId1)
+	qos.SetMaxbrUl("100 Mbps")
+	qos.SetMaxbrDl("200 Mbps")
+	qos.SetArp(*arp)
 	pccPolicy := &polling.PccPolicy{
 		PccRules:      map[string]*models.PccRule{},
 		QosDecs:       map[string]*models.QosData{testQosId1: qos},
