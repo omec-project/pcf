@@ -12,7 +12,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/omec-project/openapi/v2"
 	"github.com/omec-project/openapi/v2/models"
 	"github.com/omec-project/openapi/v2/nfConfigApi"
 	"github.com/omec-project/pcf/logger"
@@ -76,7 +75,7 @@ var createPccPolicies = func(idGenerator *idgenerator.IDGenerator, policyControl
 		return
 	}
 	snssai := models.Snssai{
-		Sst: policyControlConfig.Snssai.Sst,
+		Sst: policyControlConfig.Snssai.GetSst(),
 	}
 	if sd, ok := policyControlConfig.Snssai.GetSdOk(); ok {
 		snssai.Sd = sd
@@ -101,24 +100,24 @@ func makePccPolicy(idGenerator *idgenerator.IDGenerator, pccRules []nfConfigApi.
 		flowInfos, traffContDecs := makeFlowInfosAndTrafficContDesc(idGenerator, pccrule.Flows)
 		refTcData := make([]string, 0, len(traffContDecs))
 		for _, tcData := range traffContDecs {
-			refTcData = append(refTcData, tcData.TcId)
-			pccPolicy.TraffContDecs[tcData.TcId] = &tcData
+			refTcData = append(refTcData, tcData.GetTcId())
+			pccPolicy.TraffContDecs[tcData.GetTcId()] = &tcData
 		}
 
-		qos := makeQosDesc(id, pccrule.Qos)
+		qos := makeQosDesc(id, pccrule.GetQos())
 		if hasDefaultQosFlow(flowInfos) {
-			qos.DefQosFlowIndication = new(true)
+			qos.SetDefQosFlowIndication(true)
 		}
 		pccPolicy.QosDecs[qos.QosId] = &qos
 
 		rule := models.NewPccRule(strconv.FormatInt(id, 10))
-		if pccrule.Precedence != 0 {
-			rule.SetPrecedence(pccrule.Precedence)
+		if pccrule.GetPrecedence() != 0 {
+			rule.SetPrecedence(pccrule.GetPrecedence())
 		}
 		rule.SetFlowInfos(flowInfos)
 		rule.SetRefTcData(refTcData)
-		rule.SetRefQosData([]string{qos.QosId})
-		pccPolicy.PccRules[pccrule.RuleId] = rule
+		rule.SetRefQosData([]string{qos.GetQosId()})
+		pccPolicy.PccRules[pccrule.GetRuleId()] = rule
 	}
 	return pccPolicy
 }
@@ -134,34 +133,32 @@ func hasDefaultQosFlow(flows []models.FlowInformation) bool {
 }
 
 func makeQosDesc(id int64, pccQos nfConfigApi.PccQos) models.QosData {
-	qos := models.QosData{
-		QosId: strconv.FormatInt(id, 10),
-		Arp: &models.Arp{
-			PriorityLevel: *openapi.NewNullableInt32(new(pccQos.Arp.GetPriorityLevel())),
-		},
-	}
-	if pccQos.FiveQi != 0 {
-		qos.Var5qi = new(pccQos.GetFiveQi())
+	arp := models.NewArpWithDefaults()
+	arp.SetPriorityLevel(pccQos.Arp.GetPriorityLevel())
+	qos := models.NewQosData(strconv.FormatInt(id, 10))
+	qos.SetArp(*arp)
+	if pccQos.GetFiveQi() != 0 {
+		qos.SetVar5qi(pccQos.GetFiveQi())
 	}
 	if MaxbrUl, ok := pccQos.GetMaxBrUlOk(); ok {
-		qos.MaxbrUl = *openapi.NewNullableString(MaxbrUl)
+		qos.SetMaxbrUl(*MaxbrUl)
 	}
 	if MaxbrDl, ok := pccQos.GetMaxBrDlOk(); ok {
-		qos.MaxbrDl = *openapi.NewNullableString(MaxbrDl)
+		qos.SetMaxbrDl(*MaxbrDl)
 	}
-	switch pccQos.Arp.PreemptCap {
+	switch pccQos.Arp.GetPreemptCap() {
 	case nfConfigApi.PREEMPTCAP_NOT_PREEMPT:
-		qos.Arp.PreemptCap = models.PREEMPTIONCAPABILITY_NOT_PREEMPT
+		qos.Arp.SetPreemptCap(models.PREEMPTIONCAPABILITY_NOT_PREEMPT)
 	case nfConfigApi.PREEMPTCAP_MAY_PREEMPT:
-		qos.Arp.PreemptCap = models.PREEMPTIONCAPABILITY_MAY_PREEMPT
+		qos.Arp.SetPreemptCap(models.PREEMPTIONCAPABILITY_MAY_PREEMPT)
 	}
-	switch pccQos.Arp.PreemptVuln {
+	switch pccQos.Arp.GetPreemptVuln() {
 	case nfConfigApi.PREEMPTVULN_NOT_PREEMPTABLE:
-		qos.Arp.PreemptVuln = models.PREEMPTIONVULNERABILITY_NOT_PREEMPTABLE
+		qos.Arp.SetPreemptVuln(models.PREEMPTIONVULNERABILITY_NOT_PREEMPTABLE)
 	case nfConfigApi.PREEMPTVULN_PREEMPTABLE:
-		qos.Arp.PreemptVuln = models.PREEMPTIONVULNERABILITY_PREEMPTABLE
+		qos.Arp.SetPreemptVuln(models.PREEMPTIONVULNERABILITY_PREEMPTABLE)
 	}
-	return qos
+	return *qos
 }
 
 func makeFlowInfosAndTrafficContDesc(idGenerator *idgenerator.IDGenerator, pccFlows []nfConfigApi.PccFlow) ([]models.FlowInformation, []models.TrafficControlData) {
@@ -176,7 +173,7 @@ func makeFlowInfosAndTrafficContDesc(idGenerator *idgenerator.IDGenerator, pccFl
 		}
 
 		var direction models.FlowDirectionRm
-		switch pccFlow.Direction {
+		switch pccFlow.GetDirection() {
 		case nfConfigApi.DIRECTION_DOWNLINK:
 			direction = models.FLOWDIRECTIONRM_DOWNLINK
 		case nfConfigApi.DIRECTION_UPLINK:
@@ -189,15 +186,14 @@ func makeFlowInfosAndTrafficContDesc(idGenerator *idgenerator.IDGenerator, pccFl
 			direction = models.FLOWDIRECTIONRM_UNSPECIFIED
 		}
 
-		flow := models.FlowInformation{
-			PackFiltId:      new(strconv.FormatInt(id, 10)),
-			FlowDescription: new(pccFlow.GetDescription()),
-			FlowDirection:   direction.Ptr(),
-		}
-		parsedFlows = append(parsedFlows, flow)
+		flow := models.NewFlowInformation()
+		flow.SetPackFiltId(strconv.FormatInt(id, 10))
+		flow.SetFlowDescription(pccFlow.GetDescription())
+		flow.SetFlowDirection(direction)
+		parsedFlows = append(parsedFlows, *flow)
 
 		var status models.FlowStatus
-		switch pccFlow.Status {
+		switch pccFlow.GetStatus() {
 		case nfConfigApi.STATUS_ENABLED:
 			status = models.FLOWSTATUS_ENABLED
 		case nfConfigApi.STATUS_DISABLED:
@@ -211,11 +207,9 @@ func makeFlowInfosAndTrafficContDesc(idGenerator *idgenerator.IDGenerator, pccFl
 		}
 
 		// traffic control info set based on flow at present
-		tcData := models.TrafficControlData{
-			TcId:       strconv.FormatInt(id, 10),
-			FlowStatus: status.Ptr(),
-		}
-		parsedTrafficControl = append(parsedTrafficControl, tcData)
+		tcData := models.NewTrafficControlData(strconv.FormatInt(id, 10))
+		tcData.SetFlowStatus(status)
+		parsedTrafficControl = append(parsedTrafficControl, *tcData)
 	}
 	return parsedFlows, parsedTrafficControl
 }

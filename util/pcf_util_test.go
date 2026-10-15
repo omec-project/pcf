@@ -8,7 +8,6 @@ package util
 import (
 	"testing"
 
-	"github.com/omec-project/openapi/v2"
 	"github.com/omec-project/openapi/v2/models"
 )
 
@@ -48,15 +47,14 @@ func TestCompareViaJSONDetectsTypedMapKeyDifferences(t *testing.T) {
 // marshalers, so reflection- or gob-based copying would silently drop them; the JSON
 // round-trip honours their MarshalJSON/UnmarshalJSON.
 func TestDeepCopyViaJSONPreservesNullableField(t *testing.T) {
-	src := models.QosData{
-		QosId:   "qos1",
-		MaxbrUl: *openapi.NewNullableString(new("100 Mbps")),
-		Arp: &models.Arp{
-			PriorityLevel: *openapi.NewNullableInt32(new(int32(5))),
-			PreemptCap:    models.PREEMPTIONCAPABILITY_NOT_PREEMPT,
-			PreemptVuln:   models.PREEMPTIONVULNERABILITY_NOT_PREEMPTABLE,
-		},
-	}
+	arp := models.NewArpWithDefaults()
+	arp.SetPriorityLevel(5)
+	arp.SetPreemptCap(models.PREEMPTIONCAPABILITY_NOT_PREEMPT)
+	arp.SetPreemptVuln(models.PREEMPTIONVULNERABILITY_NOT_PREEMPTABLE)
+	src := models.QosData{}
+	src.SetQosId("qos1")
+	src.SetMaxbrUl("100 Mbps")
+	src.SetArp(*arp)
 
 	var cp models.QosData
 	if err := DeepCopyViaJSON(src, &cp); err != nil {
