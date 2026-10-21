@@ -12,6 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"reflect"
 	"strconv"
@@ -74,7 +75,7 @@ func postAppSessionCallbackJSON(uri string, request any, callbackName string) {
 	}
 }
 
-func transferAfRoutReqRmToAfRoutReq(AfRoutReqRm models.AfRoutingRequirementRm) *models.AfRoutingRequirement {
+func transferAfRoutReqRmToAfRoutReq(AfRoutReqRm models.AfRoutingRequirementRm) models.AfRoutingRequirement {
 	spVal := models.SpatialValidity{
 		PresenceInfoList: AfRoutReqRm.SpVal.Get().GetPresenceInfoList(),
 	}
@@ -85,103 +86,125 @@ func transferAfRoutReqRmToAfRoutReq(AfRoutReqRm models.AfRoutingRequirementRm) *
 		TempVals:     AfRoutReqRm.TempVals,
 		UpPathChgSub: AfRoutReqRm.UpPathChgSub,
 	}
-	return &afRoutReq
+	return afRoutReq
+}
+
+// transferQosMonitoringInformationRmToQosMonitoringInformation only copies fields that
+// were present in the removal model, preserving optional-field absence.
+func transferQosMonitoringInformationRmToQosMonitoringInformation(qosMonRm *models.QosMonitoringInformationRm) *models.QosMonitoringInformation {
+	qosMon := models.NewQosMonitoringInformation()
+	if qosMonRm.HasRepThreshDl() {
+		qosMon.SetRepThreshDl(qosMonRm.GetRepThreshDl())
+	}
+	if qosMonRm.HasRepThreshUl() {
+		qosMon.SetRepThreshUl(qosMonRm.GetRepThreshUl())
+	}
+	if qosMonRm.HasRepThreshRp() {
+		qosMon.SetRepThreshRp(qosMonRm.GetRepThreshRp())
+	}
+	if qosMonRm.HasRepThreshDatRateUl() {
+		qosMon.SetRepThreshDatRateUl(qosMonRm.GetRepThreshDatRateUl())
+	}
+	if qosMonRm.HasRepThreshDatRateDl() {
+		qosMon.SetRepThreshDatRateDl(qosMonRm.GetRepThreshDatRateDl())
+	}
+	if qosMonRm.HasConThreshDl() {
+		qosMon.SetConThreshDl(qosMonRm.GetConThreshDl())
+	}
+	if qosMonRm.HasConThreshUl() {
+		qosMon.SetConThreshUl(qosMonRm.GetConThreshUl())
+	}
+	return qosMon
+}
+
+// transferUsageThresholdRmToUsageThreshold only copies fields that were present in the
+// removal model, preserving optional-field absence.
+func transferUsageThresholdRmToUsageThreshold(usgThresRm *models.UsageThresholdRm) *models.UsageThreshold {
+	usgThres := models.NewUsageThreshold()
+	if usgThresRm.HasDuration() {
+		usgThres.SetDuration(usgThresRm.GetDuration())
+	}
+	if usgThresRm.HasTotalVolume() {
+		usgThres.SetTotalVolume(usgThresRm.GetTotalVolume())
+	}
+	if usgThresRm.HasDownlinkVolume() {
+		usgThres.SetDownlinkVolume(usgThresRm.GetDownlinkVolume())
+	}
+	if usgThresRm.HasUplinkVolume() {
+		usgThres.SetUplinkVolume(usgThresRm.GetUplinkVolume())
+	}
+	return usgThres
 }
 
 func transferMedCompRmToMedComp(medCompRm *models.MediaComponentRm) *models.MediaComponent {
 	medSubComps := make(map[string]models.MediaSubComponent)
 	for id, medSubCompRm := range medCompRm.GetMedSubComps() {
 		evSubscRm := medSubCompRm.EvSubsc.Get()
-		qosMonRm := evSubscRm.QosMon.Get()
-		qosMon := models.QosMonitoringInformation{
-			RepThreshDl:        qosMonRm.RepThreshDl,
-			RepThreshUl:        qosMonRm.RepThreshUl,
-			RepThreshRp:        qosMonRm.RepThreshRp,
-			RepThreshDatRateUl: qosMonRm.RepThreshDatRateUl.Get(),
-			RepThreshDatRateDl: qosMonRm.RepThreshDatRateDl.Get(),
-			ConThreshDl:        qosMonRm.ConThreshDl.Get(),
-			ConThreshUl:        qosMonRm.ConThreshUl.Get(),
-		}
-		qosMonDatRateRm := evSubscRm.QosMonDatRate.Get()
-		qosMonDatRate := models.QosMonitoringInformation{
-			RepThreshDl:        qosMonDatRateRm.RepThreshDl,
-			RepThreshUl:        qosMonDatRateRm.RepThreshUl,
-			RepThreshRp:        qosMonDatRateRm.RepThreshRp,
-			RepThreshDatRateUl: qosMonDatRateRm.RepThreshDatRateUl.Get(),
-			RepThreshDatRateDl: qosMonDatRateRm.RepThreshDatRateDl.Get(),
-			ConThreshDl:        qosMonDatRateRm.ConThreshDl.Get(),
-			ConThreshUl:        qosMonDatRateRm.ConThreshUl.Get(),
-		}
-		pdvMonRm := evSubscRm.PdvMon.Get()
-		pdvMon := models.QosMonitoringInformation{
-			RepThreshDl:        pdvMonRm.RepThreshDl,
-			RepThreshUl:        pdvMonRm.RepThreshUl,
-			RepThreshRp:        pdvMonRm.RepThreshRp,
-			RepThreshDatRateUl: pdvMonRm.RepThreshDatRateUl.Get(),
-			RepThreshDatRateDl: pdvMonRm.RepThreshDatRateDl.Get(),
-			ConThreshDl:        pdvMonRm.ConThreshDl.Get(),
-			ConThreshUl:        pdvMonRm.ConThreshUl.Get(),
-		}
-		congestMonRm := evSubscRm.CongestMon.Get()
-		congestMon := models.QosMonitoringInformation{
-			RepThreshDl:        congestMonRm.RepThreshDl,
-			RepThreshUl:        congestMonRm.RepThreshUl,
-			RepThreshRp:        congestMonRm.RepThreshRp,
-			RepThreshDatRateUl: congestMonRm.RepThreshDatRateUl.Get(),
-			RepThreshDatRateDl: congestMonRm.RepThreshDatRateDl.Get(),
-			ConThreshDl:        congestMonRm.ConThreshDl.Get(),
-			ConThreshUl:        congestMonRm.ConThreshUl.Get(),
-		}
-		usgThresRm := evSubscRm.UsgThres.Get()
-		usgThres := models.UsageThreshold{
-			Duration:       usgThresRm.Duration.Get(),
-			TotalVolume:    usgThresRm.TotalVolume.Get(),
-			DownlinkVolume: usgThresRm.DownlinkVolume.Get(),
-			UplinkVolume:   usgThresRm.UplinkVolume.Get(),
-		}
+		qosMon := transferQosMonitoringInformationRmToQosMonitoringInformation(evSubscRm.QosMon.Get())
+		qosMonDatRate := transferQosMonitoringInformationRmToQosMonitoringInformation(evSubscRm.QosMonDatRate.Get())
+		pdvMon := transferQosMonitoringInformationRmToQosMonitoringInformation(evSubscRm.PdvMon.Get())
+		congestMon := transferQosMonitoringInformationRmToQosMonitoringInformation(evSubscRm.CongestMon.Get())
+		usgThres := transferUsageThresholdRmToUsageThreshold(evSubscRm.UsgThres.Get())
+		evSubsc := models.NewEventsSubscReqData(evSubscRm.GetEvents())
+		evSubsc.SetNotifUri(evSubscRm.GetNotifUri())
+		evSubsc.SetReqQosMonParams(evSubscRm.GetReqQosMonParams())
+		evSubsc.SetQosMon(*qosMon)
+		evSubsc.SetQosMonDatRate(*qosMonDatRate)
+		evSubsc.SetPdvReqMonParams(evSubscRm.GetPdvReqMonParams())
+		evSubsc.SetPdvMon(*pdvMon)
+		evSubsc.SetCongestMon(*congestMon)
+		evSubsc.SetReqAnis(evSubscRm.GetReqAnis())
+		evSubsc.SetUsgThres(*usgThres)
+		evSubsc.SetNotifCorreId(evSubscRm.GetNotifCorreId())
+		evSubsc.SetAvrgWndw(*evSubscRm.AvrgWndw.Get())
 		medSubComps[id] = models.MediaSubComponent{
 			AfSigProtocol:    medSubCompRm.AfSigProtocol,
-			EthfDescs:        medSubCompRm.EthfDescs,
-			FNum:             medSubCompRm.FNum,
-			FDescs:           medSubCompRm.FDescs,
-			AddInfoFlowDescs: medSubCompRm.AddInfoFlowDescs,
+			EthfDescs:        medSubCompRm.GetEthfDescs(),
+			FNum:             medSubCompRm.GetFNum(),
+			FDescs:           medSubCompRm.GetFDescs(),
+			AddInfoFlowDescs: medSubCompRm.GetAddInfoFlowDescs(),
 			FStatus:          medSubCompRm.FStatus,
 			MarBwDl:          medSubCompRm.MarBwDl.Get(),
 			MarBwUl:          medSubCompRm.MarBwUl.Get(),
 			TosTrCl:          medSubCompRm.TosTrCl.Get(),
 			FlowUsage:        medSubCompRm.FlowUsage,
-			EvSubsc: &models.EventsSubscReqData{
-				Events:          evSubscRm.Events,
-				NotifUri:        evSubscRm.NotifUri,
-				ReqQosMonParams: evSubscRm.ReqQosMonParams,
-				QosMon:          &qosMon,
-				QosMonDatRate:   &qosMonDatRate,
-				PdvReqMonParams: evSubscRm.PdvReqMonParams,
-				PdvMon:          &pdvMon,
-				CongestMon:      &congestMon,
-				ReqAnis:         evSubscRm.ReqAnis,
-				UsgThres:        &usgThres,
-				NotifCorreId:    evSubscRm.NotifCorreId,
-				AvrgWndw:        evSubscRm.AvrgWndw.Get(),
-			},
+			EvSubsc:          evSubsc,
 		}
 	}
-	medComp := models.MediaComponent{
-		AfAppId:     medCompRm.AfAppId,
-		AfRoutReq:   transferAfRoutReqRmToAfRoutReq(medCompRm.GetAfRoutReq()),
-		ContVer:     medCompRm.ContVer,
-		Codecs:      medCompRm.Codecs,
-		FStatus:     medCompRm.FStatus,
-		MarBwDl:     new(medCompRm.GetMarBwDl()),
-		MarBwUl:     new(medCompRm.GetMarBwUl()),
-		MedCompN:    medCompRm.MedCompN,
-		MedSubComps: &medSubComps,
-		MedType:     medCompRm.MedType,
-		MirBwDl:     new(medCompRm.GetMirBwDl()),
-		MirBwUl:     new(medCompRm.GetMirBwUl()),
-		ResPrio:     medCompRm.ResPrio,
+	medComp := models.NewMediaComponent(medCompRm.GetMedCompN())
+	if medCompRm.HasAfAppId() {
+		medComp.SetAfAppId(medCompRm.GetAfAppId())
 	}
-	return &medComp
+	if medCompRm.HasAfRoutReq() {
+		medComp.SetAfRoutReq(transferAfRoutReqRmToAfRoutReq(medCompRm.GetAfRoutReq()))
+	}
+	if medCompRm.HasContVer() {
+		medComp.SetContVer(medCompRm.GetContVer())
+	}
+	medComp.SetCodecs(medCompRm.GetCodecs())
+	if medCompRm.HasFStatus() {
+		medComp.SetFStatus(medCompRm.GetFStatus())
+	}
+	if medCompRm.HasMarBwDl() {
+		medComp.SetMarBwDl(medCompRm.GetMarBwDl())
+	}
+	if medCompRm.HasMarBwUl() {
+		medComp.SetMarBwUl(medCompRm.GetMarBwUl())
+	}
+	medComp.SetMedSubComps(medSubComps)
+	if medCompRm.HasMedType() {
+		medComp.SetMedType(medCompRm.GetMedType())
+	}
+	if medCompRm.HasMirBwDl() {
+		medComp.SetMirBwDl(medCompRm.GetMirBwDl())
+	}
+	if medCompRm.HasMirBwUl() {
+		medComp.SetMirBwUl(medCompRm.GetMirBwUl())
+	}
+	if medCompRm.HasResPrio() {
+		medComp.SetResPrio(medCompRm.GetResPrio())
+	}
+	return medComp
 }
 
 // HandlePostAppSessionsContext - Creates a new Individual Application Session Context resource
@@ -282,7 +305,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 	logger.PolicyAuthorizationLog.Infof("negotiated Supported Feature: %s", nSuppFeat)
 	logger.PolicyAuthorizationLog.Infof("traffic Routing Supported: %t", traffRoutSupp)
 
-	if ascReqData.Get().MedComponents != nil {
+	if ascReqData.Get().HasMedComponents() {
 		// Handle Pcc rules
 		var arp int32 = 1
 		maxPrecedence := getMaxPrecedence(smPolicy.PolicyDecision.PccRules)
@@ -297,8 +320,8 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 				var5qi = util.MediaTypeTo5qiMap[medComp.GetMedType()]
 			}
 			logger.PolicyAuthorizationLog.Infof("processing Media Component[%d]", medComp.GetMedCompN())
-			if medComp.MedSubComps != nil {
-				logger.PolicyAuthorizationLog.Infof("handling Media Component [%d] with %d sub-components", medComp.MedCompN, len(medComp.GetMedSubComps()))
+			if medComp.HasMedSubComps() {
+				logger.PolicyAuthorizationLog.Infof("handling Media Component [%d] with %d sub-components", medComp.GetMedCompN(), len(medComp.GetMedSubComps()))
 				var allFlowInfos []models.FlowInformation
 				var medSubCompsList []models.MediaSubComponent
 				for _, medSubComp := range medComp.GetMedSubComps() {
@@ -319,12 +342,12 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 					pccRule = tempPccRule
 				}
 				for _, medSubComp := range medSubCompsList {
-					key := fmt.Sprintf("%d-%d", medComp.MedCompN, medSubComp.FNum)
+					key := fmt.Sprintf("%d-%d", medComp.GetMedCompN(), medSubComp.GetFNum())
 					relatedPccRuleIds[key] = pccRule.PccRuleId
 					logger.PolicyAuthorizationLog.Debugf("mapped PCC Rule ID [%s] to MediaSubComp Key [%s]", pccRule.GetPccRuleId(), key)
 				}
 				updateSMpolicy = true
-				maxPrecedence = getMaxPrecedence(smPolicy.PolicyDecision.PccRules)
+				maxPrecedence = getMaxPrecedence(smPolicy.PolicyDecision.GetPccRules())
 				continue
 			} else if medComp.GetAfAppId() != "" {
 				appID = medComp.GetAfAppId()
@@ -342,10 +365,10 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 			}
 			// Find pccRule by AfAppId, otherwise create a new pcc rule
 			logger.PolicyAuthorizationLog.Debugf("AfAppId: %s", appID)
-			_, existingPccRule, found := util.GetPccRuleByAfAppId(smPolicy.PolicyDecision.PccRules, appID)
+			_, existingPccRule, found := util.GetPccRuleByAfAppId(smPolicy.PolicyDecision.GetPccRules(), appID)
 			if !found {
 				logger.PolicyAuthorizationLog.Infof("no existing PCC Rule found for AppID: %s, creating a new one", appID)
-				maxExisting := getMaxPccRuleIdNum(smPolicy.PolicyDecision.PccRules)
+				maxExisting := getMaxPccRuleIdNum(smPolicy.PolicyDecision.GetPccRules())
 				if smPolicy.PccRuleIdGenarator <= maxExisting {
 					smPolicy.PccRuleIdGenarator = maxExisting + 1
 				}
@@ -377,49 +400,54 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 				pccRule = &existingPccRule
 				logger.PolicyAuthorizationLog.Debugf("found existing PCC Rule for AppID: %s, RuleID: %s", appID, pccRule.GetPccRuleId())
 				// update pccRule's qos
-				for _, qosID := range pccRule.RefQosData {
-					if smPolicy.PolicyDecision.QosDecs != nil {
-						if qosData, ok := (*smPolicy.PolicyDecision.QosDecs)[qosID]; ok {
-							logger.PolicyAuthorizationLog.Debugf("evaluating existing QoS Data for update: QosID: %s, Var5QI: %d", qosData.GetQosId(), qosData.GetVar5qi())
-							if qosData.GetVar5qi() == var5qi && qosData.GetVar5qi() <= 4 {
-								var ul, dl bool
-								qosData, ul, dl = updateQosInMedComp((*smPolicy.PolicyDecision.QosDecs)[qosID], &medComp)
-								logger.PolicyAuthorizationLog.Infof("QoS Update check passed: QosID: %s, UL changed: %v, DL changed: %v", qosData.GetQosId(), ul, dl)
-								if problemDetails := modifyRemainBitRate(smPolicy, &qosData, ul, dl); problemDetails != nil {
-									logger.PolicyAuthorizationLog.Errorf("failed to modify remaining bitrate during QoS update: %v", problemDetails)
-									return nil, "", problemDetails
-								}
-								(*smPolicy.PolicyDecision.QosDecs)[qosData.GetQosId()] = qosData
-								logger.PolicyAuthorizationLog.Debugf("QoS Data updated: QosID: %s", qosData.GetQosId())
-							}
-						}
-					} else {
+				for _, qosID := range pccRule.GetRefQosData() {
+					if !smPolicy.PolicyDecision.HasQosDecs() {
 						logger.PolicyAuthorizationLog.Errorf("smPolicy.PolicyDecision.QosDecs is nil")
 						problemDetail := util.GetProblemDetail("smPolicy.PolicyDecision.QosDecs is nil", util.PDU_SESSION_NOT_AVAILABLE)
 						return nil, "", problemDetail
 					}
+					qosDecs := smPolicy.PolicyDecision.GetQosDecs()
+					qosData, ok := qosDecs[qosID]
+					if !ok {
+						continue
+					}
+					logger.PolicyAuthorizationLog.Debugf("evaluating existing QoS Data for update: QosID: %s, Var5QI: %d", qosData.GetQosId(), qosData.GetVar5qi())
+					if qosData.GetVar5qi() != var5qi || var5qi > 4 {
+						continue
+					}
+
+					var ul, dl bool
+					qosData, ul, dl = updateQosInMedComp(qosData, &medComp)
+					logger.PolicyAuthorizationLog.Infof("QoS Update check passed: QosID: %s, UL changed: %v, DL changed: %v", qosData.GetQosId(), ul, dl)
+					if problemDetails := modifyRemainBitRate(smPolicy, &qosData, ul, dl); problemDetails != nil {
+						logger.PolicyAuthorizationLog.Errorf("failed to modify remaining bitrate during QoS update: %v", problemDetails)
+						return nil, "", problemDetails
+					}
+					qosDecs[qosData.GetQosId()] = qosData
+					logger.PolicyAuthorizationLog.Debugf("QoS Data updated: QosID: %s", qosData.GetQosId())
 				}
 			}
 			// Initial provisioning of traffic routing information
 			if traffRoutSupp {
 				pccRule = provisioningOfTrafficRoutingInfo(smPolicy, appID, routeReq, medComp.GetFStatus())
 			}
-			key := fmt.Sprintf("%d", medComp.MedCompN)
-			relatedPccRuleIds[key] = pccRule.PccRuleId
+			key := fmt.Sprintf("%d", medComp.GetMedCompN())
+			relatedPccRuleIds[key] = pccRule.GetPccRuleId()
 			updateSMpolicy = true
 		}
 	} else if ascReqData.Get().GetAfAppId() != "" {
 		// Initial provisioning of traffic routing information
-		if ascReqData.Get().AfRoutReq != nil && traffRoutSupp {
-			logger.PolicyAuthorizationLog.Infof("af influence on Traffic Routing - AppId[%s]", ascReqData.Get().GetAfAppId())
-			pccRule := provisioningOfTrafficRoutingInfo(smPolicy, ascReqData.Get().GetAfAppId(), ascReqData.Get().AfRoutReq, "")
-			key := fmt.Sprintf("appID-%s", ascReqData.Get().GetAfAppId())
-			relatedPccRuleIds[key] = pccRule.PccRuleId
-			updateSMpolicy = true
-		} else {
+		req := ascReqData.Get()
+		if !req.HasAfRoutReq() || !traffRoutSupp {
 			problemDetail := util.GetProblemDetail("Traffic routing not supported", util.REQUESTED_SERVICE_NOT_AUTHORIZED)
 			return nil, "", problemDetail
 		}
+		afAppID := req.GetAfAppId()
+		logger.PolicyAuthorizationLog.Infof("af influence on Traffic Routing - AppId[%s]", afAppID)
+		pccRule := provisioningOfTrafficRoutingInfo(smPolicy, afAppID, req.AfRoutReq, "")
+		key := fmt.Sprintf("appID-%s", afAppID)
+		relatedPccRuleIds[key] = pccRule.GetPccRuleId()
+		updateSMpolicy = true
 	} else {
 		problemDetail := util.GetProblemDetail("AF Request need AfAppId or Media Component to match Service Data Flow",
 			util.ERROR_REQUEST_PARAMETERS)
@@ -428,18 +456,18 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 
 	// Event Subscription
 	eventSubs := make(map[models.AfEventPcf]models.AfNotifMethod)
-	if ascReqData.Get().EvSubsc != nil {
+	if ascReqData.Get().HasEvSubsc() {
 		for _, subs := range ascReqData.Get().GetEvSubsc().Events {
 			if subs.GetNotifMethod() == "" {
 				// default value "EVENT_DETECTION"
-				subs.NotifMethod = models.AFNOTIFMETHOD_EVENT_DETECTION.Ptr()
+				subs.SetNotifMethod(models.AFNOTIFMETHOD_EVENT_DETECTION)
 				logger.PolicyAuthorizationLog.Infof("af Event [%v] missing NotifMethod, set default [%v]",
 					subs.Event, subs.NotifMethod)
 			}
-			eventSubs[subs.GetEvent()] = *subs.NotifMethod
-			logger.PolicyAuthorizationLog.Infof("subscribed AF Event [%v] with NotifMethod [%v]", subs.Event, subs.NotifMethod)
+			eventSubs[subs.GetEvent()] = subs.GetNotifMethod()
+			logger.PolicyAuthorizationLog.Infof("subscribed AF Event [%v] with NotifMethod [%v]", subs.GetEvent(), subs.GetNotifMethod())
 			var trig models.PolicyControlRequestTrigger
-			switch subs.Event {
+			switch subs.GetEvent() {
 			case models.AFEVENTPCF_ACCESS_TYPE_CHANGE:
 				trig = models.POLICYCONTROLREQUESTTRIGGER_AC_TY_CH
 			// case models.AFEVENTPCF_FAILED_RESOURCES_ALLOCATION:
@@ -450,12 +478,12 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 			case models.AFEVENTPCF_QOS_NOTIF:
 				// Subscriptions to Service Data Flow QoS notification control
 				for _, pccRuleID := range relatedPccRuleIds {
-					pccRule := smPolicy.PolicyDecision.PccRules[pccRuleID]
-					for _, qosID := range pccRule.RefQosData {
-						if smPolicy.PolicyDecision.QosDecs != nil {
-							if qosData, ok := (*smPolicy.PolicyDecision.QosDecs)[qosID]; ok {
+					pccRule := smPolicy.PolicyDecision.GetPccRules()[pccRuleID]
+					for _, qosID := range pccRule.GetRefQosData() {
+						if smPolicy.PolicyDecision.GetQosDecs() != nil {
+							if qosData, ok := smPolicy.PolicyDecision.GetQosDecs()[qosID]; ok {
 								qosData.SetQnc(true)
-								(*smPolicy.PolicyDecision.QosDecs)[qosID] = qosData
+								smPolicy.PolicyDecision.GetQosDecs()[qosID] = qosData
 							} else {
 								logger.PolicyAuthorizationLog.Warnf("  QoS Data reference [%s] not found in PolicyDecision", qosID)
 							}
@@ -469,7 +497,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 			case models.AFEVENTPCF_USAGE_REPORT:
 				trig = models.POLICYCONTROLREQUESTTRIGGER_US_RE
 			default:
-				logger.PolicyAuthorizationLog.Warnf("af Event [%v] is unknown, skipping", subs.Event)
+				logger.PolicyAuthorizationLog.Warnf("af Event [%v] is unknown, skipping", subs.GetEvent())
 				continue
 			}
 
@@ -498,7 +526,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 		umID := util.GetUmId(ascReqData.Get().GetAspId(), ascReqData.Get().GetSponId())
 		var umData *models.UsageMonitoringData
 		var threshold *models.UsageThreshold
-		if ascReqData.Get().EvSubsc != nil {
+		if ascReqData.Get().HasEvSubsc() {
 			threshold = ascReqData.Get().GetEvSubsc().UsgThres
 		}
 		if tempUmData, err := extractUmData(umID, eventSubs, threshold); err != nil {
@@ -518,9 +546,8 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 
 	// Allocate App Session Id
 	appSessID := ue.AllocUeAppSessionId(pcfSelf)
-	ascRespData := models.AppSessionContextRespData{
-		SuppFeat: new(nSuppFeat),
-	}
+	ascRespData := models.AppSessionContextRespData{}
+	ascRespData.SetSuppFeat(nSuppFeat)
 	appSessCtx.SetAscRespData(ascRespData)
 	// Associate App Session to SMPolicy
 	smPolicy.AddAppSession(appSessID)
@@ -580,12 +607,13 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 	if updateSMpolicy {
 		filteredDecision := buildRelatedSmPolicyDecision(smPolicy.PolicyDecision, relatedPccRuleIds)
 		smPolicyID := fmt.Sprintf("%s-%d", ue.Supi, smPolicy.PolicyContext.PduSessionId)
-		notification := models.SmPolicyNotification{
-			ResourceUri:      new(util.GetResourceUri(models.SERVICENAME_NPCF_SMPOLICYCONTROL, smPolicyID)),
-			SmPolicyDecision: filteredDecision,
+		notification := models.NewSmPolicyNotification()
+		notification.SetResourceUri(util.GetResourceUri(models.SERVICENAME_NPCF_SMPOLICYCONTROL, smPolicyID))
+		if filteredDecision != nil {
+			notification.SetSmPolicyDecision(*filteredDecision)
 		}
 		logger.PolicyAuthorizationLog.Debugw("smPolicyDecision data", "decision", filteredDecision)
-		notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(smPolicy.PolicyContext.NotificationUri, &notification)
+		notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(smPolicy.PolicyContext.NotificationUri, notification)
 	}
 	return appSessCtx, locationHeader, nil
 }
@@ -639,7 +667,7 @@ func handleCombinedMediaSubComponents(
 			smPolicy.PccRuleIdGenarator = maxExisting + 1
 		}
 		// Determine max precedence among existing PCC Rules
-		maxPrecedence := getMaxPrecedence(smPolicy.PolicyDecision.PccRules)
+		maxPrecedence := getMaxPrecedence(smPolicy.PolicyDecision.GetPccRules())
 		// Create new PCC Rule (TS 29.214: QoS and PCC Rule handling)
 		pccRule = util.CreatePccRule(smPolicy.PccRuleIdGenarator, maxPrecedence+1, nil, "")
 		logger.PolicyAuthorizationLog.Infof("created new PCC Rule ID [%s]", pccRule.GetPccRuleId())
@@ -650,17 +678,17 @@ func handleCombinedMediaSubComponents(
 
 		// If var5qi <= 4 (GBR flows), update QoS according to MediaSubComponents
 		if var5qi <= 4 {
-			var finalUL, finalDL bool
+			var anyUL, anyDL bool
 			for _, medSubComp := range medSubComps {
 				if medSubComp.GetFStatus() == models.FLOWSTATUS_REMOVED {
 					continue
 				}
 				var ul, dl bool
 				qosData, ul, dl = updateQosInMedSubComp(&qosData, medComp, &medSubComp)
-				finalUL = finalUL || ul
-				finalDL = finalDL || dl
+				anyUL = anyUL || ul
+				anyDL = anyDL || dl
 			}
-			if problemDetails := modifyRemainBitRate(smPolicy, &qosData, finalUL, finalDL); problemDetails != nil {
+			if problemDetails := modifyRemainBitRate(smPolicy, &qosData, anyUL, anyDL); problemDetails != nil {
 				return nil, problemDetails
 			}
 		}
@@ -668,11 +696,11 @@ func handleCombinedMediaSubComponents(
 		// Assign Packet Filter IDs to FlowInfos and map them to PCC Rule
 		for i := range flowInfos {
 			flowInfos[i].SetPackFiltId(util.GetPackFiltId(smPolicy.PackFiltIdGenarator))
-			smPolicy.PackFiltMapToPccRuleId[flowInfos[i].GetPackFiltId()] = pccRule.PccRuleId
+			smPolicy.PackFiltMapToPccRuleId[flowInfos[i].GetPackFiltId()] = pccRule.GetPccRuleId()
 			logger.PolicyAuthorizationLog.Debugf("assigned PackFiltId [%s] to PCC Rule ID [%s]", flowInfos[i].GetPackFiltId(), pccRule.GetPccRuleId())
 			smPolicy.PackFiltIdGenarator++
 		}
-		pccRule.FlowInfos = flowInfos
+		pccRule.SetFlowInfos(flowInfos)
 		flowStatus := medComp.GetFStatus()
 		for _, sc := range medSubComps {
 			st := sc.GetFStatus()
@@ -695,11 +723,11 @@ func handleCombinedMediaSubComponents(
 		pccRule = &existingPccRule
 		logger.PolicyAuthorizationLog.Infof("found existing PCC Rule ID [%s]", pccRule.GetPccRuleId())
 
-		if len(pccRule.RefQosData) > 0 {
+		if pccRule.HasRefQosData() && len(pccRule.GetRefQosData()) > 0 {
 			if smPolicy.PolicyDecision.QosDecs == nil {
 				logger.PolicyAuthorizationLog.Warnf("existing PCC Rule [%s] has RefQosData but QosDecs is nil", pccRule.GetPccRuleId())
 			} else {
-				for _, qosRef := range pccRule.RefQosData {
+				for _, qosRef := range pccRule.GetRefQosData() {
 					if qosData, ok := (*smPolicy.PolicyDecision.QosDecs)[qosRef]; ok {
 						logger.PolicyAuthorizationLog.Debugf("existing PCC Rule [%s] has QosData ID [%s]",
 							pccRule.GetPccRuleId(), qosData.GetQosId())
@@ -716,7 +744,7 @@ func handleCombinedMediaSubComponents(
 		// Merge new flows (FlowInfos) into the existing PCC Rule if not already present
 		for _, nf := range flowInfos {
 			found := false
-			for _, ef := range pccRule.FlowInfos {
+			for _, ef := range pccRule.GetFlowInfos() {
 				if ef.GetFlowDescription() == nf.GetFlowDescription() {
 					found = true
 					break
@@ -724,22 +752,22 @@ func handleCombinedMediaSubComponents(
 			}
 			if !found {
 				nf.SetPackFiltId(util.GetPackFiltId(smPolicy.PackFiltIdGenarator))
-				smPolicy.PackFiltMapToPccRuleId[nf.GetPackFiltId()] = pccRule.PccRuleId
+				smPolicy.PackFiltMapToPccRuleId[nf.GetPackFiltId()] = pccRule.GetPccRuleId()
 				smPolicy.PackFiltIdGenarator++
-				pccRule.FlowInfos = append(pccRule.FlowInfos, nf)
+				pccRule.SetFlowInfos(append(pccRule.GetFlowInfos(), nf))
 			}
 		}
 	}
 
-	smPolicy.PolicyDecision.PccRules[pccRule.GetPccRuleId()] = *pccRule
+	smPolicy.PolicyDecision.GetPccRules()[pccRule.GetPccRuleId()] = *pccRule
 	logger.PolicyAuthorizationLog.Debugf("pcc Rule ID [%s] stored successfully in PolicyDecision", pccRule.GetPccRuleId())
 	logger.PolicyAuthorizationLog.Debugf("final PCC Rule Snapshot for ID [%s]:", pccRule.GetPccRuleId())
 	logger.PolicyAuthorizationLog.Debugf("Precedence: %d", pccRule.GetPrecedence())
-	for _, fi := range pccRule.FlowInfos {
+	for _, fi := range pccRule.GetFlowInfos() {
 		logger.PolicyAuthorizationLog.Debugf("FlowDescription: %s, PackFiltId: %s", fi.GetFlowDescription(), fi.GetPackFiltId())
 	}
 	logger.PolicyAuthorizationLog.Debugf("RefQosData:")
-	for _, qosRef := range pccRule.RefQosData {
+	for _, qosRef := range pccRule.GetRefQosData() {
 		qosData, ok := smPolicy.PolicyDecision.GetQosDecs()[qosRef]
 		if ok {
 			logger.PolicyAuthorizationLog.Debugf("QosId: %s, 5QI: %d", qosData.GetQosId(), qosData.GetVar5qi())
@@ -767,56 +795,52 @@ func buildRelatedSmPolicyDecision(
 	umDecs := make(map[string]models.UsageMonitoringData)
 
 	for _, pccRuleID := range relatedPccRuleIds {
-		pccRule, ok := policyDecision.PccRules[pccRuleID]
+		pccRule, ok := policyDecision.GetPccRules()[pccRuleID]
 		if !ok {
 			continue
 		}
 		pccRules[pccRuleID] = pccRule
 
-		if policyDecision.QosDecs != nil {
-			for _, qosID := range pccRule.RefQosData {
-				if qos, ok := (*policyDecision.QosDecs)[qosID]; ok {
-					qosDecs[qosID] = qos
-				}
+		for _, qosID := range pccRule.GetRefQosData() {
+			if qos, ok := policyDecision.GetQosDecs()[qosID]; ok {
+				qosDecs[qosID] = qos
 			}
 		}
-		if policyDecision.TraffContDecs != nil {
-			for _, tcID := range pccRule.RefTcData {
-				if tc, ok := (*policyDecision.TraffContDecs)[tcID]; ok {
-					traffContDecs[tcID] = tc
-				}
+		for _, tcID := range pccRule.GetRefTcData() {
+			if tc, ok := policyDecision.GetTraffContDecs()[tcID]; ok {
+				traffContDecs[tcID] = tc
 			}
 		}
-		for _, chgID := range pccRule.RefChgData {
-			if chg, ok := policyDecision.ChgDecs[chgID]; ok {
+		for _, chgID := range pccRule.GetRefChgData() {
+			if chg, ok := policyDecision.GetChgDecs()[chgID]; ok {
 				chgDecs[chgID] = chg
 			}
 		}
-		for _, umID := range pccRule.RefUmData {
-			if um, ok := policyDecision.UmDecs[umID]; ok {
+		for _, umID := range pccRule.GetRefUmData() {
+			if um, ok := policyDecision.GetUmDecs()[umID]; ok {
 				umDecs[umID] = um
 			}
 		}
 	}
 
-	filteredDecision.PccRules = pccRules
+	filteredDecision.SetPccRules(pccRules)
 	if len(qosDecs) > 0 {
-		filteredDecision.QosDecs = &qosDecs
+		filteredDecision.SetQosDecs(qosDecs)
 	} else {
 		filteredDecision.QosDecs = nil
 	}
 	if len(traffContDecs) > 0 {
-		filteredDecision.TraffContDecs = &traffContDecs
+		filteredDecision.SetTraffContDecs(traffContDecs)
 	} else {
 		filteredDecision.TraffContDecs = nil
 	}
 	if len(chgDecs) > 0 {
-		filteredDecision.ChgDecs = chgDecs
+		filteredDecision.SetChgDecs(chgDecs)
 	} else {
 		filteredDecision.ChgDecs = nil
 	}
 	if len(umDecs) > 0 {
-		filteredDecision.UmDecs = umDecs
+		filteredDecision.SetUmDecs(umDecs)
 	} else {
 		filteredDecision.UmDecs = nil
 	}
@@ -834,10 +858,9 @@ func HandleDeleteAppSessionContext(request *httpwrapper.Request) *httpwrapper.Re
 	if problemDetails == nil {
 		stats.IncrementPcfPolicyAuthorizationStats("delete", "application_sessions", "SUCCESS")
 		return httpwrapper.NewResponse(http.StatusNoContent, nil, nil)
-	} else {
-		stats.IncrementPcfPolicyAuthorizationStats("delete", "application_sessions", "FAILURE")
-		return httpwrapper.NewResponse(int(problemDetails.GetStatus()), nil, problemDetails)
 	}
+	stats.IncrementPcfPolicyAuthorizationStats("delete", "application_sessions", "FAILURE")
+	return httpwrapper.NewResponse(int(problemDetails.GetStatus()), nil, problemDetails)
 }
 
 func DeleteAppSessionContextProcedure(appSessID string,
@@ -867,29 +890,16 @@ func DeleteAppSessionContextProcedure(appSessID string,
 
 	logger.PolicyAuthorizationLog.Infof("app session Id[%s] Del", appSessID)
 
-	// TODO: AccUsageReport
-	// if appSession.AccUsage != nil {
-
-	// 	resp := models.AppSessionContext{
-	// 		EvsNotif: &models.EventsNotification{
-	// 			UsgRep: appSession.AccUsage,
-	// 		},
-	// 	}
-	// 	message.SendHttpResponseMessage(httpChannel, nil, http.StatusOK, resp)
-	// } else {
-	// }
-
 	pcfSelf.AppSessionPool.Delete(appSessID)
 
 	smPolicy.ArrangeExistEventSubscription()
 
 	// Notify SMF About Pcc Rule moval
-	smPolicyID := fmt.Sprintf("%s-%d", smPolicy.PcfUe.Supi, smPolicy.PolicyContext.PduSessionId)
-	notification := models.SmPolicyNotification{
-		ResourceUri:      new(util.GetResourceUri(models.SERVICENAME_NPCF_SMPOLICYCONTROL, smPolicyID)),
-		SmPolicyDecision: smPolicy.PolicyDecision,
-	}
-	notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(smPolicy.PolicyContext.NotificationUri, &notification)
+	smPolicyID := fmt.Sprintf("%s-%d", smPolicy.PcfUe.Supi, smPolicy.PolicyContext.GetPduSessionId())
+	notification := models.NewSmPolicyNotification()
+	notification.SetResourceUri(util.GetResourceUri(models.SERVICENAME_NPCF_SMPOLICYCONTROL, smPolicyID))
+	notification.SetSmPolicyDecision(*smPolicy.PolicyDecision)
+	notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(smPolicy.PolicyContext.GetNotificationUri(), notification)
 	logger.PolicyAuthorizationLog.Debugf("send SM Policy[%s] Update Notification", smPolicyID)
 	return nil
 }
@@ -903,10 +913,9 @@ func HandleGetAppSessionContext(request *httpwrapper.Request) *httpwrapper.Respo
 	if problemDetails == nil {
 		stats.IncrementPcfPolicyAuthorizationStats("get", "application_sessions", "SUCCESS")
 		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else {
-		stats.IncrementPcfPolicyAuthorizationStats("get", "application_sessions", "FAILURE")
-		return httpwrapper.NewResponse(int(problemDetails.GetStatus()), nil, problemDetails)
 	}
+	stats.IncrementPcfPolicyAuthorizationStats("get", "application_sessions", "FAILURE")
+	return httpwrapper.NewResponse(int(problemDetails.GetStatus()), nil, problemDetails)
 }
 
 func GetAppSessionContextProcedure(appSessID string) (*models.ProblemDetails, *models.AppSessionContext) {
@@ -934,10 +943,9 @@ func HandleModAppSessionContext(request *httpwrapper.Request) *httpwrapper.Respo
 	if problemDetails == nil {
 		stats.IncrementPcfPolicyAuthorizationStats("update", "application_sessions", "SUCCESS")
 		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else {
-		stats.IncrementPcfPolicyAuthorizationStats("update", "application_sessions", "FAILURE")
-		return httpwrapper.NewResponse(int(problemDetails.GetStatus()), nil, problemDetails)
 	}
+	stats.IncrementPcfPolicyAuthorizationStats("update", "application_sessions", "FAILURE")
+	return httpwrapper.NewResponse(int(problemDetails.GetStatus()), nil, problemDetails)
 }
 
 func ModAppSessionContextProcedure(appSessID string,
@@ -949,12 +957,12 @@ func ModAppSessionContextProcedure(appSessID string,
 		appSession = val.(*pcfContext.AppSessionData)
 	}
 	if appSession == nil {
-		problemDetail := util.GetProblemDetail("can't find app session", util.APPLICATION_SESSION_CONTEXT_NOT_FOUND)
+		problemDetail := util.GetProblemDetail("cannot find app session", util.APPLICATION_SESSION_CONTEXT_NOT_FOUND)
 		return problemDetail, nil
 	}
 	appSessCtx := appSession.AppSessionContext
 	if ascUpdateData.GetBdtRefId() != "" {
-		appSessCtx.AscReqData.Get().BdtRefId = ascUpdateData.BdtRefId
+		appSessCtx.AscReqData.Get().SetBdtRefId(ascUpdateData.GetBdtRefId())
 		if err := handleBDTPolicyInd(pcfSelf, appSessCtx); err != nil {
 			problemDetail := util.GetProblemDetail(err.Error(), util.ERROR_REQUEST_PARAMETERS)
 			return problemDetail, nil
@@ -964,7 +972,7 @@ func ModAppSessionContextProcedure(appSessID string,
 	}
 	smPolicy := appSession.SmPolicyData
 	if smPolicy == nil {
-		problemDetail := util.GetProblemDetail("Can't find related PDU Session", util.REQUESTED_SERVICE_NOT_AUTHORIZED)
+		problemDetail := util.GetProblemDetail("cannot find related PDU Session", util.REQUESTED_SERVICE_NOT_AUTHORIZED)
 		return problemDetail, nil
 	}
 	// InfluenceOnTrafficRouting = 1 in 29514 &  Traffic Steering Control support = 1 in 29512
@@ -975,15 +983,15 @@ func ModAppSessionContextProcedure(appSessID string,
 	eventSubs := make(map[models.AfEventPcf]models.AfNotifMethod)
 	updateSMpolicy := false
 
-	if ascUpdateData.MedComponents != nil {
+	if ascUpdateData.HasMedComponents() {
 		maxPrecedence := getMaxPrecedence(smPolicy.PolicyDecision.PccRules)
-		for compN, medCompRm := range *ascUpdateData.MedComponents {
-			medComp := transferMedCompRmToMedComp(&medCompRm)
+		for compN, medCompRm := range ascUpdateData.GetMedComponents() {
 			removeMediaComp(appSession, compN)
-			if reflect.ValueOf(medComp).IsZero() {
-				// remove MediaComp(media Comp is null)
+			if reflect.ValueOf(medCompRm).IsZero() {
+				// media component is null => removal only, nothing to reinstall
 				continue
 			}
+			medComp := transferMedCompRmToMedComp(&medCompRm)
 			// modify MediaComp(remove and reinstall again)
 			var pccRule *models.PccRule
 			var appID string
@@ -993,30 +1001,30 @@ func ModAppSessionContextProcedure(appSessID string,
 			if medComp.GetMedType() != "" {
 				var5qi = util.MediaTypeTo5qiMap[medComp.GetMedType()]
 			}
-			if medComp.MedSubComps != nil {
+			if medComp.HasMedSubComps() {
 				var allFlowInfos []models.FlowInformation
 				var medSubCompsList []models.MediaSubComponent
-				for _, medSubComp := range *medComp.MedSubComps {
-					if flowInfos, err := getFlowInfos(&medSubComp); err != nil {
+				for _, medSubComp := range medComp.GetMedSubComps() {
+					flowInfos, err := getFlowInfos(&medSubComp)
+					if err != nil {
 						problemDetail := util.GetProblemDetail(err.Error(), util.REQUESTED_SERVICE_NOT_AUTHORIZED)
 						return problemDetail, nil
-					} else {
-						allFlowInfos = append(allFlowInfos, flowInfos...)
-						medSubCompsList = append(medSubCompsList, medSubComp)
 					}
+					allFlowInfos = append(allFlowInfos, flowInfos...)
+					medSubCompsList = append(medSubCompsList, medSubComp)
 				}
-				if tempPccRule, problemDetail := handleCombinedMediaSubComponents(smPolicy, medComp,
-					medSubCompsList, var5qi, allFlowInfos); problemDetail != nil {
+				tempPccRule, problemDetail := handleCombinedMediaSubComponents(smPolicy, medComp,
+					medSubCompsList, var5qi, allFlowInfos)
+				if problemDetail != nil {
 					return problemDetail, nil
-				} else {
-					pccRule = tempPccRule
 				}
+				pccRule = tempPccRule
 				for _, medSubComp := range medSubCompsList {
-					key := fmt.Sprintf("%d-%d", medComp.MedCompN, medSubComp.FNum)
-					relatedPccRuleIds[key] = pccRule.PccRuleId
+					key := fmt.Sprintf("%d-%d", medComp.GetMedCompN(), medSubComp.GetFNum())
+					relatedPccRuleIds[key] = pccRule.GetPccRuleId()
 				}
 				updateSMpolicy = true
-				maxPrecedence = getMaxPrecedence(smPolicy.PolicyDecision.PccRules)
+				maxPrecedence = getMaxPrecedence(smPolicy.PolicyDecision.GetPccRules())
 				continue
 			} else if medComp.GetAfAppId() != "" {
 				// if medComp.AfAppId has value -> find pccRule by reqData.AfAppId, otherwise create a new pcc rule
@@ -1031,7 +1039,7 @@ func ModAppSessionContextProcedure(appSessID string,
 				return problemDetail, nil
 			}
 
-			_, existingPccRule, found := util.GetPccRuleByAfAppId(smPolicy.PolicyDecision.PccRules, appID)
+			_, existingPccRule, found := util.GetPccRuleByAfAppId(smPolicy.PolicyDecision.GetPccRules(), appID)
 			if !found { // create new pcc rule
 				pccRule = util.CreatePccRule(smPolicy.PccRuleIdGenarator, maxPrecedence+1, nil, appID)
 				// Set QoS Data
@@ -1052,7 +1060,7 @@ func ModAppSessionContextProcedure(appSessID string,
 				pccRule = &existingPccRule
 				// update qos
 				var qosData models.QosData
-				for _, qosID := range pccRule.RefQosData {
+				for _, qosID := range pccRule.GetRefQosData() {
 					qosData = (*smPolicy.PolicyDecision.QosDecs)[qosID]
 					if qosData.GetVar5qi() == var5qi && qosData.GetVar5qi() <= 4 {
 						var ul, dl bool
@@ -1068,29 +1076,27 @@ func ModAppSessionContextProcedure(appSessID string,
 			if traffRoutSupp {
 				pccRule = provisioningOfTrafficRoutingInfo(smPolicy, appID, routeReq, medComp.GetFStatus())
 			}
-			key := fmt.Sprintf("%d", medComp.MedCompN)
-			relatedPccRuleIds[key] = pccRule.PccRuleId
+			key := fmt.Sprintf("%d", medComp.GetMedCompN())
+			relatedPccRuleIds[key] = pccRule.GetPccRuleId()
 			updateSMpolicy = true
 		}
 	}
 
 	// Update of traffic routing information
 	// TODO: check ascUpdateData.AfAppId with appSessCtx.AscReqData.AfAppId (now ascUpdateData.AfAppId is empty)
-	if ascUpdateData.AfRoutReq.Get() != nil && traffRoutSupp {
+	if afRoutReqRm := ascUpdateData.AfRoutReq.Get(); afRoutReqRm != nil && traffRoutSupp {
 		logger.PolicyAuthorizationLog.Infof("update traffic routing info - [%+v]", ascUpdateData.AfRoutReq)
-		appSessCtx.AscReqData.Get().AfRoutReq = transferAfRoutReqRmToAfRoutReq(ascUpdateData.GetAfRoutReq())
+		appSessCtx.AscReqData.Get().SetAfRoutReq(transferAfRoutReqRmToAfRoutReq(*afRoutReqRm))
 		// Update SmPolicyDecision
 		pccRule := provisioningOfTrafficRoutingInfo(smPolicy,
 			appSessCtx.AscReqData.Get().GetAfAppId(), appSessCtx.AscReqData.Get().AfRoutReq, "")
 		key := fmt.Sprintf("appID-%s", *appSessCtx.AscReqData.Get().AfAppId)
-		relatedPccRuleIds[key] = pccRule.PccRuleId
+		relatedPccRuleIds[key] = pccRule.GetPccRuleId()
 		updateSMpolicy = true
 	}
 
 	// Merge Original PccRuleId and new
-	for key, pccRuleID := range appSession.RelatedPccRuleIds {
-		relatedPccRuleIds[key] = pccRuleID
-	}
+	maps.Copy(relatedPccRuleIds, appSession.RelatedPccRuleIds)
 
 	evSubs := ascUpdateData.EvSubsc.Get()
 	if evSubs != nil {
@@ -1099,9 +1105,9 @@ func ModAppSessionContextProcedure(appSessID string,
 				// default value "EVENT_DETECTION"
 				subs.SetNotifMethod(models.AFNOTIFMETHOD_EVENT_DETECTION)
 			}
-			eventSubs[subs.Event] = *subs.NotifMethod.Ptr()
+			eventSubs[subs.GetEvent()] = subs.GetNotifMethod()
 			var trig models.PolicyControlRequestTrigger
-			switch subs.Event {
+			switch subs.GetEvent() {
 			case models.AFEVENTPCF_ACCESS_TYPE_CHANGE:
 				trig = models.POLICYCONTROLREQUESTTRIGGER_AC_TY_CH
 			// case models.AFEVENTPCF_FAILED_RESOURCES_ALLOCATION:
@@ -1112,11 +1118,15 @@ func ModAppSessionContextProcedure(appSessID string,
 			case models.AFEVENTPCF_QOS_NOTIF:
 				// Subscriptions to Service Data Flow QoS notification control
 				for _, pccRuleID := range relatedPccRuleIds {
-					pccRule := smPolicy.PolicyDecision.PccRules[pccRuleID]
-					for _, qosID := range pccRule.RefQosData {
-						qosData := (*smPolicy.PolicyDecision.QosDecs)[qosID]
+					pccRule := smPolicy.PolicyDecision.GetPccRules()[pccRuleID]
+					qosDecs := smPolicy.PolicyDecision.GetQosDecs()
+					for _, qosID := range pccRule.GetRefQosData() {
+						qosData, ok := qosDecs[qosID]
+						if !ok {
+							continue
+						}
 						qosData.SetQnc(true)
-						(*smPolicy.PolicyDecision.QosDecs)[qosID] = qosData
+						qosDecs[qosID] = qosData
 					}
 				}
 				trig = models.POLICYCONTROLREQUESTTRIGGER_QOS_NOTIF
@@ -1135,16 +1145,16 @@ func ModAppSessionContextProcedure(appSessID string,
 			}
 		}
 		// update Context
-		if appSessCtx.AscReqData.Get().EvSubsc == nil {
+		if !appSessCtx.AscReqData.Get().HasEvSubsc() {
 			appSessCtx.AscReqData.Get().EvSubsc = models.NewEventsSubscReqDataWithDefaults()
 		}
-		appSessCtx.AscReqData.Get().EvSubsc.Events = ascUpdateData.EvSubsc.Get().Events
+		appSessCtx.AscReqData.Get().EvSubsc.Events = ascUpdateData.EvSubsc.Get().GetEvents()
 		if ascUpdateData.EvSubsc.Get().GetNotifUri() != "" {
-			appSessCtx.AscReqData.Get().EvSubsc.NotifUri = ascUpdateData.EvSubsc.Get().NotifUri
+			appSessCtx.AscReqData.Get().EvSubsc.SetNotifUri(ascUpdateData.EvSubsc.Get().GetNotifUri())
 			appSession.EventUri = ascUpdateData.EvSubsc.Get().GetNotifUri()
 		}
-		if ascUpdateData.EvSubsc.Get().UsgThres.Get() != nil {
-			appSessCtx.AscReqData.Get().EvSubsc.UsgThres = threshRmToThresh(ascUpdateData.EvSubsc.Get().UsgThres.Get())
+		if usgThresRm := ascUpdateData.EvSubsc.Get().UsgThres.Get(); usgThresRm != nil {
+			appSessCtx.AscReqData.Get().EvSubsc.SetUsgThres(*threshRmToThresh(usgThresRm))
 		}
 	} else {
 		// remove eventSubs
@@ -1157,13 +1167,12 @@ func ModAppSessionContextProcedure(appSessID string,
 	if ascUpdateData.GetAspId() != "" && ascUpdateData.GetSponId() != "" {
 		umID := util.GetUmId(ascUpdateData.GetAspId(), ascUpdateData.GetSponId())
 		var umData *models.UsageMonitoringData
-		if tempUmData, err := extractUmData(umID, eventSubs,
-			threshRmToThresh(ascUpdateData.EvSubsc.Get().UsgThres.Get())); err != nil {
+		tempUmData, err := extractUmData(umID, eventSubs, threshRmToThresh(ascUpdateData.EvSubsc.Get().UsgThres.Get()))
+		if err != nil {
 			problemDetail := util.GetProblemDetail(err.Error(), util.REQUESTED_SERVICE_NOT_AUTHORIZED)
 			return problemDetail, nil
-		} else {
-			umData = tempUmData
 		}
+		umData = tempUmData
 		if err := handleSponsoredConnectivityInformation(smPolicy, relatedPccRuleIds, ascUpdateData.GetAspId(),
 			ascUpdateData.GetSponId(), ascUpdateData.GetSponStatus(), umData, &updateSMpolicy); err != nil {
 			problemDetail := util.GetProblemDetail(err.Error(), util.REQUESTED_SERVICE_NOT_AUTHORIZED)
@@ -1175,7 +1184,7 @@ func ModAppSessionContextProcedure(appSessID string,
 		appSession.RelatedPccRuleIds = relatedPccRuleIds
 		appSession.PccRuleIdMapToCompId = reverseStringMap(relatedPccRuleIds)
 	}
-	appSessCtx.EvsNotif = &models.EventsNotification{}
+	appSessCtx.EvsNotif = models.NewEventsNotificationWithDefaults()
 	// Set Event Subsciption related Data
 	if len(eventSubs) > 0 {
 		appSession.Events = eventSubs
@@ -1198,7 +1207,7 @@ func ModAppSessionContextProcedure(appSessID string,
 			appSessCtx.EvsNotif.RatType = smPolicy.PolicyContext.RatType
 		}
 	}
-	if appSessCtx.EvsNotif.EvNotifs == nil {
+	if len(appSessCtx.EvsNotif.GetEvNotifs()) == 0 {
 		appSessCtx.EvsNotif = nil
 	}
 
@@ -1210,11 +1219,12 @@ func ModAppSessionContextProcedure(appSessID string,
 	// Send Notification to SMF
 	if updateSMpolicy {
 		smPolicyID := fmt.Sprintf("%s-%d", smPolicy.PcfUe.Supi, smPolicy.PolicyContext.PduSessionId)
-		notification := models.SmPolicyNotification{
-			ResourceUri:      new(util.GetResourceUri(models.SERVICENAME_NPCF_SMPOLICYCONTROL, smPolicyID)),
-			SmPolicyDecision: smPolicy.PolicyDecision,
+		notification := models.NewSmPolicyNotification()
+		{
+			notification.SetResourceUri(util.GetResourceUri(models.SERVICENAME_NPCF_SMPOLICYCONTROL, smPolicyID))
+			notification.SetSmPolicyDecision(*smPolicy.PolicyDecision)
 		}
-		notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(smPolicy.PolicyContext.NotificationUri, &notification)
+		notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(smPolicy.PolicyContext.GetNotificationUri(), notification)
 		logger.PolicyAuthorizationLog.Debugf("send SM Policy[%s] Update Notification", smPolicyID)
 	}
 	return nil, appSessCtx
@@ -1258,11 +1268,10 @@ func DeleteEventsSubscContextProcedure(appSessID string) *models.ProblemDetails 
 	// Send Notification to SMF
 	if changed := appSession.SmPolicyData.ArrangeExistEventSubscription(); changed {
 		smPolicyID := fmt.Sprintf("%s-%d", smPolicy.PcfUe.Supi, smPolicy.PolicyContext.PduSessionId)
-		notification := models.SmPolicyNotification{
-			ResourceUri:      new(util.GetResourceUri(models.SERVICENAME_NPCF_SMPOLICYCONTROL, smPolicyID)),
-			SmPolicyDecision: smPolicy.PolicyDecision,
-		}
-		notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(smPolicy.PolicyContext.NotificationUri, &notification)
+		notification := models.NewSmPolicyNotification()
+		notification.SetResourceUri(util.GetResourceUri(models.SERVICENAME_NPCF_SMPOLICYCONTROL, smPolicyID))
+		notification.SetSmPolicyDecision(*smPolicy.PolicyDecision)
+		notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(smPolicy.PolicyContext.GetNotificationUri(), notification)
 		logger.PolicyAuthorizationLog.Debugf("send SM Policy[%s] Update Notification", smPolicyID)
 	}
 	return nil
@@ -1329,7 +1338,7 @@ func UpdateEventsSubscContextProcedure(appSessID string, eventsSubscReqData mode
 	updataSmPolicy := false
 	created := appSession.Events == nil
 
-	for _, subs := range eventsSubscReqData.Events {
+	for _, subs := range eventsSubscReqData.GetEvents() {
 		if subs.GetNotifMethod() == "" {
 			// default value "EVENT_DETECTION"
 			notifMethod := models.AFNOTIFMETHOD_EVENT_DETECTION
@@ -1348,11 +1357,15 @@ func UpdateEventsSubscContextProcedure(appSessID string, eventsSubscReqData mode
 		case models.AFEVENTPCF_QOS_NOTIF:
 			// Subscriptions to Service Data Flow QoS notification control
 			for _, pccRuleID := range appSession.RelatedPccRuleIds {
-				pccRule := smPolicy.PolicyDecision.PccRules[pccRuleID]
-				for _, qosID := range pccRule.RefQosData {
-					qosData := (*smPolicy.PolicyDecision.QosDecs)[qosID]
+				pccRule := smPolicy.PolicyDecision.GetPccRules()[pccRuleID]
+				qosDecs := smPolicy.PolicyDecision.GetQosDecs()
+				for _, qosID := range pccRule.GetRefQosData() {
+					qosData, ok := qosDecs[qosID]
+					if !ok {
+						continue
+					}
 					qosData.SetQnc(true)
-					(*smPolicy.PolicyDecision.QosDecs)[qosID] = qosData
+					qosDecs[qosID] = qosData
 				}
 			}
 			trig = models.POLICYCONTROLREQUESTTRIGGER_QOS_NOTIF
@@ -1372,12 +1385,20 @@ func UpdateEventsSubscContextProcedure(appSessID string, eventsSubscReqData mode
 	}
 	appSessCtx := appSession.AppSessionContext
 	// update Context
-	if appSessCtx.AscReqData.Get().EvSubsc == nil {
+	if !appSessCtx.AscReqData.Get().HasEvSubsc() {
 		appSessCtx.AscReqData.Get().EvSubsc = new(models.EventsSubscReqData)
 	}
-	appSessCtx.AscReqData.Get().EvSubsc.Events = eventsSubscReqData.Events
-	appSessCtx.AscReqData.Get().EvSubsc.UsgThres = eventsSubscReqData.UsgThres
-	appSessCtx.AscReqData.Get().EvSubsc.NotifUri = eventsSubscReqData.NotifUri
+	appSessCtx.AscReqData.Get().EvSubsc.SetEvents(eventsSubscReqData.GetEvents())
+	if eventsSubscReqData.HasUsgThres() {
+		appSessCtx.AscReqData.Get().EvSubsc.SetUsgThres(eventsSubscReqData.GetUsgThres())
+	} else {
+		appSessCtx.AscReqData.Get().EvSubsc.UsgThres = nil
+	}
+	if eventsSubscReqData.GetNotifUri() != "" {
+		appSessCtx.AscReqData.Get().EvSubsc.SetNotifUri(eventsSubscReqData.GetNotifUri())
+	} else {
+		appSessCtx.AscReqData.Get().EvSubsc.NotifUri = nil
+	}
 	appSessCtx.EvsNotif = nil
 	// update app Session
 	appSession.EventUri = eventsSubscReqData.GetNotifUri()
@@ -1386,9 +1407,8 @@ func UpdateEventsSubscContextProcedure(appSessID string, eventsSubscReqData mode
 	resp := models.EventsSubscPutData{
 		EventsSubscReqData: &eventsSubscReqData,
 	}
-	appSessCtx.EvsNotif = &models.EventsNotification{
-		EvSubsUri: eventsSubscReqData.GetNotifUri(),
-	}
+	appSessCtx.EvsNotif = models.NewEventsNotificationWithDefaults()
+	appSessCtx.EvsNotif.SetEvSubsUri(eventsSubscReqData.GetNotifUri())
 	// Set Event Subsciption related Data
 	if len(eventSubs) > 0 {
 		if _, exist := eventSubs[models.AFEVENTPCF_PLMN_CHG]; exist {
@@ -1406,11 +1426,11 @@ func UpdateEventsSubscContextProcedure(appSessID string, eventsSubscReqData mode
 				Event: models.AFEVENTPCF_ACCESS_TYPE_CHANGE,
 			}
 			appSessCtx.EvsNotif.EvNotifs = append(appSessCtx.EvsNotif.EvNotifs, afNotif)
-			appSessCtx.EvsNotif.AccessType = smPolicy.PolicyContext.AccessType
-			appSessCtx.EvsNotif.RatType = smPolicy.PolicyContext.RatType
+			appSessCtx.EvsNotif.SetAccessType(smPolicy.PolicyContext.GetAccessType())
+			appSessCtx.EvsNotif.SetRatType(smPolicy.PolicyContext.GetRatType())
 		}
 	}
-	if appSessCtx.EvsNotif.EvNotifs == nil {
+	if len(appSessCtx.EvsNotif.GetEvNotifs()) == 0 {
 		appSessCtx.EvsNotif = nil
 	}
 
@@ -1421,11 +1441,10 @@ func UpdateEventsSubscContextProcedure(appSessID string, eventsSubscReqData mode
 	// Send Notification to SMF
 	if updataSmPolicy || changed {
 		smPolicyID := fmt.Sprintf("%s-%d", smPolicy.PcfUe.Supi, smPolicy.PolicyContext.PduSessionId)
-		notification := models.SmPolicyNotification{
-			ResourceUri:      new(util.GetResourceUri(models.SERVICENAME_NPCF_SMPOLICYCONTROL, smPolicyID)),
-			SmPolicyDecision: smPolicy.PolicyDecision,
-		}
-		notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(smPolicy.PolicyContext.NotificationUri, &notification)
+		notification := models.NewSmPolicyNotification()
+		notification.SetResourceUri(util.GetResourceUri(models.SERVICENAME_NPCF_SMPOLICYCONTROL, smPolicyID))
+		notification.SetSmPolicyDecision(*smPolicy.PolicyDecision)
+		notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(smPolicy.PolicyContext.NotificationUri, notification)
 		logger.PolicyAuthorizationLog.Debugf("send SM Policy[%s] Update Notification", smPolicyID)
 	}
 	if created {
@@ -1433,13 +1452,13 @@ func UpdateEventsSubscContextProcedure(appSessID string, eventsSubscReqData mode
 			util.GetResourceUri(models.SERVICENAME_NPCF_POLICYAUTHORIZATION, appSessID))
 		logger.PolicyAuthorizationLog.Debugf("app session Id[%s] Create Subscription", appSessID)
 		return &resp, locationHeader, http.StatusCreated, nil
-	} else if resp.EventsNotification != nil {
+	}
+	if resp.EventsNotification != nil {
 		logger.PolicyAuthorizationLog.Debugf("app session Id[%s] Modify Subscription", appSessID)
 		return &resp, "", http.StatusOK, nil
-	} else {
-		logger.PolicyAuthorizationLog.Debugf("app session Id[%s] Modify Subscription", appSessID)
-		return &resp, "", http.StatusNoContent, nil
 	}
+	logger.PolicyAuthorizationLog.Debugf("app session Id[%s] Modify Subscription", appSessID)
+	return &resp, "", http.StatusNoContent, nil
 }
 
 func SendAppSessionTermination(appSession *pcfContext.AppSessionData, request models.TerminationInfo) {
@@ -1450,7 +1469,7 @@ func SendAppSessionTermination(appSession *pcfContext.AppSessionData, request mo
 	}
 	uri := appSession.AppSessionContext.AscReqData.Get().GetNotifUri()
 	if uri != "" {
-		request.ResUri = util.GetResourceUri(models.SERVICENAME_NPCF_POLICYAUTHORIZATION, appSession.AppSessionId)
+		request.SetResUri(util.GetResourceUri(models.SERVICENAME_NPCF_POLICYAUTHORIZATION, appSession.AppSessionId))
 		postAppSessionCallbackJSON(uri, request, "App Session Termination")
 	}
 }
@@ -1460,7 +1479,7 @@ func handleBDTPolicyInd(pcfSelf *pcfContext.PCFContext, appSessCtx *models.AppSe
 	req := appSessCtx.AscReqData
 
 	var requestSuppFeat pcfContext.SupportedFeature
-	if tempRequestSuppFeat, err := pcfContext.NewSupportedFeature(req.Get().SuppFeat); err != nil {
+	if tempRequestSuppFeat, err := pcfContext.NewSupportedFeature(req.Get().GetSuppFeat()); err != nil {
 		logger.PolicyAuthorizationLog.Errorln("sponsored connectivity is disabled by AF")
 	} else {
 		requestSuppFeat = *tempRequestSuppFeat
@@ -1471,10 +1490,9 @@ func handleBDTPolicyInd(pcfSelf *pcfContext.PCFContext, appSessCtx *models.AppSe
 		return fmt.Errorf("failed to negotiate supported features: %w", err)
 	}
 
-	respData := models.AppSessionContextRespData{
-		ServAuthInfo: models.SERVAUTHINFO_TP_NOT_KNOWN.Ptr(),
-		SuppFeat:     new(suppFeat.String()),
-	}
+	respData := models.NewAppSessionContextRespData()
+	respData.SetServAuthInfo(models.SERVAUTHINFO_TP_NOT_KNOWN)
+	respData.SetSuppFeat(suppFeat.String())
 	client := util.GetNudrClient(getDefaultUdrUri(pcfSelf))
 	apiReadIndividualBdtDataRequest := client.IndividualBdtDataDocumentAPI.ReadIndividualBdtData(context.Background(), req.Get().GetBdtRefId())
 	bdtData, resp, err1 := client.IndividualBdtDataDocumentAPI.ReadIndividualBdtDataExecute(apiReadIndividualBdtDataRequest)
@@ -1495,7 +1513,7 @@ func handleBDTPolicyInd(pcfSelf *pcfContext.PCFContext, appSessCtx *models.AppSe
 			respData.ServAuthInfo = models.SERVAUTHINFO_TP_EXPIRED.Ptr()
 		}
 	}
-	appSessCtx.AscRespData = &respData
+	appSessCtx.SetAscRespData(*respData)
 	return nil
 }
 
@@ -1509,7 +1527,7 @@ func handleSponsoredConnectivityInformation(smPolicy *pcfContext.UeSmPolicyData,
 		umID := util.GetUmId(aspID, sponID)
 		for _, pccRuleID := range relatedPccRuleIds {
 			pccRule := smPolicy.PolicyDecision.PccRules[pccRuleID]
-			for _, chgID := range pccRule.RefChgData {
+			for _, chgID := range pccRule.GetRefChgData() {
 				// disables sponsoring a service
 				chgData := smPolicy.PolicyDecision.ChgDecs[chgID]
 				if chgData.GetAppSvcProvId() == aspID && chgData.GetSponsorId() == sponID {
@@ -1520,7 +1538,7 @@ func handleSponsoredConnectivityInformation(smPolicy *pcfContext.UeSmPolicyData,
 					*updateSMpolicy = true
 				}
 			}
-			if pccRule.RefUmData != nil {
+			if pccRule.HasRefUmData() {
 				pccRule.RefUmData = nil
 				smPolicy.PolicyDecision.PccRules[pccRuleID] = pccRule
 			}
@@ -1543,8 +1561,8 @@ func handleSponsoredConnectivityInformation(smPolicy *pcfContext.UeSmPolicyData,
 			chgData := models.ChargingData{
 				ChgId: chgID,
 			}
-			if pccRule.RefChgData != nil {
-				chgID := pccRule.RefChgData[0]
+			if pccRule.HasRefChgData() {
+				chgID := pccRule.GetRefChgData()[0]
 				chgData = smPolicy.PolicyDecision.ChgDecs[chgID]
 			} else {
 				chgIDUsed = true
@@ -1554,12 +1572,12 @@ func handleSponsoredConnectivityInformation(smPolicy *pcfContext.UeSmPolicyData,
 			// If it is required, it shall perform the authorizations based on sponsored data connectivity profiles.
 			// If the authorization fails, the PCF shall send HTTP "403 Forbidden" with the "cause" attribute set to
 			// "UNAUTHORIZED_SPONSORED_DATA_CONNECTIVITY"
-			pccRule.RefChgData = []string{chgData.ChgId}
-			chgData.ReportingLevel = *models.NewNullableReportingLevel(models.REPORTINGLEVEL_SPON_CON_LEVEL.Ptr())
+			pccRule.SetRefChgData([]string{chgData.ChgId})
+			chgData.ReportingLevel.Set(models.REPORTINGLEVEL_SPON_CON_LEVEL.Ptr())
 			chgData.SetSponsorId(sponID)
 			chgData.SetAppSvcProvId(aspID)
 			if umData != nil {
-				pccRule.RefUmData = []string{umData.UmId}
+				pccRule.SetRefUmData([]string{umData.UmId})
 			}
 			util.SetPccRuleRelatedData(smPolicy.PolicyDecision, &pccRule, nil, nil, &chgData, umData)
 			*updateSMpolicy = true
@@ -1688,7 +1706,7 @@ func getFlowInfos(subComp *models.MediaSubComponent) ([]models.FlowInformation, 
 		statusUsage[models.FLOWDIRECTIONRM_DOWNLINK] = false
 		statusUsage[models.FLOWDIRECTIONRM_UPLINK] = false
 	}
-	for _, desc := range subComp.FDescs {
+	for _, desc := range subComp.GetFDescs() {
 		flowDesc, flowDir, err := flowDescFromN5toN7(desc)
 		if err != nil {
 			return nil, err
@@ -1735,7 +1753,7 @@ func updateQosInMedComp(qosData models.QosData, comp *models.MediaComponent) (mo
 	minBwUl := 0.0
 	minBwDl := 0.0
 	for _, subsComp := range comp.GetMedSubComps() {
-		for _, flow := range subsComp.FDescs {
+		for _, flow := range subsComp.GetFDescs() {
 			_, dir, err := flowDescFromN5toN7(flow)
 			if err != nil {
 				logger.PolicyAuthorizationLog.Errorf(
@@ -2116,12 +2134,12 @@ func provisioningOfTrafficRoutingInfo(smPolicy *pcfContext.UeSmPolicyData, appID
 		pccRule = &existingPccRule
 		// Update TcData
 		var tcID string
-		if len(pccRule.RefTcData) > 0 {
+		if len(pccRule.GetRefTcData()) > 0 {
 			// 1 PCC rule only supports 1 TrafficControlData
 			// TODO: 1 PCC rule supports multiple TrafficControlData
 			// Re-use the original tcID
-			tcID = pccRule.RefTcData[0]
-			if smPolicy.PolicyDecision.TraffContDecs == nil {
+			tcID = pccRule.GetRefTcData()[0]
+			if !smPolicy.PolicyDecision.HasTraffContDecs() {
 				logger.PolicyAuthorizationLog.Errorf("TraffContDecs is nil, tcID[%s]", tcID)
 				tcData = util.CreateTcData(0, tcID, fStatus)
 			} else {
@@ -2134,28 +2152,40 @@ func provisioningOfTrafficRoutingInfo(smPolicy *pcfContext.UeSmPolicyData, appID
 			}
 		} else {
 			// tcID's number equals to pccRuleID's number
-			tcID = strings.ReplaceAll(pccRule.PccRuleId, "PccRule", "Tc")
+			tcID = strings.ReplaceAll(pccRule.GetPccRuleId(), "PccRule", "Tc")
 			tcData = util.CreateTcData(0, tcID, fStatus)
-			pccRule.RefTcData = []string{tcID}
+			pccRule.SetRefTcData([]string{tcID})
 		}
-		tcData.RouteToLocs = routeReq.RouteToLocs
-		tcData.UpPathChgEvent = routeReq.UpPathChgSub
-		pccRule.AppReloc = routeReq.AppReloc
+		tcData.SetRouteToLocs(routeReq.GetRouteToLocs())
+		if routeReq.HasUpPathChgSub() {
+			tcData.SetUpPathChgEvent(routeReq.GetUpPathChgSub())
+		} else {
+			tcData.UnsetUpPathChgEvent()
+		}
+		if routeReq.HasAppReloc() {
+			pccRule.SetAppReloc(routeReq.GetAppReloc())
+		} else {
+			pccRule.AppReloc = nil
+		}
 		util.SetPccRuleRelatedData(smPolicy.PolicyDecision, pccRule, tcData, nil, nil, nil)
 		logger.PolicyAuthorizationLog.Infof("update Traffic Control Data[%s] in PCC rule[%s]",
-			tcID, pccRule.PccRuleId)
+			tcID, pccRule.GetPccRuleId())
 	} else {
 		// Create a Pcc Rule if afappID dose not match any pcc rule
-		maxPrecedence := getMaxPrecedence(smPolicy.PolicyDecision.PccRules)
+		maxPrecedence := getMaxPrecedence(smPolicy.PolicyDecision.GetPccRules())
 		pccRule = util.CreatePccRule(smPolicy.PccRuleIdGenarator, maxPrecedence+1, nil, appID)
 		tcData = util.CreateTcData(smPolicy.PccRuleIdGenarator, "", fStatus)
-		tcData.RouteToLocs = routeReq.RouteToLocs
-		tcData.UpPathChgEvent = routeReq.UpPathChgSub
-		pccRule.RefTcData = []string{tcData.TcId}
+		tcData.SetRouteToLocs(routeReq.GetRouteToLocs())
+		if routeReq.HasUpPathChgSub() {
+			tcData.SetUpPathChgEvent(routeReq.GetUpPathChgSub())
+		} else {
+			tcData.UnsetUpPathChgEvent()
+		}
+		pccRule.SetRefTcData([]string{tcData.GetTcId()})
 		util.SetPccRuleRelatedData(smPolicy.PolicyDecision, pccRule, tcData, nil, nil, nil)
 		smPolicy.PccRuleIdGenarator++
 		logger.PolicyAuthorizationLog.Infof("create PCC rule[%s] with new Traffic Control Data[%s]",
-			pccRule.PccRuleId, tcData.TcId)
+			pccRule.GetPccRuleId(), tcData.GetTcId())
 	}
 	return pccRule
 }

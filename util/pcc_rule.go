@@ -8,7 +8,6 @@ package util
 import (
 	"fmt"
 
-	"github.com/omec-project/openapi/v2"
 	"github.com/omec-project/openapi/v2/models"
 	"github.com/omec-project/pcf/logger"
 )
@@ -64,14 +63,16 @@ func CreatePccRule(id, precedence int32, flowInfo []models.FlowInformation, appI
 	return rule
 }
 
-func CreateQosData(id, var5qi, arp int32) models.QosData {
-	return models.QosData{
-		QosId:  getQosId(id),
-		Var5qi: new(var5qi),
-		Arp: &models.Arp{
-			PriorityLevel: *openapi.NewNullableInt32(new(arp)),
-		},
-	}
+func CreateQosData(id, var5qi, arpPriority int32) models.QosData {
+	arp := models.NewArpWithDefaults()
+	arp.SetPriorityLevel(arpPriority)
+	arp.SetPreemptCap(models.PREEMPTIONCAPABILITY_NOT_PREEMPT)
+	arp.SetPreemptVuln(models.PREEMPTIONVULNERABILITY_NOT_PREEMPTABLE)
+	qosData := models.QosData{}
+	qosData.SetQosId(getQosId(id))
+	qosData.SetVar5qi(var5qi)
+	qosData.SetArp(*arp)
+	return qosData
 }
 
 func CreateTcData(id int32, fullID string, flowStatus models.FlowStatus) *models.TrafficControlData {
@@ -81,20 +82,26 @@ func CreateTcData(id int32, fullID string, flowStatus models.FlowStatus) *models
 	if fullID == "" {
 		fullID = getTcId(id)
 	}
-	return &models.TrafficControlData{
-		TcId:       fullID,
-		FlowStatus: flowStatus.Ptr(),
-	}
+	trafficControlData := models.NewTrafficControlData(fullID)
+	trafficControlData.SetFlowStatus(flowStatus)
+	return trafficControlData
 }
 
 func CreateUmData(umId string, thresh models.UsageThreshold) models.UsageMonitoringData {
-	return models.UsageMonitoringData{
-		UmId:                    umId,
-		VolumeThreshold:         *openapi.NewNullableInt64(thresh.TotalVolume),
-		VolumeThresholdUplink:   *openapi.NewNullableInt64(thresh.UplinkVolume),
-		VolumeThresholdDownlink: *openapi.NewNullableInt64(thresh.DownlinkVolume),
-		TimeThreshold:           *openapi.NewNullableInt32(thresh.Duration),
+	usageMonitoringData := models.NewUsageMonitoringData(umId)
+	if thresh.HasTotalVolume() {
+		usageMonitoringData.SetVolumeThreshold(thresh.GetTotalVolume())
 	}
+	if thresh.HasUplinkVolume() {
+		usageMonitoringData.SetVolumeThresholdUplink(thresh.GetUplinkVolume())
+	}
+	if thresh.HasDownlinkVolume() {
+		usageMonitoringData.SetVolumeThresholdDownlink(thresh.GetDownlinkVolume())
+	}
+	if thresh.HasDuration() {
+		usageMonitoringData.SetTimeThreshold(thresh.GetDuration())
+	}
+	return *usageMonitoringData
 }
 
 // Convert Packet Filter information list to Flow Information List(Packet Filter Usage always true),
@@ -107,16 +114,16 @@ func ConvertPacketInfoToFlowInformation(infos []models.PacketFilterInfo) (flowIn
 			flowDirection = models.FLOWDIRECTIONRM_UNSPECIFIED.Ptr()
 		}
 
-		flowInfo := models.FlowInformation{
-			FlowDescription:   info.PackFiltCont,
-			PackFiltId:        info.PackFiltId,
-			PacketFilterUsage: new(true),
-			TosTrafficClass:   *openapi.NewNullableString(info.TosTrafficClass),
-			Spi:               *openapi.NewNullableString(info.Spi),
-			FlowLabel:         *openapi.NewNullableString(info.FlowLabel),
-			FlowDirection:     flowDirection,
-		}
-		flowInfos = append(flowInfos, flowInfo)
+		flowInfo := models.NewFlowInformation()
+		flowInfo.SetFlowDescription(info.GetPackFiltCont())
+		flowInfo.SetPackFiltId(info.GetPackFiltId())
+		flowInfo.SetPacketFilterUsage(true)
+		flowInfo.SetTosTrafficClass(info.GetTosTrafficClass())
+		flowInfo.SetSpi(info.GetSpi())
+		flowInfo.SetFlowLabel(info.GetFlowLabel())
+		flowInfo.SetFlowDirection(*flowDirection)
+
+		flowInfos = append(flowInfos, *flowInfo)
 	}
 	return flowInfos
 }

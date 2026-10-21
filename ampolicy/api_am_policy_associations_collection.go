@@ -36,7 +36,7 @@ import (
 // Create individual AM policy association.
 func HTTPCreateIndividualAMPolicyAssociation(c *gin.Context) {
 	logger.AMpolicyLog.Infoln("Handle Post /policies")
-	var policyAssociationRequest models.PolicyAssociationRequest
+	policyAssociationRequest := models.NewPolicyAssociationRequestWithDefaults()
 
 	requestBody, err := c.GetRawData()
 	if err != nil {
@@ -46,7 +46,7 @@ func HTTPCreateIndividualAMPolicyAssociation(c *gin.Context) {
 		return
 	}
 
-	err = openapi.Decode(&policyAssociationRequest, requestBody, "application/json")
+	err = openapi.Decode(policyAssociationRequest, requestBody, "application/json")
 	if err != nil {
 		problemDetail := "[Request Body] " + err.Error()
 		rsp := utils.ProblemDetailsMalformedRequestSyntax(problemDetail)
@@ -55,14 +55,14 @@ func HTTPCreateIndividualAMPolicyAssociation(c *gin.Context) {
 		return
 	}
 
-	if policyAssociationRequest.Supi == "" || policyAssociationRequest.NotificationUri == "" {
+	if policyAssociationRequest.GetSupi() == "" || policyAssociationRequest.GetNotificationUri() == "" {
 		rsp := util.GetProblemDetail("Missing mandatory IE", util.ERROR_REQUEST_PARAMETERS)
 		logger.HandlerLog.Errorln(rsp.GetDetail())
 		c.JSON(int(rsp.GetStatus()), rsp)
 		return
 	}
 
-	req := httpwrapper.NewRequest(c.Request, policyAssociationRequest)
+	req := httpwrapper.NewRequest(c.Request, *policyAssociationRequest)
 	req.Params["polAssoId"], _ = c.Params.Get("polAssoId")
 
 	rsp := producer.HandlePostPolicies(req)

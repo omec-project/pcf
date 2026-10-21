@@ -25,6 +25,7 @@ import (
 	"github.com/omec-project/pcf/consumer"
 	pcfContext "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/factory"
+	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/pcf/producer"
 	"github.com/omec-project/pcf/service"
 )
@@ -54,7 +55,7 @@ func setupTest() {
 		64435000111: "64435 Mbps",
 	}
 	if err := factory.InitConfigFactory("../pcftests/pcfcfg.yaml"); err != nil {
-		fmt.Printf("could not InitConfigFactory: %+v", err)
+		logger.CfgLog.Fatalf("could not InitConfigFactory: %+v", err)
 	}
 }
 
@@ -71,12 +72,10 @@ func TestGetUDRUri(t *testing.T) {
 	callCountSendNfDiscovery := 0
 	origNRFCacheSearchNFInstances := consumer.NRFCacheSearchNFInstances
 	origSendNfDiscoveryToNrf := consumer.SendNfDiscoveryToNrf
+	udrInfo := models.NewUdrInfo()
+	udrInfo.SetSupportedDataSets([]models.DataSetId{models.DATASETID_SUBSCRIPTION})
 	udrProfile1 := models.NFProfileDiscovery{
-		UdrInfo: &models.UdrInfo{
-			SupportedDataSets: []models.DataSetId{
-				models.DATASETID_SUBSCRIPTION,
-			},
-		},
+		UdrInfo:      udrInfo,
 		NfInstanceId: nfInstanceID,
 		NfType:       testNfTypeUDR,
 		NfStatus:     testNfStatusRegistered,
@@ -105,17 +104,15 @@ func TestGetUDRUri(t *testing.T) {
 			},
 		},
 	}
-	udrProfile1.NfServices = services1
+	udrProfile1.SetNfServices(services1)
 	nfInstances1 := []models.NFProfileDiscovery{
 		udrProfile1,
 	}
 	searchResult1 := models.NewSearchResult(7, nfInstances1)
+	udrInfo2 := models.NewUdrInfo()
+	udrInfo2.SetSupportedDataSets([]models.DataSetId{models.DATASETID_SUBSCRIPTION})
 	udrProfile2 := models.NFProfileDiscovery{
-		UdrInfo: &models.UdrInfo{
-			SupportedDataSets: []models.DataSetId{
-				models.DATASETID_SUBSCRIPTION,
-			},
-		},
+		UdrInfo:      udrInfo2,
 		NfInstanceId: "9999-4343-43-434-343",
 		NfType:       testNfTypeUDR,
 		NfStatus:     testNfStatusRegistered,
@@ -142,7 +139,7 @@ func TestGetUDRUri(t *testing.T) {
 			},
 		},
 	}
-	udrProfile2.NfServices = services2
+	udrProfile2.SetNfServices(services2)
 	nfInstances2 := []models.NFProfileDiscovery{
 		udrProfile2,
 	}
@@ -211,12 +208,10 @@ func TestGetUDRUri(t *testing.T) {
 
 func TestCreateSubscriptionSuccess(t *testing.T) {
 	t.Logf("test cases for CreateSubscription")
+	udrInfo := models.NewUdrInfo()
+	udrInfo.SetSupportedDataSets([]models.DataSetId{models.DATASETID_SUBSCRIPTION})
 	udrProfile := models.NFProfileDiscovery{
-		UdrInfo: &models.UdrInfo{
-			SupportedDataSets: []models.DataSetId{
-				models.DATASETID_SUBSCRIPTION,
-			},
-		},
+		UdrInfo:      udrInfo,
 		NfInstanceId: nfInstanceID,
 		NfType:       testNfTypeUDR,
 		NfStatus:     testNfStatusRegistered,
@@ -306,12 +301,10 @@ func TestCreateSubscriptionSuccess(t *testing.T) {
 
 func TestCreateSubscriptionFail(t *testing.T) {
 	t.Logf("test cases for CreateSubscription")
+	udrInfo := models.NewUdrInfo()
+	udrInfo.SetSupportedDataSets([]models.DataSetId{models.DATASETID_SUBSCRIPTION})
 	udrProfile := models.NFProfileDiscovery{
-		UdrInfo: &models.UdrInfo{
-			SupportedDataSets: []models.DataSetId{
-				models.DATASETID_SUBSCRIPTION,
-			},
-		},
+		UdrInfo:      udrInfo,
 		NfInstanceId: "84343-4343-43-434-343",
 		NfType:       testNfTypeUDR,
 		NfStatus:     testNfStatusRegistered,
@@ -474,12 +467,10 @@ func TestNfSubscriptionStatusNotify(t *testing.T) {
 		callCountNRFCacheRemoveNfProfileFromNrfCache++
 		return true
 	}
+	udrInfo := models.NewUdrInfo()
+	udrInfo.SetSupportedDataSets([]models.DataSetId{models.DATASETID_SUBSCRIPTION})
 	udrProfile := models.NotificationDataAllOfNfProfile{
-		UdrInfo: &models.UdrInfo{
-			SupportedDataSets: []models.DataSetId{
-				models.DATASETID_SUBSCRIPTION,
-			},
-		},
+		UdrInfo:      udrInfo,
 		NfInstanceId: nfInstanceID,
 		NfType:       testNfTypeUDR,
 		NfStatus:     "DEREGISTERED",

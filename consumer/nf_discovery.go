@@ -109,11 +109,10 @@ func executeNfDiscoveryRequest(
 		if _, ok := pcfSelf.NfStatusSubscriptions.Load(nfProfile.NfInstanceId); !ok {
 			nfInstanceIdCond := models.NewNfInstanceIdCond()
 			nfInstanceIdCond.SetNfInstanceId(nfProfile.GetNfInstanceId())
-			nrfSubscriptionData := models.SubscriptionData{
-				NfStatusNotificationUri: fmt.Sprintf("%s/npcf-callback/v1/nf-status-notify", pcfSelf.GetIPv4Uri()),
-				SubscrCond:              &models.SubscrCond{NfInstanceIdCond: nfInstanceIdCond},
-				ReqNfType:               &requestNfType,
-			}
+			nrfSubscriptionData := models.SubscriptionData{}
+			nrfSubscriptionData.SetNfStatusNotificationUri(fmt.Sprintf("%s/npcf-callback/v1/nf-status-notify", pcfSelf.GetIPv4Uri()))
+			nrfSubscriptionData.SetSubscrCond(models.SubscrCond{NfInstanceIdCond: nfInstanceIdCond})
+			nrfSubscriptionData.SetReqNfType(requestNfType)
 			nrfSubData, problemDetails, err := CreateSubscription(nrfUri, nrfSubscriptionData)
 			if problemDetails != nil {
 				logger.ConsumerLog.Errorf("SendCreateSubscription to NRF, Problem[%+v]", problemDetails)

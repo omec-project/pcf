@@ -10,7 +10,7 @@ import (
 )
 
 func TestIncreaseRemainGBR_IgnoresNilQosDecs(t *testing.T) {
-	policy := &UeSmPolicyData{PolicyDecision: &models.SmPolicyDecision{}}
+	policy := &UeSmPolicyData{PolicyDecision: models.NewSmPolicyDecision()}
 
 	origUL, origDL := policy.IncreaseRemainGBR("qos-1")
 	if origUL != nil || origDL != nil {
