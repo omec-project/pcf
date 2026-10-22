@@ -293,8 +293,10 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 			var routeReq *models.AfRoutingRequirement
 			// TODO: use specific algorithm instead of default, details in subsclause 7.3.3 of TS 29513
 			var var5qi int32 = 9
-			if medComp.GetMedType() != "" {
-				var5qi = util.MediaTypeTo5qiMap[medComp.GetMedType()]
+			// Checked lookup: an unmapped media type must keep the default above rather than
+			// becoming a 5QI of 0, which is not an assigned value.
+			if mapped, ok := util.MediaTypeTo5qiMap[medComp.GetMedType()]; ok {
+				var5qi = mapped
 			}
 			logger.PolicyAuthorizationLog.Infof("processing Media Component[%d]", medComp.GetMedCompN())
 			if medComp.MedSubComps != nil {
@@ -356,7 +358,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 				qosData := util.CreateQosData(smPolicy.PccRuleIdGenarator, var5qi, arp)
 				logger.PolicyAuthorizationLog.Debugf("created QoS Data with QosID: %s, 5QI: %d, ARP: %d", qosData.GetQosId(), qosData.GetVar5qi(), qosData.Arp.GetPriorityLevel())
 
-				if var5qi <= 4 {
+				if pcfContext.IsStandardisedGbr5QI(var5qi) {
 					// update QoS Data according to request BitRate
 					var ul, dl bool
 					qosData, ul, dl = updateQosInMedComp(qosData, &medComp)
@@ -381,7 +383,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 					if smPolicy.PolicyDecision.QosDecs != nil {
 						if qosData, ok := (*smPolicy.PolicyDecision.QosDecs)[qosID]; ok {
 							logger.PolicyAuthorizationLog.Debugf("evaluating existing QoS Data for update: QosID: %s, Var5QI: %d", qosData.GetQosId(), qosData.GetVar5qi())
-							if qosData.GetVar5qi() == var5qi && qosData.GetVar5qi() <= 4 {
+							if qosData.GetVar5qi() == var5qi && pcfContext.IsStandardisedGbr5QI(qosData.GetVar5qi()) {
 								var ul, dl bool
 								qosData, ul, dl = updateQosInMedComp((*smPolicy.PolicyDecision.QosDecs)[qosID], &medComp)
 								logger.PolicyAuthorizationLog.Infof("QoS Update check passed: QosID: %s, UL changed: %v, DL changed: %v", qosData.GetQosId(), ul, dl)
@@ -648,8 +650,8 @@ func handleCombinedMediaSubComponents(
 		qosData.Arp.SetPreemptVuln(models.PREEMPTIONVULNERABILITY_NOT_PREEMPTABLE)
 		logger.PolicyAuthorizationLog.Infof("created QosData ID [%s] (5QI=%d)", qosData.GetQosId(), var5qi)
 
-		// If var5qi <= 4 (GBR flows), update QoS according to MediaSubComponents
-		if var5qi <= 4 {
+		// For a GBR flow, update QoS according to MediaSubComponents
+		if pcfContext.IsStandardisedGbr5QI(var5qi) {
 			var finalUL, finalDL bool
 			for _, medSubComp := range medSubComps {
 				if medSubComp.GetFStatus() == models.FLOWSTATUS_REMOVED {
@@ -990,8 +992,10 @@ func ModAppSessionContextProcedure(appSessID string,
 			var routeReq *models.AfRoutingRequirement
 			// TODO: use specific algorithm instead of default, details in subsclause 7.3.3 of TS 29513
 			var var5qi int32 = 9
-			if medComp.GetMedType() != "" {
-				var5qi = util.MediaTypeTo5qiMap[medComp.GetMedType()]
+			// Checked lookup: an unmapped media type must keep the default above rather than
+			// becoming a 5QI of 0, which is not an assigned value.
+			if mapped, ok := util.MediaTypeTo5qiMap[medComp.GetMedType()]; ok {
+				var5qi = mapped
 			}
 			if medComp.MedSubComps != nil {
 				var allFlowInfos []models.FlowInformation
@@ -1037,7 +1041,7 @@ func ModAppSessionContextProcedure(appSessID string,
 				// Set QoS Data
 				// TODO: use real arp
 				qosData := util.CreateQosData(smPolicy.PccRuleIdGenarator, var5qi, 8)
-				if var5qi <= 4 {
+				if pcfContext.IsStandardisedGbr5QI(var5qi) {
 					// update Qos Data according to request BitRate
 					var ul, dl bool
 					qosData, ul, dl = updateQosInMedComp(qosData, medComp)
@@ -1054,7 +1058,7 @@ func ModAppSessionContextProcedure(appSessID string,
 				var qosData models.QosData
 				for _, qosID := range pccRule.RefQosData {
 					qosData = (*smPolicy.PolicyDecision.QosDecs)[qosID]
-					if qosData.GetVar5qi() == var5qi && qosData.GetVar5qi() <= 4 {
+					if qosData.GetVar5qi() == var5qi && pcfContext.IsStandardisedGbr5QI(qosData.GetVar5qi()) {
 						var ul, dl bool
 						qosData, ul, dl = updateQosInMedComp((*smPolicy.PolicyDecision.QosDecs)[qosID], medComp)
 						if problemDetail := modifyRemainBitRate(smPolicy, &qosData, ul, dl); problemDetail != nil {
@@ -2063,43 +2067,10 @@ func extractUmData(umID string, eventSubs map[models.AfEventPcf]models.AfNotifMe
 func modifyRemainBitRate(smPolicy *pcfContext.UeSmPolicyData, qosData *models.QosData,
 	ulExist, dlExist bool,
 ) *models.ProblemDetails {
-	// if request GBR == 0, qos GBR = MBR
-	// if request GBR > remain GBR, qos GBR = remain GBR
-	if ulExist {
-		if qosData.GetGbrUl() == "" {
-			// err = pcfContext.DecreaseRamainBitRate(smPolicy.RemainGbrUL, qosData.MaxbrUl)
-			if err := pcfContext.DecreaseRamainBitRate(smPolicy.RemainGbrUL, qosData.GetMaxbrUl()); err != nil {
-				qosData.SetGbrUl(pcfContext.DecreaseRamainBitRateToZero(smPolicy.RemainGbrUL))
-			} else {
-				qosData.SetGbrUl(qosData.GetMaxbrUl())
-			}
-		} else {
-			// err = pcfContext.DecreaseRamainBitRate(smPolicy.RemainGbrUL, qosData.GbrUl)
-			if err := pcfContext.DecreaseRamainBitRate(smPolicy.RemainGbrUL, qosData.GetGbrUl()); err != nil {
-				problemDetail := util.GetProblemDetail(err.Error(), util.REQUESTED_SERVICE_NOT_AUTHORIZED)
-				// sendProblemDetail(httpChannel, err.Error(), util.REQUESTED_SERVICE_NOT_AUTHORIZED)
-				return problemDetail
-			}
-		}
-	}
-	if dlExist {
-		if qosData.GetGbrDl() == "" {
-			// err = pcfContext.DecreaseRamainBitRate(smPolicy.RemainGbrDL, qosData.MaxbrDl)
-			if err := pcfContext.DecreaseRamainBitRate(smPolicy.RemainGbrDL, qosData.GetMaxbrDl()); err != nil {
-				qosData.SetGbrDl(pcfContext.DecreaseRamainBitRateToZero(smPolicy.RemainGbrDL))
-			} else {
-				qosData.SetGbrDl(qosData.GetMaxbrDl())
-			}
-		} else {
-			// err = pcfContext.DecreaseRamainBitRate(smPolicy.RemainGbrDL, qosData.GbrDl)
-			if err := pcfContext.DecreaseRamainBitRate(smPolicy.RemainGbrDL, qosData.GetGbrDl()); err != nil {
-				// if Policy failed, revert remain GBR to original GBR
-				pcfContext.IncreaseRamainBitRate(smPolicy.RemainGbrUL, *qosData.GbrUl.Get())
-				problemDetail := util.GetProblemDetail(err.Error(), util.REQUESTED_SERVICE_NOT_AUTHORIZED)
-				// sendProblemDetail(httpChannel, err.Error(), util.REQUESTED_SERVICE_NOT_AUTHORIZED)
-				return problemDetail
-			}
-		}
+	// The budget arithmetic and the ledger write are one transaction in the context package, where
+	// the lock that serialises them lives; see DebitForAuthorizedQos.
+	if err := smPolicy.DebitForAuthorizedQos(qosData, ulExist, dlExist); err != nil {
+		return util.GetProblemDetail(err.Error(), util.REQUESTED_SERVICE_NOT_AUTHORIZED)
 	}
 	return nil
 }
