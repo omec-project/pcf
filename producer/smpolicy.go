@@ -15,7 +15,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/omec-project/openapi/v2"
 	"github.com/omec-project/openapi/v2/models"
 	"github.com/omec-project/openapi/v2/utils"
 	pcfContext "github.com/omec-project/pcf/context"
@@ -151,43 +150,6 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	if problemDetail != nil {
 		return nil, nil, problemDetail
 	}
-	/*var ambr *models.Ambr
-	//sstStr := strconv.Itoa(int(request.SliceInfo.Sst))
-	if cAmbr, ok := pcfSelf.AmbrMap[sstStr+request.SliceInfo.Sd]; !ok {
-		ambr = request.SubsSessAmbr
-	} else {
-		ambr = &cAmbr
-	}*/
-	/*	SessRuleId := fmt.Sprintf("SessRuleId-%d", request.PduSessionId)
-		sessRule := models.SessionRule{
-			AuthSessAmbr: ambr,
-			SessRuleId:   SessRuleId,
-			// RefUmData
-			// RefCondData
-		}
-
-		//Check if local config has pre-configured def Qos for the slice(via ROC)
-		var defQos *models.SubscribedDefaultQos
-		if dQos, ok := pcfSelf.DefQosMap[sstStr+request.SliceInfo.Sd]; !ok {
-			defQos = request.SubsDefQos
-		} else {
-			//ARP and Priority not coming from ROC yet, copy from request
-			dQos.Arp = request.SubsDefQos.Arp
-			dQos.PriorityLevel = request.SubsDefQos.PriorityLevel
-			defQos = &dQos
-		}
-
-		if defQos != nil {
-			sessRule.AuthDefQos = &models.AuthorizedDefaultQos{
-				Var5qi:        defQos.Var5qi,
-				Arp:           defQos.Arp,
-				PriorityLevel: defQos.PriorityLevel,
-				// AverWindow
-				// MaxDataBurstVol
-			}
-		}
-		decision.SessRules[SessRuleId] = &sessRule
-	*/
 	// TODO: See how UDR used
 	dnnData := util.GetSMPolicyDnnData(*smData, request.SliceInfo, request.Dnn)
 	if dnnData != nil {
@@ -343,8 +305,10 @@ func buildDefaultSessionRule(key string, ambr *models.Ambr, qos *models.Subscrib
 		sessionRule.SetAuthDefQos(*authDefQos)
 		sessionRule.SetAuthSessAmbr(*ambr)
 	} else {
+		arp := models.NewArpWithDefaults()
+		arp.SetPriorityLevel(1)
 		authDefQos.SetVar5qi(5)
-		authDefQos.SetArp(models.Arp{PriorityLevel: *openapi.NewNullableInt32(new(int32(1)))})
+		authDefQos.SetArp(*arp)
 		sessionRule.SetAuthDefQos(*authDefQos)
 		sessionRule.SetAuthSessAmbr(models.Ambr{
 			Downlink: defaultFallbackAmbrRate,
@@ -991,13 +955,21 @@ func sendSmPolicyRelatedAppSessionNotification(smPolicy *pcfContext.UeSmPolicyDa
 						for _, report := range usageReports {
 							for _, pccRuleId := range appSession.RelatedPccRuleIds {
 								if pccRule, exist := appSession.SmPolicyData.PolicyDecision.PccRules[pccRuleId]; exist {
-									if pccRule.RefUmData != nil && pccRule.RefUmData[0] == report.RefUmIds {
-										sessionNotif.UsgRep = &models.AccumulatedUsage{
-											Duration:       report.TimeUsage,
-											TotalVolume:    report.VolUsage,
-											UplinkVolume:   report.VolUsageUplink,
-											DownlinkVolume: report.VolUsageDownlink,
+									if pccRule.RefUmData != nil && pccRule.RefUmData[0] == report.GetRefUmIds() {
+										accumulatedUsage := models.AccumulatedUsage{}
+										if report.HasNextTimeUsage() {
+											accumulatedUsage.SetDuration(report.GetTimeUsage())
 										}
+										if report.HasVolUsage() {
+											accumulatedUsage.SetTotalVolume(report.GetVolUsage())
+										}
+										if report.HasVolUsageUplink() {
+											accumulatedUsage.SetUplinkVolume(report.GetVolUsageUplink())
+										}
+										if report.HasVolUsageDownlink() {
+											accumulatedUsage.SetDownlinkVolume(report.GetVolUsageDownlink())
+										}
+										sessionNotif.SetUsgRep(accumulatedUsage)
 										break
 									}
 								}
