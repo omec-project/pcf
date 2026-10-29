@@ -6,6 +6,8 @@ Copyright 2019 free5GC.org
 SPDX-License-Identifier: Apache-2.0
 -->
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/omec-project/pcf/badge)](https://scorecard.dev/viewer/?uri=github.com/omec-project/pcf)
+[![GitHub latest release (SemVer)](https://img.shields.io/github/v/release/omec-project/pcf?sort=semver)](https://github.com/omec-project/pcf/releases)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://spdx.org/licenses/Apache-2.0.html)
 
 # pcf
 
@@ -21,7 +23,7 @@ The reference 3GPP specification for PCF are as follows
 
 
 ## PCF Flow Diagram
-![PCF Flow Diagram](/docs/images/README-PCF.png)
+![PCF Flow Diagram](./docs/images/README-PCF.png)
 
 ## Dynamic Network configuration (via webconsole)
 
@@ -45,7 +47,7 @@ If the webconsole is served over HTTPS and uses a custom or self-signed certific
 you must install the root CA certificate into the trust store of the PCF environment.
 
 Check the official guide for installing root CA certificates on Ubuntu:
-[Install a Root CA Certificate in the Trust Store](https://documentation.ubuntu.com/server/how-to/security/install-a-root-ca-certificate-in-the-trust-store/index.html)
+[Install a Root CA Certificate in the Trust Store](https://ubuntu.com/server/docs/how-to/security/install-a-root-ca-certificate-in-the-trust-store/)
 
 ## Supported Features
 - PCF provides Access and Mobility Management related policies to the AMF
@@ -65,7 +67,7 @@ Subscriber’s Rule/Qos information.
 
 ## 5G Compliance
 
-Compliance of the 5G Network functions can be found at [5G Compliance](https://docs.sd-core.opennetworking.org/main/overview/3gpp-compliance-5g.html)
+Compliance of the 5G Network functions can be found at [5G Compliance](https://docs.sd-core.aetherproject.org/overview/3gpp-compliance-5g.html)
 
 
 ## Reach out to us through
