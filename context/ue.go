@@ -7,8 +7,10 @@ package context
 
 import (
 	"fmt"
+	"maps"
 	"math"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -98,6 +100,38 @@ type UeSmPolicyData struct {
 	// related to UDR Subscription Data
 	SmPolicyData *models.SmPolicyData // Svbscription Data
 	// related to Policy
+	//
+	// PolicyMu guards PolicyDecision — the pointer and everything reachable through it — together
+	// with PackFiltMapToPccRuleId, the remaining GBR budget and the three identifier generators.
+	// All of it is session policy state written by the application-function handlers on their own
+	// HTTP goroutines and, since the configuration poll loop began bringing established sessions
+	// onto a changed policy, read and replaced by that loop as well.
+	//
+	// The contents matter as much as the pointer. The poll loop compares a session's stored
+	// decision against a recomputed one with reflect.DeepEqual, which walks into SessRules,
+	// PccRules, QosDecs and TraffContDecs — and walks them furthest for a session whose policy did
+	// *not* change, because the comparison only stops early where it finds a difference. So one
+	// slice's configuration edit reads every other session's maps to the end, while the
+	// application-function handlers write into those same maps. A Go map read concurrent with a
+	// map write is a fatal runtime throw, not a value that comes back stale.
+	//
+	// Two rules keep it deadlock-free, both of which cost nothing to follow and are expensive to
+	// rediscover:
+	//
+	//   - RemovePccRule, ArrangeExistEventSubscription, IncreaseRemainGBR and DecreaseRemainGBR do
+	//     NOT take PolicyMu; their callers hold it. All four are reached from inside a handler's
+	//     locked region, and a sync.RWMutex is not reentrant, so acquiring it there would wedge
+	//     the session for good.
+	//   - SnapshotPolicyDecision, PolicyDecisionPointer and StorePolicyDecisionIfUntouched do take
+	//     it, so they are for callers that hold nothing. Code already inside a locked region
+	//     clones with CloneSmPolicyDecisionContainers directly instead of asking for a snapshot.
+	//   - Where both are needed, PolicyMu is taken before AppSessionsMu and never the other way
+	//     round. The poll loop holds only one of the two at a time, so there is no cycle to close.
+	//
+	// A lock held across the notification send would be worse than none of this: the dispatcher
+	// calls its handler synchronously, so the AF path's SM policy update is a blocking HTTP POST to
+	// the SMF. Every locked region below ends before its dispatch.
+	PolicyMu       sync.RWMutex
 	PolicyContext  *models.SmPolicyContextData
 	PolicyDecision *models.SmPolicyDecision
 	// related to AppSession
@@ -181,6 +215,170 @@ func (ue *UeContext) NewUeSmPolicyData(
 }
 
 // Remove Pcc rule which PccRuleId in the policy
+// CloneSmPolicyDecisionContainers returns d with every map and slice it holds replaced by a clone,
+// so the result shares no mutable container with the decision it came from.
+//
+// It exists because a decision gets *published* — marshalled into a notification and POSTed to the
+// SMF — while the application-function handlers write into the stored one. Sending the stored
+// decision by reference means marshalling a map another goroutine may be writing, which takes the
+// process down rather than sending a stale value. Both the AF path and the configuration poll loop
+// publish, so both snapshot through here.
+//
+// One level is enough. Map and slice entries are values, and Go does not allow assigning through a
+// map's value, so a caller that changes an entry replaces the whole entry — leaving a clone's copy
+// of it untouched. Pointer-to-scalar fields are shared deliberately: the code assigns whole
+// pointers rather than writing through them.
+//
+// TestCloneSmPolicyDecisionContainersCoversEveryContainer fails if the model gains a container this
+// does not clone, which would silently reintroduce the sharing.
+func CloneSmPolicyDecisionContainers(d models.SmPolicyDecision) models.SmPolicyDecision {
+	d.SessRules = clonePointedMap(d.SessRules)
+	d.PccRules = maps.Clone(d.PccRules)
+	d.QosDecs = clonePointedMap(d.QosDecs)
+	d.TraffContDecs = clonePointedMap(d.TraffContDecs)
+	d.ChgDecs = maps.Clone(d.ChgDecs)
+	d.UmDecs = maps.Clone(d.UmDecs)
+	d.QosChars = clonePointedMap(d.QosChars)
+	d.QosMonDecs = maps.Clone(d.QosMonDecs)
+	d.Conds = maps.Clone(d.Conds)
+	d.PraInfos = maps.Clone(d.PraInfos)
+	d.PolicyCtrlReqTriggers = slices.Clone(d.PolicyCtrlReqTriggers)
+	d.LastReqRuleData = slices.Clone(d.LastReqRuleData)
+	d.TsnPortManContNwtts = slices.Clone(d.TsnPortManContNwtts)
+	d.VplmnOffloadInfos = slices.Clone(d.VplmnOffloadInfos)
+
+	return d
+}
+
+// clonePointedMap clones a map held behind a pointer, which is how the generated models express an
+// optional map. A nil pointer stays nil: the field is absent, and an empty map would put a
+// "qosChars": {} on the wire that the decision never had.
+func clonePointedMap[K comparable, V any](src *map[K]V) *map[K]V {
+	if src == nil {
+		return nil
+	}
+	cloned := maps.Clone(*src)
+
+	return &cloned
+}
+
+// PccRule returns a copy of a stored PCC rule and whether it was there, taking PolicyMu itself.
+//
+// For a caller that holds nothing and wants one rule: reading the map directly from another
+// goroutine is what makes an application-function write into it fatal.
+func (policy *UeSmPolicyData) PccRule(pccRuleID string) (models.PccRule, bool) {
+	policy.PolicyMu.RLock()
+	defer policy.PolicyMu.RUnlock()
+
+	if policy.PolicyDecision == nil {
+		return models.PccRule{}, false
+	}
+	rule, ok := policy.PolicyDecision.PccRules[pccRuleID]
+
+	return rule, ok
+}
+
+// StoreRemainGbrDL and StoreRemainGbrUL seed the session's aggregate GBR budget at policy create.
+//
+// The budget is guarded state: the application-function path decrements it through these pointers
+// while authorising a flow. Nothing else should have reached it before the session exists, but
+// "nothing should" is not what the field's contract says, and a setter costs less than the
+// argument.
+func (policy *UeSmPolicyData) StoreRemainGbrDL(budget *float64) {
+	policy.PolicyMu.Lock()
+	defer policy.PolicyMu.Unlock()
+
+	policy.RemainGbrDL = budget
+}
+
+func (policy *UeSmPolicyData) StoreRemainGbrUL(budget *float64) {
+	policy.PolicyMu.Lock()
+	defer policy.PolicyMu.Unlock()
+
+	policy.RemainGbrUL = budget
+}
+
+// StorePolicyDecision installs a session's first decision, at policy create.
+func (policy *UeSmPolicyData) StorePolicyDecision(decision *models.SmPolicyDecision) {
+	policy.PolicyMu.Lock()
+	defer policy.PolicyMu.Unlock()
+
+	policy.PolicyDecision = decision
+}
+
+// SnapshotPolicyDecision returns a copy of the stored decision that shares no container with it,
+// for a caller that is about to publish it. Returns nil if there is nothing stored.
+//
+// Taking the snapshot under the lock and sending *that* is what keeps the notification off the
+// stored decision while the send is in flight — the dispatcher calls its handler synchronously, so
+// the send is a blocking POST and holding the lock across it would stall every other request for
+// this session behind the SMF.
+func (policy *UeSmPolicyData) SnapshotPolicyDecision() *models.SmPolicyDecision {
+	policy.PolicyMu.RLock()
+	defer policy.PolicyMu.RUnlock()
+
+	if policy.PolicyDecision == nil {
+		return nil
+	}
+	snapshot := CloneSmPolicyDecisionContainers(*policy.PolicyDecision)
+
+	return &snapshot
+}
+
+// StorePolicyDecisionIfUntouched replaces the stored policy decision, but only while the session
+// is still the one the caller computed against and no application function has claimed it, and
+// reports whether it did.
+//
+// The poll loop computes a session's new decision, sends it, and only then records it. The SMF
+// round trip sits in between, so an application function can claim the session inside that window
+// and write its own PCC rules into the decision this would replace — and the slice-derived merge
+// swaps the rule and QoS maps wholesale, so those entries would go with them.
+//
+// Both questions have to be answered here, in this one critical section, and the pointer alone
+// cannot answer either of them. An application function claims a session by writing *into* the
+// stored decision, which leaves the pointer exactly where it was, so a pointer compare sees
+// nothing; and an app-session check made by the caller before calling this is a separate step that
+// a claim can land between. Holding PolicyMu across the claim check and the store is what makes
+// them indivisible — the AF handlers take PolicyMu before they touch either, so a claim in flight
+// either completes before this runs and is seen, or waits until after the store and overwrites
+// nothing.
+//
+// PolicyMu before AppSessionsMu, which is the order every other caller uses; see the PolicyMu
+// field's comment.
+func (policy *UeSmPolicyData) StorePolicyDecisionIfUntouched(basedOn, decision *models.SmPolicyDecision) bool {
+	policy.PolicyMu.Lock()
+	defer policy.PolicyMu.Unlock()
+
+	if policy.PolicyDecision != basedOn {
+		return false
+	}
+
+	policy.AppSessionsMu.RLock()
+	claimed := len(policy.AppSessions) > 0
+	policy.AppSessionsMu.RUnlock()
+
+	if claimed {
+		return false
+	}
+	policy.PolicyDecision = decision
+
+	return true
+}
+
+// PolicyDecisionPointer returns the stored decision for identity comparison only.
+//
+// The value behind it is guarded state, so a caller that means to read the decision's contents
+// holds PolicyMu itself for as long as it reads. This exists for the one question that can be
+// answered by the pointer alone: whether the decision is still the one some earlier step saw.
+func (policy *UeSmPolicyData) PolicyDecisionPointer() *models.SmPolicyDecision {
+	policy.PolicyMu.RLock()
+	defer policy.PolicyMu.RUnlock()
+
+	return policy.PolicyDecision
+}
+
+// The caller holds PolicyMu and this does not take it: a handler's locked region reaches here, and
+// a sync.RWMutex is not reentrant. See the PolicyMu field's comment.
 func (policy *UeSmPolicyData) RemovePccRule(pccRuleId string, deletedSmPolicyDec *models.SmPolicyDecision) error {
 	decision := policy.PolicyDecision
 	if decision == nil {
@@ -330,6 +528,9 @@ func (policy *UeSmPolicyData) CheckRelatedAfEvent(event models.AfEventPcf) (foun
 }
 
 // Arrange Exist Event policy Sm policy about afevents and return if it changes or not and
+//
+// The caller holds PolicyMu and this does not take it: a handler's locked region reaches here, and
+// a sync.RWMutex is not reentrant. See the PolicyMu field's comment.
 func (policy *UeSmPolicyData) ArrangeExistEventSubscription() (changed bool) {
 	triggers := []models.PolicyControlRequestTrigger{}
 	for _, trigger := range policy.PolicyDecision.PolicyCtrlReqTriggers {
@@ -359,6 +560,9 @@ func (policy *UeSmPolicyData) ArrangeExistEventSubscription() (changed bool) {
 }
 
 // Increase remain GBR of this policy and returns original UL DL GBR for resume case
+//
+// The caller holds PolicyMu and this does not take it: a handler's locked region reaches here, and
+// a sync.RWMutex is not reentrant. See the PolicyMu field's comment.
 func (policy *UeSmPolicyData) IncreaseRemainGBR(qosId string) (origUl, origDl *float64) {
 	decision := policy.PolicyDecision
 	if decision == nil {
@@ -391,6 +595,9 @@ func IncreaseRamainBitRate(remainBitRate *float64, reqBitRate string) (orig *flo
 }
 
 // Decrease remain GBR of this policy and returns UL DL GBR
+//
+// The caller holds PolicyMu and this does not take it: a handler's locked region reaches here, and
+// a sync.RWMutex is not reentrant. See the PolicyMu field's comment.
 func (policy *UeSmPolicyData) DecreaseRemainGBR(req *models.RequestedQos) (gbrDl, gbrUl string, err error) {
 	if req == nil {
 		return "", "", nil
