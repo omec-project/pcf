@@ -92,7 +92,7 @@ var registerNF = func(registerCtx context.Context, newNfProfileConfig consumer.N
 		case <-time.After(interval):
 			nfProfile, _, err := consumer.SendRegisterNFInstance(newNfProfileConfig)
 			if err != nil {
-				logger.NrfRegistrationLog.Errorf("register PCF instance to NRF failed. Will retry in %s", retryTime.String())
+				logger.NrfRegistrationLog.Errorf("register PCF instance to NRF failed: %v. Will retry in %s", err, retryTime)
 				interval = retryTime
 				continue
 			}

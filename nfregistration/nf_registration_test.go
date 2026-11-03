@@ -353,7 +353,7 @@ func TestNfRegistrationService_ConfigChanged_RetryIfRegisterNFFails(t *testing.T
 	}, "expected to retry register to NRF")
 
 	if called.Load() < 2 {
-		t.Errorf("expected to retry register to NRF")
+		t.Error("expected to retry register to NRF")
 	}
 	t.Logf("Tried %v times", called.Load())
 }
