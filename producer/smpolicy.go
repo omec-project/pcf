@@ -240,16 +240,16 @@ func buildSmPolicyDecision(imsi string, snssai models.Snssai, dnn string, subscr
 			logger.SMpolicyLog.Errorf("failed to copy session rule %s: %v", sessRule.SessRuleId, err)
 			continue
 		}
-		(*decision.SessRules)[sessRule.SessRuleId] = copiedRule
+		(*decision.SessRules)[sessRule.SessRuleId] = &copiedRule
 	}
 	return &decision, nil
 }
 
 func initSmPolicyDecisionFromPccPolicy(pccPolicy *polling.PccPolicy) models.SmPolicyDecision {
-	sessRules := make(map[string]models.SessionRule)
-	pccRules := make(map[string]models.PccRule)
-	qosDecs := make(map[string]models.QosData)
-	traffContDecs := make(map[string]models.TrafficControlData)
+	sessRules := make(map[string]*models.SessionRule)
+	pccRules := make(map[string]*models.PccRule)
+	qosDecs := make(map[string]*models.QosData)
+	traffContDecs := make(map[string]*models.TrafficControlData)
 	decision := models.NewSmPolicyDecision()
 	for id, rule := range pccPolicy.PccRules {
 		var cp models.PccRule
@@ -257,7 +257,7 @@ func initSmPolicyDecisionFromPccPolicy(pccPolicy *polling.PccPolicy) models.SmPo
 			logger.SMpolicyLog.Errorf("failed to copy PCC rule %s: %v", id, err)
 			continue
 		}
-		pccRules[id] = cp
+		pccRules[id] = &cp
 	}
 	for id, qos := range pccPolicy.QosDecs {
 		var cp models.QosData
@@ -265,7 +265,7 @@ func initSmPolicyDecisionFromPccPolicy(pccPolicy *polling.PccPolicy) models.SmPo
 			logger.SMpolicyLog.Errorf("failed to copy QoS data %s: %v", id, err)
 			continue
 		}
-		qosDecs[id] = cp
+		qosDecs[id] = &cp
 	}
 	for id, tc := range pccPolicy.TraffContDecs {
 		var cp models.TrafficControlData
@@ -273,7 +273,7 @@ func initSmPolicyDecisionFromPccPolicy(pccPolicy *polling.PccPolicy) models.SmPo
 			logger.SMpolicyLog.Errorf("failed to copy traffic control data %s: %v", id, err)
 			continue
 		}
-		traffContDecs[id] = cp
+		traffContDecs[id] = &cp
 	}
 	decision.SetSessRules(sessRules) // This is just to initialize the map/pointer
 	decision.SetPccRules(pccRules)
@@ -282,7 +282,7 @@ func initSmPolicyDecisionFromPccPolicy(pccPolicy *polling.PccPolicy) models.SmPo
 	return *decision
 }
 
-func buildDefaultSessionPolicy(dnn string, ambr *models.Ambr, qos *models.SubscribedDefaultQos) *map[string]models.SessionRule {
+func buildDefaultSessionPolicy(dnn string, ambr *models.Ambr, qos *models.SubscribedDefaultQos) *map[string]*models.SessionRule {
 	idGenerator := idgenerator.NewGenerator(1, math.MaxInt16)
 	id, err := idGenerator.Allocate()
 	if err != nil {
@@ -290,8 +290,8 @@ func buildDefaultSessionPolicy(dnn string, ambr *models.Ambr, qos *models.Subscr
 		return nil
 	}
 	key := fmt.Sprintf("%s-%d", dnn, id)
-	buildSessPolicy := map[string]models.SessionRule{
-		key: *buildDefaultSessionRule(key, ambr, qos),
+	buildSessPolicy := map[string]*models.SessionRule{
+		key: buildDefaultSessionRule(key, ambr, qos),
 	}
 	return &buildSessPolicy
 }

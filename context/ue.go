@@ -189,9 +189,9 @@ func (policy *UeSmPolicyData) RemovePccRule(pccRuleId string, deletedSmPolicyDec
 	if rule, exist := decision.PccRules[pccRuleId]; exist {
 		if deletedSmPolicyDec != nil {
 			if deletedSmPolicyDec.PccRules == nil {
-				deletedSmPolicyDec.PccRules = make(map[string]models.PccRule)
+				deletedSmPolicyDec.PccRules = make(map[string]*models.PccRule)
 			}
-			deletedSmPolicyDec.PccRules[pccRuleId] = models.PccRule{}
+			deletedSmPolicyDec.PccRules[pccRuleId] = models.NewPccRuleWithDefaults()
 		}
 		for _, info := range rule.FlowInfos {
 			delete(policy.PackFiltMapToPccRuleId, info.GetPackFiltId())
@@ -215,9 +215,9 @@ func (policy *UeSmPolicyData) RemovePccRule(pccRuleId string, deletedSmPolicyDec
 				}
 				if deletedSmPolicyDec != nil {
 					if deletedSmPolicyDec.Conds == nil {
-						deletedSmPolicyDec.Conds = make(map[string]models.ConditionData)
+						deletedSmPolicyDec.Conds = make(map[string]*models.ConditionData)
 					}
-					deletedSmPolicyDec.Conds[rule.GetRefCondData()] = models.ConditionData{}
+					deletedSmPolicyDec.Conds[rule.GetRefCondData()] = models.NewConditionDataWithDefaults()
 				}
 			}
 		}
@@ -229,9 +229,9 @@ func (policy *UeSmPolicyData) RemovePccRule(pccRuleId string, deletedSmPolicyDec
 				}
 				if deletedSmPolicyDec != nil {
 					if deletedSmPolicyDec.ChgDecs == nil {
-						deletedSmPolicyDec.ChgDecs = make(map[string]models.ChargingData)
+						deletedSmPolicyDec.ChgDecs = make(map[string]*models.ChargingData)
 					}
-					deletedSmPolicyDec.ChgDecs[id] = models.ChargingData{}
+					deletedSmPolicyDec.ChgDecs[id] = models.NewChargingDataWithDefaults()
 				}
 			} else {
 				break
@@ -245,11 +245,11 @@ func (policy *UeSmPolicyData) RemovePccRule(pccRuleId string, deletedSmPolicyDec
 				}
 				if deletedSmPolicyDec != nil {
 					if deletedSmPolicyDec.TraffContDecs == nil {
-						m := make(map[string]models.TrafficControlData)
+						m := make(map[string]*models.TrafficControlData)
 						deletedSmPolicyDec.TraffContDecs = &m
 					}
 					traffContDecs := *deletedSmPolicyDec.TraffContDecs
-					traffContDecs[id] = models.TrafficControlData{}
+					traffContDecs[id] = models.NewTrafficControlDataWithDefaults()
 				}
 			} else {
 				break
@@ -263,9 +263,9 @@ func (policy *UeSmPolicyData) RemovePccRule(pccRuleId string, deletedSmPolicyDec
 				}
 				if deletedSmPolicyDec != nil {
 					if deletedSmPolicyDec.UmDecs == nil {
-						deletedSmPolicyDec.UmDecs = make(map[string]models.UsageMonitoringData)
+						deletedSmPolicyDec.UmDecs = make(map[string]*models.UsageMonitoringData)
 					}
-					deletedSmPolicyDec.UmDecs[id] = models.UsageMonitoringData{}
+					deletedSmPolicyDec.UmDecs[id] = models.NewUsageMonitoringDataWithDefaults()
 				}
 			} else {
 				break

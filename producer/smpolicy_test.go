@@ -116,11 +116,11 @@ func TestBuildSmPolicyDecision_FoundInLocalPolicy(t *testing.T) {
 		t.Error("expected decision to be not nil, but got nil")
 	}
 
-	qosDecs := map[string]models.QosData{
-		testQosId1: *models.NewQosData(testQosId1),
+	qosDecs := map[string]*models.QosData{
+		testQosId1: models.NewQosData(testQosId1),
 	}
-	traffContDecs := map[string]models.TrafficControlData{
-		testTcId1: *models.NewTrafficControlData(testTcId1),
+	traffContDecs := map[string]*models.TrafficControlData{
+		testTcId1: models.NewTrafficControlData(testTcId1),
 	}
 	authSessAmbr := models.NewAmbr("55 Mbps", "515 Mbps")
 	authDefQos := models.NewAuthorizedDefaultQos()
@@ -133,17 +133,16 @@ func TestBuildSmPolicyDecision_FoundInLocalPolicy(t *testing.T) {
 	sessRule := models.NewSessionRule(testSessRuleIdInternet1)
 	sessRule.SetAuthSessAmbr(*authSessAmbr)
 	sessRule.SetAuthDefQos(*authDefQos)
-	sessRules := map[string]models.SessionRule{
-		testSessRuleIdInternet1: *sessRule,
-	}
 
 	expectedDecision := models.NewSmPolicyDecision()
-	expectedDecision.SetPccRules(map[string]models.PccRule{
-		testPccRuleId1: *models.NewPccRule(testPccRuleId1),
+	expectedDecision.SetPccRules(map[string]*models.PccRule{
+		testPccRuleId1: models.NewPccRule(testPccRuleId1),
 	})
 	expectedDecision.SetQosDecs(qosDecs)
 	expectedDecision.SetTraffContDecs(traffContDecs)
-	expectedDecision.SetSessRules(sessRules)
+	expectedDecision.SetSessRules(map[string]*models.SessionRule{
+		testSessRuleIdInternet1: sessRule,
+	})
 	expectedDecision.SetOfflineChOnly(false)
 
 	if !util.CompareViaJSON(decision, expectedDecision) {
@@ -342,22 +341,22 @@ func TestBuildSmPolicyDecision_FallbackToDefault(t *testing.T) {
 				t.Error("expected decision to be not nil, but got nil")
 			}
 
-			qosDecs := map[string]models.QosData{
-				testQosId1: *models.NewQosData(testQosId1),
+			qosDecs := map[string]*models.QosData{
+				testQosId1: models.NewQosData(testQosId1),
 			}
-			traffContDecs := map[string]models.TrafficControlData{
-				testTcId1: *models.NewTrafficControlData(testTcId1),
+			traffContDecs := map[string]*models.TrafficControlData{
+				testTcId1: models.NewTrafficControlData(testTcId1),
 			}
 			sessRule := models.NewSessionRule(testSessRuleIdInternet1)
 			sessRule.SetAuthDefQos(*tc.expectedQos)
 			sessRule.SetAuthSessAmbr(*tc.expectedAmbr)
-			sessRules := map[string]models.SessionRule{
-				testSessRuleIdInternet1: *sessRule,
+			sessRules := map[string]*models.SessionRule{
+				testSessRuleIdInternet1: sessRule,
 			}
 
 			expectedDecision := models.NewSmPolicyDecision()
-			expectedDecision.SetPccRules(map[string]models.PccRule{
-				testPccRuleId1: *models.NewPccRule(testPccRuleId1),
+			expectedDecision.SetPccRules(map[string]*models.PccRule{
+				testPccRuleId1: models.NewPccRule(testPccRuleId1),
 			})
 			expectedDecision.SetQosDecs(qosDecs)
 			expectedDecision.SetTraffContDecs(traffContDecs)
