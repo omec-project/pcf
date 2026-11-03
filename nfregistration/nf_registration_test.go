@@ -315,13 +315,18 @@ func TestNfRegistrationService_WhenConfigChannelClosed_ThenStopsService(t *testi
 func TestNfRegistrationService_ConfigChanged_RetryIfRegisterNFFails(t *testing.T) {
 	originalSendRegisterNFInstance := consumer.SendRegisterNFInstance
 	originalDiscoverUdr := consumer.DiscoverUdr
+	originalRetryTime := retryTime
+	retryTime = 20 * time.Millisecond
 	ch := make(chan consumer.NfProfileDynamicConfig, 1)
 	cancel, done := startRegistrationServiceForTest(t, ch)
 	defer func() {
 		cancel()
 		<-done
+		registerCtxMutex.Lock()
+		retryTime = originalRetryTime
 		consumer.SendRegisterNFInstance = originalSendRegisterNFInstance
 		consumer.DiscoverUdr = originalDiscoverUdr
+		registerCtxMutex.Unlock()
 		withKeepAliveTimerLock(func() {
 			stopKeepAliveTimer()
 		})
@@ -343,7 +348,7 @@ func TestNfRegistrationService_ConfigChanged_RetryIfRegisterNFFails(t *testing.T
 		Dnns: make(map[string]struct{}),
 	}
 
-	waitForCondition(t, retryTime+3*time.Second, func() bool {
+	waitForCondition(t, retryTime+time.Second, func() bool {
 		return called.Load() >= 2
 	}, "expected to retry register to NRF")
 

@@ -23,11 +23,11 @@ var (
 	keepAliveTimerMutex sync.Mutex
 	registerCtxMutex    sync.Mutex
 	afterFunc           = time.AfterFunc
+	retryTime           = 10 * time.Second
 )
 
 const (
 	defaultHeartbeatTimer int32 = 60
-	retryTime                   = 10 * time.Second
 )
 
 // StartNfRegistrationService starts the registration service. If the new config is empty, the NF
@@ -92,7 +92,7 @@ var registerNF = func(registerCtx context.Context, newNfProfileConfig consumer.N
 		case <-time.After(interval):
 			nfProfile, _, err := consumer.SendRegisterNFInstance(newNfProfileConfig)
 			if err != nil {
-				logger.NrfRegistrationLog.Errorln("register PCF instance to NRF failed. Will retry.", err.Error())
+				logger.NrfRegistrationLog.Errorf("register PCF instance to NRF failed: %v. Will retry in %s", err, retryTime)
 				interval = retryTime
 				continue
 			}
