@@ -318,6 +318,25 @@ func buildDefaultSessionRule(key string, ambr *models.Ambr, qos *models.Subscrib
 	return sessionRule
 }
 
+// sessionRulesToUpdate returns the session rules affected by a session-level policy
+// change. Rule keys are not derived from the PDU session id (they come from the
+// webconsole or the default builder, e.g. "internet-1"), so the legacy
+// "SessRuleId-<PduSessionId>" key is preferred when present, otherwise every
+// session rule in the decision is returned. Nil entries are skipped.
+func sessionRulesToUpdate(decision *models.SmPolicyDecision, pduSessionId int32) []*models.SessionRule {
+	sessRules := decision.GetSessRules()
+	if rule, ok := sessRules[fmt.Sprintf("SessRuleId-%d", pduSessionId)]; ok && rule != nil {
+		return []*models.SessionRule{rule}
+	}
+	result := make([]*models.SessionRule, 0, len(sessRules))
+	for _, rule := range sessRules {
+		if rule != nil {
+			result = append(result, rule)
+		}
+	}
+	return result
+}
+
 // SmPoliciessmPolicyIDDeletePost -
 func HandleDeleteSmPolicyContextRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.SMpolicyLog.Infoln("handle DeleteSmPolicyContext")
@@ -536,11 +555,20 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 					errCause = "Parameter Erroneous/Missing in Modify Pcc Rule"
 					break
 				}
-				if rule, exist := smPolicyDecision.PccRules[req.GetPccRuleId()]; exist {
+				if liveRule, exist := smPolicyDecision.PccRules[req.GetPccRuleId()]; exist {
+					// Work on a copy and commit it only after all validation succeeded
+					updatedRule := *liveRule
+					rule := &updatedRule
+					// Validate and convert packet filters before mutating any state
+					infos := util.ConvertPacketInfoToFlowInformation(req.PackFiltInfo)
+					if len(req.PackFiltInfo) > 0 && infos == nil {
+						errCause = "Failed to convert packet filter info"
+						break
+					}
 					// Modify Qos if included
 					rule.Precedence = req.Precedence
-					if req.ReqQos != nil && len(rule.RefQosData) != 0 {
-						qosId := rule.RefQosData[0]
+					if req.HasReqQos() && len(rule.GetRefQosData()) != 0 {
+						qosId := rule.GetRefQosData()[0]
 						if qosData, exist := smPolicyDecision.GetQosDecs()[qosId]; exist {
 							origUl, origDl := smPolicy.IncreaseRemainGBR(qosId)
 							gbrDl, gbrUl, err := smPolicy.DecreaseRemainGBR(req.ReqQos)
@@ -567,11 +595,6 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 							errCause = "Parameter Erroneous/Missing in Modify Pcc Rule"
 							break
 						}
-					}
-					infos := util.ConvertPacketInfoToFlowInformation(req.PackFiltInfo)
-					if infos == nil {
-						errCause = "Failed to convert packet filter info"
-						break
 					}
 					switch req.RuleOp {
 					case models.RULEOPERATION_MODIFY_PCC_RULE_AND_ADD_PACKET_FILTERS:
@@ -683,19 +706,23 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 				break
 			}
 			smPolicyContext.SubsDefQos = request.SubsDefQos
-			sessRuleId := fmt.Sprintf("SessRuleId-%d", smPolicyContext.PduSessionId)
-			if smPolicyDecision.GetSessRules()[sessRuleId].AuthDefQos == nil {
-				tmp := smPolicyDecision.GetSessRules()[sessRuleId]
-				tmp.AuthDefQos = models.NewAuthorizedDefaultQos()
-				(*smPolicyDecision.SessRules)[sessRuleId] = tmp
+			sessRules := sessionRulesToUpdate(smPolicyDecision, smPolicyContext.GetPduSessionId())
+			if len(sessRules) == 0 {
+				errCause = "No session rule found in Trigger DEF_QOS_CH"
+				break
 			}
-			authQos := smPolicyDecision.GetSessRules()[sessRuleId].AuthDefQos
-			authQos.SetVar5qi(request.SubsDefQos.GetVar5qi())
-			authQos.SetArp(request.SubsDefQos.GetArp())
-			if request.SubsDefQos.HasPriorityLevel() {
-				authQos.SetPriorityLevel(request.SubsDefQos.GetPriorityLevel())
-			} else {
-				authQos.SetPriorityLevelNil()
+			for _, sessRule := range sessRules {
+				if sessRule.AuthDefQos == nil {
+					sessRule.AuthDefQos = models.NewAuthorizedDefaultQos()
+				}
+				authQos := sessRule.AuthDefQos
+				authQos.SetVar5qi(request.SubsDefQos.GetVar5qi())
+				authQos.SetArp(request.SubsDefQos.GetArp())
+				if request.SubsDefQos.HasPriorityLevel() {
+					authQos.SetPriorityLevel(request.SubsDefQos.GetPriorityLevel())
+				} else {
+					authQos.SetPriorityLevelNil()
+				}
 			}
 			logger.SMpolicyLog.Debugf("SM Policy Update(%s) Successfully", trigger)
 		case models.POLICYCONTROLREQUESTTRIGGER_SE_AMBR_CH: // Session Ambr Change (subsclause 4.2.4.4 in TS29512) (always)
@@ -704,15 +731,14 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 				break
 			}
 			smPolicyContext.SubsSessAmbr = request.SubsSessAmbr
-			sessRuleId := fmt.Sprintf("SessRuleId-%d", smPolicyContext.PduSessionId)
-			if smPolicyDecision.GetSessRules()[sessRuleId].AuthSessAmbr == nil {
-				tmp := smPolicyDecision.GetSessRules()[sessRuleId]
-				tmp.AuthSessAmbr = models.NewAmbrWithDefaults()
-				(*smPolicyDecision.SessRules)[sessRuleId] = tmp
+			sessRules := sessionRulesToUpdate(smPolicyDecision, smPolicyContext.GetPduSessionId())
+			if len(sessRules) == 0 {
+				errCause = "No session rule found in Trigger SE_AMBR_CH"
+				break
 			}
-			sessRule := (*smPolicyDecision.SessRules)[sessRuleId]
-			sessRule.AuthSessAmbr = request.SubsSessAmbr
-			(*smPolicyDecision.SessRules)[sessRuleId] = sessRule
+			for _, sessRule := range sessRules {
+				sessRule.SetAuthSessAmbr(request.GetSubsSessAmbr())
+			}
 			logger.SMpolicyLog.Debugf("SM Policy Update(%s) Successfully", trigger)
 		case models.POLICYCONTROLREQUESTTRIGGER_QOS_NOTIF:
 			// SMF notify PCF when receiving from RAN that QoS can/can't be guaranteed (subsclause 4.2.4.20 in TS29512) (always)

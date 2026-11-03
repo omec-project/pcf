@@ -422,3 +422,28 @@ func TestInitSmPolicyDecisionPreservesNullableFields(t *testing.T) {
 		t.Errorf("Arp.PriorityLevel lost in copy: got %v, want 5", v)
 	}
 }
+
+func TestSessionRulesToUpdate(t *testing.T) {
+	legacy := models.NewSessionRule("SessRuleId-1")
+	other := models.NewSessionRule(testSessRuleIdInternet1)
+
+	tests := []struct {
+		name  string
+		rules map[string]*models.SessionRule
+		want  int
+	}{
+		{"legacy key preferred", map[string]*models.SessionRule{"SessRuleId-1": legacy, testSessRuleIdInternet1: other}, 1},
+		{"falls back to all rules", map[string]*models.SessionRule{testSessRuleIdInternet1: other}, 1},
+		{"nil entries skipped", map[string]*models.SessionRule{testSessRuleIdInternet1: nil}, 0},
+		{"no rules", map[string]*models.SessionRule{}, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			decision := models.NewSmPolicyDecision()
+			decision.SetSessRules(tt.rules)
+			if got := sessionRulesToUpdate(decision, 1); len(got) != tt.want {
+				t.Errorf("got %d rules, want %d", len(got), tt.want)
+			}
+		})
+	}
+}
