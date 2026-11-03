@@ -21,7 +21,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/omec-project/openapi/v2"
 	"github.com/omec-project/openapi/v2/models"
 	"github.com/omec-project/openapi/v2/nfConfigApi"
 	"github.com/omec-project/pcf/consumer"
@@ -35,6 +34,12 @@ const (
 	testDnn2    = "dnn2"
 	testRuleId1 = "id1"
 )
+
+func newArp() *models.Arp {
+	arp := models.NewArpWithDefaults()
+	arp.SetPriorityLevel(0)
+	return arp
+}
 
 func marshalJSONForCompare(t *testing.T, value any) string {
 	t.Helper()
@@ -535,9 +540,7 @@ func TestHandlePolledPolicyControl_ExpectPccConfigToBeUpdated(t *testing.T) {
 					QosDecs: map[string]*models.QosData{
 						"1": {
 							QosId: "1",
-							Arp: &models.Arp{
-								PriorityLevel: *openapi.NewNullableInt32(new(int32(0))),
-							},
+							Arp:   newArp(),
 						},
 					},
 				},
@@ -566,9 +569,7 @@ func TestHandlePolledPolicyControl_ExpectPccConfigToBeUpdated(t *testing.T) {
 					QosDecs: map[string]*models.QosData{
 						"1": {
 							QosId: "1",
-							Arp: &models.Arp{
-								PriorityLevel: *openapi.NewNullableInt32(new(int32(0))),
-							},
+							Arp:   newArp(),
 						},
 					},
 				},

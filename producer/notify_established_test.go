@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/omec-project/openapi/v2"
 	"github.com/omec-project/openapi/v2/models"
 	pcfContext "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/factory"
@@ -29,11 +28,11 @@ const (
 func decisionWithArp(levels ...int32) *models.SmPolicyDecision {
 	qosDecs := map[string]models.QosData{}
 	for i, level := range levels {
-		qosDecs[string(rune('a'+i))] = models.QosData{
-			Arp: &models.Arp{PriorityLevel: *openapi.NewNullableInt32(new(level))},
-		}
+		arp := models.NewArpWithDefaults()
+		arp.SetPriorityLevel(level)
+		qosDecs[string(rune('a'+i))] = models.QosData{Arp: arp}
 	}
-	d := &models.SmPolicyDecision{}
+	d := models.NewSmPolicyDecision()
 	d.SetQosDecs(qosDecs)
 	return d
 }
@@ -116,19 +115,20 @@ func establishedSession(t *testing.T, sessionAmbr *models.Ambr, given *models.Sm
 	smPolicyID := supi + "-10"
 
 	ue := &pcfContext.UeContext{Supi: supi, SmPolicyData: map[string]*pcfContext.UeSmPolicyData{}}
-	ctx := &models.SmPolicyContextData{
-		Supi:            supi,
-		PduSessionId:    10,
-		Dnn:             "internet",
-		SliceInfo:       models.Snssai{Sst: int32(1), Sd: new("010203")},
-		NotificationUri: "http://smf:29502/nsmf-callback",
-		SubsSessAmbr:    sessionAmbr,
-		// The SMF always supplies this at policy-create, and the recompute reads back the same
-		// stored context — so a session that established successfully always has one here.
-		SubsDefQos: &models.SubscribedDefaultQos{Var5qi: 9, Arp: models.Arp{
-			PriorityLevel: *openapi.NewNullableInt32(new(int32(8))),
-		}},
+	arp := models.NewArpWithDefaults()
+	arp.SetPriorityLevel(8)
+	subsDefQos := models.NewSubscribedDefaultQos(9, *arp)
+	ctx := models.NewSmPolicyContextDataWithDefaults()
+	ctx.SetSupi(supi)
+	ctx.SetPduSessionId(10)
+	ctx.SetDnn("internet")
+	ctx.SetSliceInfo(models.Snssai{Sst: int32(1), Sd: new("010203")})
+	ctx.SetNotificationUri("http://smf:29502/nsmf-callback")
+	if sessionAmbr == nil {
+		sessionAmbr = models.NewAmbr(testSessionAmbr, testSessionAmbr)
 	}
+	ctx.SetSubsSessAmbr(*sessionAmbr)
+	ctx.SetSubsDefQos(*subsDefQos)
 	// Stamped the way createSmPolicyContextProcedure stamps it. These fields are per-session and
 	// no rebuild from configuration can reproduce them: SuppFeat is the result of negotiating with
 	// the SMF that created the session, PolicyCtrlReqTriggers is what that SMF reports on, and
@@ -196,7 +196,7 @@ func TestPolicyRuleChangeReachesAnEstablishedSession(t *testing.T) {
 	}
 
 	// The session was given an empty decision, so anything the new policy produces is a change.
-	smPolicy := establishedSession(t, nil, &models.SmPolicyDecision{})
+	smPolicy := establishedSession(t, nil, models.NewSmPolicyDecision())
 
 	sent := runFanOut(t, nil)
 
@@ -225,7 +225,7 @@ func TestUnchangedDecisionSignalsNothing(t *testing.T) {
 	}
 
 	// Establish, then run the trigger twice: the second pass has nothing to do.
-	establishedSession(t, nil, &models.SmPolicyDecision{})
+	establishedSession(t, nil, models.NewSmPolicyDecision())
 	if first := runFanOut(t, nil); len(first) != 1 {
 		t.Fatalf("first fan-out sent %d, want the initial difference to be seen", len(first))
 	}
@@ -252,8 +252,8 @@ func TestSessionAmbrIsNotChangedByAPolicyEdit(t *testing.T) {
 		}
 	}
 
-	subscribed := &models.Ambr{Uplink: testSessionAmbr, Downlink: testSessionAmbr}
-	smPolicy := establishedSession(t, subscribed, &models.SmPolicyDecision{})
+	subscribed := models.NewAmbr(testSessionAmbr, testSessionAmbr)
+	smPolicy := establishedSession(t, subscribed, models.NewSmPolicyDecision())
 
 	recomputeChangedSessions()
 
@@ -285,7 +285,7 @@ func TestPerSessionDecisionStateSurvivesAPolicyEdit(t *testing.T) {
 		}
 	}
 
-	smPolicy := establishedSession(t, nil, &models.SmPolicyDecision{})
+	smPolicy := establishedSession(t, nil, models.NewSmPolicyDecision())
 	wantTriggers := len(smPolicy.PolicyDecision.PolicyCtrlReqTriggers)
 
 	if sent := runFanOut(t, nil); len(sent) != 1 {
@@ -324,7 +324,7 @@ func TestAfManagedSessionIsLeftAlone(t *testing.T) {
 	}
 
 	afRule := map[string]models.PccRule{"af-installed": {PccRuleId: "af-installed", AppId: new("ims")}}
-	given := &models.SmPolicyDecision{}
+	given := models.NewSmPolicyDecision()
 	given.SetPccRules(afRule)
 	smPolicy := establishedSession(t, nil, given)
 	smPolicy.AppSessions = map[string]bool{testAppSessionID: true}
@@ -354,7 +354,7 @@ func TestSessionWithNoNotificationUriIsNotSilentlyUpdated(t *testing.T) {
 		}
 	}
 
-	smPolicy := establishedSession(t, nil, &models.SmPolicyDecision{})
+	smPolicy := establishedSession(t, nil, models.NewSmPolicyDecision())
 	smPolicy.PolicyContext.NotificationUri = ""
 
 	pending := recomputeChangedSessions()
@@ -384,7 +384,7 @@ func TestAFanOutThatCannotStartLeavesTheSessionsAlone(t *testing.T) {
 		}
 	}
 
-	smPolicy := establishedSession(t, nil, &models.SmPolicyDecision{})
+	smPolicy := establishedSession(t, nil, models.NewSmPolicyDecision())
 
 	// Another fan-out is already running.
 	if !inFlight.CompareAndSwap(false, true) {
@@ -416,7 +416,7 @@ func TestRecomputeToleratesSessionsBeingCreatedAndReleased(t *testing.T) {
 		}
 	}
 
-	establishedSession(t, nil, &models.SmPolicyDecision{})
+	establishedSession(t, nil, models.NewSmPolicyDecision())
 	ue, _ := pcfContext.PCF_Self().UePool.Load("imsi-208930100007487")
 	ueCtx := ue.(*pcfContext.UeContext)
 
@@ -463,7 +463,7 @@ func TestAfSessionChurnDoesNotRaceTheFanOut(t *testing.T) {
 		}
 	}
 
-	smPolicy := establishedSession(t, nil, &models.SmPolicyDecision{})
+	smPolicy := establishedSession(t, nil, models.NewSmPolicyDecision())
 
 	stop := make(chan struct{})
 	done := make(chan struct{})
@@ -524,7 +524,7 @@ func unpaced(t *testing.T) {
 // configuration edit.
 func TestAFailedDeliveryIsRetriedOnTheNextChange(t *testing.T) {
 	simplePolicy(t)
-	smPolicy := establishedSession(t, nil, &models.SmPolicyDecision{})
+	smPolicy := establishedSession(t, nil, models.NewSmPolicyDecision())
 	before := smPolicy.PolicyDecision
 
 	if sent := runFanOut(t, errors.New("connection refused")); len(sent) != 0 {
@@ -560,12 +560,12 @@ func TestAFanOutGivesUpOnAnSmfThatIsNotAnswering(t *testing.T) {
 
 	pending := make([]pendingNotification, 50)
 	for i := range pending {
-		smPolicy := &pcfContext.UeSmPolicyData{PolicyDecision: &models.SmPolicyDecision{}}
+		smPolicy := &pcfContext.UeSmPolicyData{PolicyDecision: models.NewSmPolicyDecision()}
 		pending[i] = pendingNotification{
 			smPolicyID: testNotifySession,
 			smPolicy:   smPolicy,
 			basedOn:    smPolicy.PolicyDecision,
-			decision:   &models.SmPolicyDecision{},
+			decision:   models.NewSmPolicyDecision(),
 		}
 	}
 
@@ -587,7 +587,7 @@ func TestASessionClaimedWhileItIsBeingNotifiedKeepsItsRules(t *testing.T) {
 	unpaced(t)
 
 	smPolicy := &pcfContext.UeSmPolicyData{
-		PolicyDecision: &models.SmPolicyDecision{},
+		PolicyDecision: models.NewSmPolicyDecision(),
 		AppSessions:    map[string]bool{},
 	}
 	wasStored := smPolicy.PolicyDecision
@@ -604,7 +604,7 @@ func TestASessionClaimedWhileItIsBeingNotifiedKeepsItsRules(t *testing.T) {
 		smPolicyID: testNotifySession,
 		smPolicy:   smPolicy,
 		basedOn:    smPolicy.PolicyDecision,
-		decision:   &models.SmPolicyDecision{},
+		decision:   models.NewSmPolicyDecision(),
 	}})
 
 	if smPolicy.PolicyDecision != wasStored {
@@ -630,12 +630,12 @@ func TestAnIsolatedFailureDoesNotStopTheFanOut(t *testing.T) {
 	pending := make([]pendingNotification, 5)
 	stored := make([]*pcfContext.UeSmPolicyData, 5)
 	for i := range pending {
-		stored[i] = &pcfContext.UeSmPolicyData{PolicyDecision: &models.SmPolicyDecision{}}
+		stored[i] = &pcfContext.UeSmPolicyData{PolicyDecision: models.NewSmPolicyDecision()}
 		pending[i] = pendingNotification{
 			smPolicyID: testNotifySession,
 			smPolicy:   stored[i],
 			basedOn:    stored[i].PolicyDecision,
-			decision:   &models.SmPolicyDecision{},
+			decision:   models.NewSmPolicyDecision(),
 		}
 	}
 	wasNotDelivered := stored[1].PolicyDecision
@@ -669,12 +669,12 @@ func TestASessionClaimedWhileQueuedIsNotOverwritten(t *testing.T) {
 	}
 	t.Cleanup(func() { sendNotification = original })
 
-	smPolicy := &pcfContext.UeSmPolicyData{PolicyDecision: &models.SmPolicyDecision{}}
+	smPolicy := &pcfContext.UeSmPolicyData{PolicyDecision: models.NewSmPolicyDecision()}
 	pending := []pendingNotification{{
 		smPolicyID: "claimed",
 		smPolicy:   smPolicy,
 		basedOn:    smPolicy.PolicyDecision,
-		decision:   &models.SmPolicyDecision{},
+		decision:   models.NewSmPolicyDecision(),
 	}}
 
 	// The AF arrives after the session was queued and before its turn came round.
@@ -700,15 +700,15 @@ func TestAReplacedDecisionIsNotOverwrittenByAQueuedNotification(t *testing.T) {
 	}
 	t.Cleanup(func() { sendNotification = original })
 
-	smPolicy := &pcfContext.UeSmPolicyData{PolicyDecision: &models.SmPolicyDecision{}}
+	smPolicy := &pcfContext.UeSmPolicyData{PolicyDecision: models.NewSmPolicyDecision()}
 	pending := []pendingNotification{{
 		smPolicyID: "replaced",
 		smPolicy:   smPolicy,
 		basedOn:    smPolicy.PolicyDecision,
-		decision:   &models.SmPolicyDecision{},
+		decision:   models.NewSmPolicyDecision(),
 	}}
 
-	replacement := &models.SmPolicyDecision{}
+	replacement := models.NewSmPolicyDecision()
 	smPolicy.PolicyDecision = replacement
 
 	dispatchPaced(pending)
@@ -749,7 +749,7 @@ func TestThePollLoopIsNotBlockedByTheFanOut(t *testing.T) {
 	t.Cleanup(func() { sendNotification = originalSender })
 
 	// establishedSession installs its own stub, so it has to be set up before ours takes over.
-	establishedSession(t, nil, &models.SmPolicyDecision{})
+	establishedSession(t, nil, models.NewSmPolicyDecision())
 	polling.GetImsiSessionRules = func(string, string) (map[string]*models.SessionRule, error) {
 		<-release
 		return nil, errors.New("no imsi session rules configured")
@@ -808,12 +808,12 @@ func TestStaleSessionsDoNotAbandonTheFanOut(t *testing.T) {
 	pending := make([]pendingNotification, 6)
 	stored := make([]*pcfContext.UeSmPolicyData, 6)
 	for i := range pending {
-		stored[i] = &pcfContext.UeSmPolicyData{PolicyDecision: &models.SmPolicyDecision{}}
+		stored[i] = &pcfContext.UeSmPolicyData{PolicyDecision: models.NewSmPolicyDecision()}
 		pending[i] = pendingNotification{
 			smPolicyID: testNotifySession,
 			smPolicy:   stored[i],
 			basedOn:    stored[i].PolicyDecision,
-			decision:   &models.SmPolicyDecision{},
+			decision:   models.NewSmPolicyDecision(),
 		}
 	}
 

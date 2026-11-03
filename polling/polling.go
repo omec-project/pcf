@@ -55,7 +55,7 @@ func StartPollingService(ctx context.Context, webuiUri string, nfProfileConfigCh
 		case <-pollingIntervalAfter(interval):
 			newConfig, err := fetchPolicyControlConfig(&poller, pollingEndpoint)
 			if err != nil {
-				interval = minDuration(interval*time.Duration(pollingBackoffFactor), pollingMaxBackoff)
+				interval = min(interval*time.Duration(pollingBackoffFactor), pollingMaxBackoff)
 				logger.PollConfigLog.Errorf("polling error. Retrying in %v: %+v", interval, err)
 				continue
 			}
@@ -166,11 +166,4 @@ func havePccRulesChanged(prev, curr []nfConfigApi.PolicyControl) bool {
 		}
 	}
 	return false
-}
-
-func minDuration(a, b time.Duration) time.Duration {
-	if a < b {
-		return a
-	}
-	return b
 }

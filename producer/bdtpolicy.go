@@ -141,7 +141,7 @@ func HandleCreateBDTPolicyContextRequest(request *httpwrapper.Request) *httpwrap
 func createBDTPolicyContextProcedure(request *models.BdtReqData) (
 	header http.Header, response *models.BdtPolicy, problemDetails *models.ProblemDetails,
 ) {
-	response = &models.BdtPolicy{}
+	response = models.NewBdtPolicy()
 	logger.BdtpolicyLog.Debugln("handle BDT Policy Create")
 
 	pcfSelf := pcfContext.PCF_Self()
@@ -182,12 +182,12 @@ func createBDTPolicyContextProcedure(request *models.BdtReqData) (
 		logger.BdtpolicyLog.Errorf("failed to copy BDT request data: %v", err)
 		return nil, nil, utils.ProblemDetailsSystemFailure("failed to copy BDT request data")
 	}
-	response.BdtReqData = &reqCopy
-	var bdtData *models.BdtData
+	response.SetBdtReqData(reqCopy)
+	bdtData := models.NewBdtDataWithDefaults()
 	var bdtPolicyData models.BdtPolicyData
 	for _, data := range bdtDatas {
 		// If ASP has exist, use its background data policy
-		if request.AspId == data.AspId {
+		if request.GetAspId() == data.GetAspId() {
 			bdtData = &data
 			break
 		}
@@ -196,23 +196,20 @@ func createBDTPolicyContextProcedure(request *models.BdtReqData) (
 	if bdtData != nil {
 		// found
 		// modify policy according to new request
-		bdtData.TransPolicy.RecTimeInt = request.DesTimeInt
+		bdtData.TransPolicy.SetRecTimeInt(request.GetDesTimeInt())
 	} else {
 		// use default bdt policy, TODO: decide bdt transfer data policy
-		bdtData = &models.BdtData{
-			AspId:       request.AspId,
-			BdtRefId:    new(uuid.New().String()),
-			TransPolicy: getDefaultTransferPolicy(1, request.DesTimeInt),
-		}
+		bdtData = models.NewBdtData(request.GetAspId(), getDefaultTransferPolicy(1, request.GetDesTimeInt()))
+		bdtData.SetBdtRefId(uuid.New().String())
 	}
-	if request.NwAreaInfo != nil {
-		bdtData.NwAreaInfo = request.NwAreaInfo
+	if request.HasNwAreaInfo() {
+		bdtData.SetNwAreaInfo(request.GetNwAreaInfo())
 	}
 	bdtPolicyData.SetSelTransPolicyId(bdtData.TransPolicy.GetTransPolicyId())
 	// no support feature in subclause 5.8 of TS29554
-	bdtPolicyData.BdtRefId = bdtData.GetBdtRefId()
-	bdtPolicyData.TransfPolicies = append(bdtPolicyData.TransfPolicies, bdtData.TransPolicy)
-	response.BdtPolData = &bdtPolicyData
+	bdtPolicyData.SetBdtRefId(bdtData.GetBdtRefId())
+	bdtPolicyData.TransfPolicies = append(bdtPolicyData.TransfPolicies, bdtData.GetTransPolicy())
+	response.SetBdtPolData(bdtPolicyData)
 	bdtPolicyID, err := pcfSelf.AllocBdtPolicyID()
 	if err != nil {
 		problemDetails = utils.ProblemDetailsWithCause("Allocation failed", http.StatusServiceUnavailable, "Allocate bdtPolicyID failed", utils.CauseAllocBdtPolicyIdFailed)

@@ -204,11 +204,11 @@ func PostPoliciesProcedure(polAssoId string,
 	var response models.PolicyAssociation
 	pcfSelf := pcfContext.PCF_Self()
 	var ue *pcfContext.UeContext
-	if val, ok := pcfSelf.UePool.Load(policyAssociationRequest.Supi); ok {
+	if val, ok := pcfSelf.UePool.Load(policyAssociationRequest.GetSupi()); ok {
 		ue = val.(*pcfContext.UeContext)
 	}
 	if ue == nil {
-		if newUe, err := pcfSelf.NewPCFUe(policyAssociationRequest.Supi); err != nil {
+		if newUe, err := pcfSelf.NewPCFUe(policyAssociationRequest.GetSupi()); err != nil {
 			// supi format dose not match "imsi-..."
 			problemDetail := util.GetProblemDetail("Supi Format Error", util.ERROR_REQUEST_PARAMETERS)
 			logger.AMpolicyLog.Errorln(err.Error())
@@ -226,12 +226,12 @@ func PostPoliciesProcedure(polAssoId string,
 		return nil, "", problemDetail
 	}
 
-	var reqCopy models.PolicyAssociationRequest
-	if err := util.DeepCopyViaJSON(policyAssociationRequest, &reqCopy); err != nil {
+	reqCopy := models.NewPolicyAssociationRequestWithDefaults()
+	if err := util.DeepCopyViaJSON(policyAssociationRequest, reqCopy); err != nil {
 		logger.AMpolicyLog.Errorf("failed to copy policy association request: %v", err)
 		return nil, "", utils.ProblemDetailsSystemFailure("failed to copy policy association request")
 	}
-	response.Request = &reqCopy
+	response.SetRequest(*reqCopy)
 	assolId := fmt.Sprintf("%s-%d", ue.Supi, ue.PolAssociationIDGenerator)
 	amPolicy := ue.AMPolicyData[assolId]
 
@@ -260,7 +260,7 @@ func PostPoliciesProcedure(polAssoId string,
 	// amPolicy.ServAreaRes =
 	// amPolicy.Rfsp =
 	var requestSuppFeat pcfContext.SupportedFeature
-	if suppFeat, err := pcfContext.NewSupportedFeature(policyAssociationRequest.SuppFeat); err != nil {
+	if suppFeat, err := pcfContext.NewSupportedFeature(policyAssociationRequest.GetSuppFeat()); err != nil {
 		logger.AMpolicyLog.Warnln(err)
 	} else {
 		requestSuppFeat = *suppFeat
@@ -269,7 +269,7 @@ func PostPoliciesProcedure(polAssoId string,
 	result, err := (&reqSuppFeat).NegotiateWith(&requestSuppFeat)
 	if err != nil {
 		problemDetail := util.GetProblemDetail("supported Feature in request is not compatible with PCF", util.ERROR_REQUEST_PARAMETERS)
-		logger.AMpolicyLog.Warnf("supported Feature[%s] in request is not compatible with PCF", policyAssociationRequest.SuppFeat)
+		logger.AMpolicyLog.Warnf("supported Feature[%s] in request is not compatible with PCF", policyAssociationRequest.GetSuppFeat())
 		return nil, "", problemDetail
 	}
 	amPolicy.SuppFeat = result.String()
@@ -286,13 +286,13 @@ func PostPoliciesProcedure(polAssoId string,
 	logger.AMpolicyLog.Debugf("AMPolicy association Id[%s] Create", assolId)
 
 	// if consumer is AMF then subscribe this AMF Status
-	if policyAssociationRequest.Guami != nil {
+	if policyAssociationRequest.HasGuami() {
 		// if policyAssociationRequest.Guami has been subscribed, then no need to subscribe again
 		needSubscribe := true
 		pcfSelf.AMFStatusSubsData.Range(func(key, value any) bool {
 			data := value.(pcfContext.AMFStatusSubscriptionData)
 			for _, guami := range data.GuamiList {
-				if reflect.DeepEqual(guami, *policyAssociationRequest.Guami) {
+				if reflect.DeepEqual(guami, policyAssociationRequest.GetGuami()) {
 					needSubscribe = false
 					break
 				}
@@ -302,20 +302,20 @@ func PostPoliciesProcedure(polAssoId string,
 		})
 
 		if needSubscribe {
-			logger.AMpolicyLog.Debugf("subscribe AMF status change[GUAMI: %+v]", *policyAssociationRequest.Guami)
-			amfUri := consumer.SendNFInstancesAMF(pcfSelf.NrfUri, *policyAssociationRequest.Guami, models.SERVICENAME_NAMF_COMM)
+			logger.AMpolicyLog.Debugf("subscribe AMF status change[GUAMI: %+v]", policyAssociationRequest.GetGuami())
+			amfUri := consumer.SendNFInstancesAMF(pcfSelf.NrfUri, policyAssociationRequest.GetGuami(), models.SERVICENAME_NAMF_COMM)
 			if amfUri != "" {
-				problemDetails, err := consumer.AmfStatusChangeSubscribe(amfUri, []models.Guami{*policyAssociationRequest.Guami})
+				problemDetails, err := consumer.AmfStatusChangeSubscribe(amfUri, []models.Guami{policyAssociationRequest.GetGuami()})
 				if err != nil {
 					logger.AMpolicyLog.Errorf("subscribe AMF status change error[%+v]", err)
 				} else if problemDetails != nil {
 					logger.AMpolicyLog.Errorf("subscribe AMF status change failed[%+v]", problemDetails)
 				} else {
-					amPolicy.Guami = policyAssociationRequest.Guami
+					*amPolicy.Guami = policyAssociationRequest.GetGuami()
 				}
 			}
 		} else {
-			logger.AMpolicyLog.Debugf("AMF status[GUAMI: %+v] has been subscribed", *policyAssociationRequest.Guami)
+			logger.AMpolicyLog.Debugf("AMF status[GUAMI: %+v] has been subscribed", policyAssociationRequest.GetGuami())
 		}
 	}
 	return &response, locationHeader, nil

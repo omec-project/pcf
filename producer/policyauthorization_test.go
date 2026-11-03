@@ -15,10 +15,10 @@ import (
 )
 
 func newCombinedMediaTestPolicy() *pcfContext.UeSmPolicyData {
+	policyDecision := models.NewSmPolicyDecision()
+	policyDecision.SetPccRules(make(map[string]models.PccRule))
 	return &pcfContext.UeSmPolicyData{
-		PolicyDecision: &models.SmPolicyDecision{
-			PccRules: make(map[string]models.PccRule),
-		},
+		PolicyDecision:         policyDecision,
 		PackFiltMapToPccRuleId: make(map[string]string),
 		PackFiltIdGenarator:    1,
 		PccRuleIdGenarator:     1,
@@ -105,7 +105,8 @@ func TestSendAppSessionTerminationUsesExactCallbackURI(t *testing.T) {
 
 func TestHandleCombinedMediaSubComponentsCreatesRuleAndUsesActiveStatus(t *testing.T) {
 	smPolicy := newCombinedMediaTestPolicy()
-	medComp := &models.MediaComponent{FStatus: models.FLOWSTATUS_REMOVED.Ptr()}
+	medComp := models.NewMediaComponentWithDefaults()
+	medComp.SetFStatus(models.FLOWSTATUS_REMOVED)
 	medSubComps := []models.MediaSubComponent{
 		{FNum: 1, FStatus: models.FLOWSTATUS_REMOVED.Ptr()},
 		{FNum: 2, FStatus: models.FLOWSTATUS_ENABLED.Ptr()},
@@ -166,7 +167,7 @@ func TestHandleCombinedMediaSubComponentsReusesExistingRuleAndAddsNewFlow(t *tes
 
 	pccRule, problemDetails := handleCombinedMediaSubComponents(
 		smPolicy,
-		&models.MediaComponent{},
+		models.NewMediaComponentWithDefaults(),
 		[]models.MediaSubComponent{{FNum: 1, FStatus: models.FLOWSTATUS_ENABLED.Ptr()}},
 		9,
 		flowInfos,

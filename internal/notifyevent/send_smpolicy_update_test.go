@@ -47,7 +47,7 @@ func TestNotificationGoesToTheUpdateCallback(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			err := SendSMPolicyUpdateNotification(srv.URL+tc.give, &models.SmPolicyNotification{})
+			err := SendSMPolicyUpdateNotification(srv.URL+tc.give, models.NewSmPolicyNotification())
 			if err != nil {
 				t.Fatalf("send failed: %v", err)
 			}
@@ -66,8 +66,7 @@ func TestUnroutedCallbackIsReportedAsAFailure(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	err := SendSMPolicyUpdateNotification(srv.URL+"/nsmf-callback/sm-policies/ref-1",
-		&models.SmPolicyNotification{})
+	err := SendSMPolicyUpdateNotification(srv.URL+"/nsmf-callback/sm-policies/ref-1", models.NewSmPolicyNotification())
 	if err == nil {
 		t.Fatal("a 404 was reported as a successful delivery")
 	}

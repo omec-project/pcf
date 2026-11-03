@@ -16,7 +16,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/omec-project/openapi/v2"
 	"github.com/omec-project/openapi/v2/models"
 	"github.com/omec-project/openapi/v2/nfConfigApi"
 	"github.com/omec-project/pcf/factory"
@@ -29,6 +28,23 @@ const (
 	testMbrDownlink500Mbps  = "500 Mbps"
 	testSessRuleIdInternet1 = "internet-1"
 )
+
+// newExpectedSessionRule builds the SessionRule expected from an ImsiQos config entry.
+func newExpectedSessionRule(sessRuleId, mbrUplink, mbrDownlink string, fiveQi, arpPriorityLevel int32) *models.SessionRule {
+	sessionRule := models.NewSessionRule(sessRuleId)
+	sessionRule.SetAuthSessAmbr(*models.NewAmbr(mbrUplink, mbrDownlink))
+
+	arp := models.NewArpWithDefaults()
+	arp.SetPriorityLevel(arpPriorityLevel)
+	arp.SetPreemptCap(models.PREEMPTIONCAPABILITY_NOT_PREEMPT)
+	arp.SetPreemptVuln(models.PREEMPTIONVULNERABILITY_PREEMPTABLE)
+	authDefQos := models.NewAuthorizedDefaultQosWithDefaults()
+	authDefQos.SetVar5qi(fiveQi)
+	authDefQos.SetArp(*arp)
+	sessionRule.SetAuthDefQos(*authDefQos)
+
+	return sessionRule
+}
 
 func TestGetImsiSessionRules_Success(t *testing.T) {
 	originalPcfConfig := factory.PcfConfig
@@ -48,21 +64,7 @@ func TestGetImsiSessionRules_Success(t *testing.T) {
 				ArpPriorityLevel: 2,
 			}},
 			expectedSessionRules: map[string]*models.SessionRule{
-				testSessRuleIdInternet1: {
-					SessRuleId: testSessRuleIdInternet1,
-					AuthSessAmbr: &models.Ambr{
-						Uplink:   testMbrUplink1Gbps,
-						Downlink: testMbrDownlink500Mbps,
-					},
-					AuthDefQos: &models.AuthorizedDefaultQos{
-						Var5qi: new(int32(9)),
-						Arp: &models.Arp{
-							PriorityLevel: *openapi.NewNullableInt32(new(int32(2))),
-							PreemptCap:    models.PREEMPTIONCAPABILITY_NOT_PREEMPT,
-							PreemptVuln:   models.PREEMPTIONVULNERABILITY_PREEMPTABLE,
-						},
-					},
-				},
+				testSessRuleIdInternet1: newExpectedSessionRule(testSessRuleIdInternet1, testMbrUplink1Gbps, testMbrDownlink500Mbps, 9, 2),
 			},
 		},
 		{
@@ -84,51 +86,9 @@ func TestGetImsiSessionRules_Success(t *testing.T) {
 				ArpPriorityLevel: 7,
 			}},
 			expectedSessionRules: map[string]*models.SessionRule{
-				testSessRuleIdInternet1: {
-					SessRuleId: testSessRuleIdInternet1,
-					AuthSessAmbr: &models.Ambr{
-						Uplink:   testMbrUplink1Gbps,
-						Downlink: testMbrDownlink500Mbps,
-					},
-					AuthDefQos: &models.AuthorizedDefaultQos{
-						Var5qi: new(int32(9)),
-						Arp: &models.Arp{
-							PriorityLevel: *openapi.NewNullableInt32(new(int32(2))),
-							PreemptCap:    models.PREEMPTIONCAPABILITY_NOT_PREEMPT,
-							PreemptVuln:   models.PREEMPTIONVULNERABILITY_PREEMPTABLE,
-						},
-					},
-				},
-				"internet-2": {
-					SessRuleId: "internet-2",
-					AuthSessAmbr: &models.Ambr{
-						Uplink:   "2 Mbps",
-						Downlink: "12 Kbps",
-					},
-					AuthDefQos: &models.AuthorizedDefaultQos{
-						Var5qi: new(int32(8)),
-						Arp: &models.Arp{
-							PriorityLevel: *openapi.NewNullableInt32(new(int32(1))),
-							PreemptCap:    models.PREEMPTIONCAPABILITY_NOT_PREEMPT,
-							PreemptVuln:   models.PREEMPTIONVULNERABILITY_PREEMPTABLE,
-						},
-					},
-				},
-				"internet-3": {
-					SessRuleId: "internet-3",
-					AuthSessAmbr: &models.Ambr{
-						Uplink:   "17 Gbps",
-						Downlink: "90 Mbps",
-					},
-					AuthDefQos: &models.AuthorizedDefaultQos{
-						Var5qi: new(int32(2)),
-						Arp: &models.Arp{
-							PriorityLevel: *openapi.NewNullableInt32(new(int32(7))),
-							PreemptCap:    models.PREEMPTIONCAPABILITY_NOT_PREEMPT,
-							PreemptVuln:   models.PREEMPTIONVULNERABILITY_PREEMPTABLE,
-						},
-					},
-				},
+				testSessRuleIdInternet1: newExpectedSessionRule(testSessRuleIdInternet1, testMbrUplink1Gbps, testMbrDownlink500Mbps, 9, 2),
+				"internet-2":            newExpectedSessionRule("internet-2", "2 Mbps", "12 Kbps", 8, 1),
+				"internet-3":            newExpectedSessionRule("internet-3", "17 Gbps", "90 Mbps", 2, 7),
 			},
 		},
 	}
