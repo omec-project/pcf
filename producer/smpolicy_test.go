@@ -426,23 +426,36 @@ func TestInitSmPolicyDecisionPreservesNullableFields(t *testing.T) {
 func TestSessionRulesToUpdate(t *testing.T) {
 	legacy := models.NewSessionRule("SessRuleId-1")
 	other := models.NewSessionRule(testSessRuleIdInternet1)
+	another := models.NewSessionRule("SessRuleId-other")
 
 	tests := []struct {
 		name  string
 		rules map[string]*models.SessionRule
-		want  int
+		want  []*models.SessionRule
 	}{
-		{"legacy key preferred", map[string]*models.SessionRule{"SessRuleId-1": legacy, testSessRuleIdInternet1: other}, 1},
-		{"falls back to all rules", map[string]*models.SessionRule{testSessRuleIdInternet1: other}, 1},
-		{"nil entries skipped", map[string]*models.SessionRule{testSessRuleIdInternet1: nil}, 0},
-		{"no rules", map[string]*models.SessionRule{}, 0},
+		{"legacy key preferred", map[string]*models.SessionRule{"SessRuleId-1": legacy, testSessRuleIdInternet1: other}, []*models.SessionRule{legacy}},
+		{"falls back to all rules", map[string]*models.SessionRule{testSessRuleIdInternet1: other, "SessRuleId-other": another}, []*models.SessionRule{other, another}},
+		{"nil legacy entry falls back", map[string]*models.SessionRule{"SessRuleId-1": nil, testSessRuleIdInternet1: other}, []*models.SessionRule{other}},
+		{"nil entries skipped", map[string]*models.SessionRule{testSessRuleIdInternet1: nil}, nil},
+		{"no rules", map[string]*models.SessionRule{}, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			decision := models.NewSmPolicyDecision()
 			decision.SetSessRules(tt.rules)
-			if got := sessionRulesToUpdate(decision, 1); len(got) != tt.want {
-				t.Errorf("got %d rules, want %d", len(got), tt.want)
+			got := sessionRulesToUpdate(decision, 1)
+			if len(got) != len(tt.want) {
+				t.Fatalf("got %d rules, want %d", len(got), len(tt.want))
+			}
+			// map iteration order is random, so compare as a set by identity
+			gotSet := make(map[*models.SessionRule]bool, len(got))
+			for _, r := range got {
+				gotSet[r] = true
+			}
+			for _, w := range tt.want {
+				if !gotSet[w] {
+					t.Errorf("expected rule %q missing from result", w.GetSessRuleId())
+				}
 			}
 		})
 	}
