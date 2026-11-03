@@ -5,6 +5,7 @@
 package producer
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/omec-project/openapi/v2/models"
@@ -16,8 +17,24 @@ import (
 // rate. The log line that followed then dereferenced the nil budget, so the handler panicked on
 // exactly the request it had just allowed. Driven through the procedure rather than the accessor,
 // because what matters is that this call site no longer dereferences, not that a helper exists.
+//
+// 5QI 1 is the case that panics on main, where only 1 to 4 reach the debit. 66 is the case this
+// branch makes reach it.
 func TestResourceRequestOnASessionWithoutAggregateGbrDoesNotPanic(t *testing.T) {
-	const supi = "imsi-001010123456790"
+	for _, tc := range []struct {
+		var5qi int32
+		supi   string
+	}{
+		{var5qi: 1, supi: "imsi-001010123456791"},
+		{var5qi: 66, supi: "imsi-001010123456790"},
+	} {
+		t.Run(fmt.Sprintf("5QI %d", tc.var5qi), func(t *testing.T) {
+			resourceRequestWithoutAggregateGbr(t, tc.supi, tc.var5qi)
+		})
+	}
+}
+
+func resourceRequestWithoutAggregateGbr(t *testing.T, supi string, var5qi int32) {
 	smPolicyID := supi + "-10"
 
 	self := pcfContext.PCF_Self()
@@ -40,7 +57,7 @@ func TestResourceRequestOnASessionWithoutAggregateGbrDoesNotPanic(t *testing.T) 
 	policy.PolicyDecision = &models.SmPolicyDecision{}
 	// No aggregate GBR on this session: both budgets stay nil.
 
-	reqQos := models.NewRequestedQos(66)
+	reqQos := models.NewRequestedQos(var5qi)
 	reqQos.SetGbrUl("1 Mbps")
 	reqQos.SetGbrDl("2 Mbps")
 	request := models.SmPolicyUpdateContextData{
