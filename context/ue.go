@@ -214,7 +214,6 @@ func (ue *UeContext) NewUeSmPolicyData(
 	return &data
 }
 
-// Remove Pcc rule which PccRuleId in the policy
 // CloneSmPolicyDecisionContainers returns d with every map and slice it holds replaced by a clone,
 // so the result shares no mutable container with the decision it came from.
 //
@@ -224,24 +223,39 @@ func (ue *UeContext) NewUeSmPolicyData(
 // process down rather than sending a stale value. Both the AF path and the configuration poll loop
 // publish, so both snapshot through here.
 //
-// One level is enough. Map and slice entries are values, and Go does not allow assigning through a
-// map's value, so a caller that changes an entry replaces the whole entry — leaving a clone's copy
-// of it untouched. Pointer-to-scalar fields are shared deliberately: the code assigns whole
-// pointers rather than writing through them.
+// The maps' entries are cloned too, one struct deep. Most of the decision's maps hold pointers, and
+// the handlers change a rule by writing through the stored pointer — fetching it, then calling its
+// setters — so a clone that copied only the map would still hand the publisher the very structs
+// being written. A copied entry has fields of its own: a setter on the stored entry replaces the
+// stored entry's field and leaves the copy's alone.
+//
+// One field goes a level further. A session rule's AuthDefQos is a pointer, and the DEF_QOS_CH
+// handler writes through it with setters rather than replacing it, so it is copied too. Below that
+// the copies share: every other write to an entry's fields assigns a whole pointer or slice rather
+// than writing through one, so a field the stored entry is given later is not the copy's.
 //
 // TestCloneSmPolicyDecisionContainersCoversEveryContainer fails if the model gains a container this
-// does not clone, which would silently reintroduce the sharing.
+// does not clone, or an entry it does not copy, which would silently reintroduce the sharing.
 func CloneSmPolicyDecisionContainers(d models.SmPolicyDecision) models.SmPolicyDecision {
-	d.SessRules = clonePointedMap(d.SessRules)
-	d.PccRules = maps.Clone(d.PccRules)
-	d.QosDecs = clonePointedMap(d.QosDecs)
-	d.TraffContDecs = clonePointedMap(d.TraffContDecs)
-	d.ChgDecs = maps.Clone(d.ChgDecs)
-	d.UmDecs = maps.Clone(d.UmDecs)
+	d.SessRules = clonePointedEntries(d.SessRules)
+	if d.SessRules != nil {
+		// These are the clone's own entries, so replacing their field touches nothing stored.
+		for _, rule := range *d.SessRules {
+			if rule != nil && rule.AuthDefQos != nil {
+				authDefQos := *rule.AuthDefQos
+				rule.AuthDefQos = &authDefQos
+			}
+		}
+	}
+	d.PccRules = cloneEntries(d.PccRules)
+	d.QosDecs = clonePointedEntries(d.QosDecs)
+	d.TraffContDecs = clonePointedEntries(d.TraffContDecs)
+	d.ChgDecs = cloneEntries(d.ChgDecs)
+	d.UmDecs = cloneEntries(d.UmDecs)
 	d.QosChars = clonePointedMap(d.QosChars)
-	d.QosMonDecs = maps.Clone(d.QosMonDecs)
-	d.Conds = maps.Clone(d.Conds)
-	d.PraInfos = maps.Clone(d.PraInfos)
+	d.QosMonDecs = cloneEntries(d.QosMonDecs)
+	d.Conds = cloneEntries(d.Conds)
+	d.PraInfos = cloneEntries(d.PraInfos)
 	d.PolicyCtrlReqTriggers = slices.Clone(d.PolicyCtrlReqTriggers)
 	d.LastReqRuleData = slices.Clone(d.LastReqRuleData)
 	d.TsnPortManContNwtts = slices.Clone(d.TsnPortManContNwtts)
@@ -258,6 +272,34 @@ func clonePointedMap[K comparable, V any](src *map[K]V) *map[K]V {
 		return nil
 	}
 	cloned := maps.Clone(*src)
+
+	return &cloned
+}
+
+// cloneEntries clones a map whose entries are pointers, copying each entry so the clone shares no
+// struct with the source. A nil map stays nil, and so does a nil entry.
+func cloneEntries[K comparable, V any](src map[K]*V) map[K]*V {
+	if src == nil {
+		return nil
+	}
+	cloned := make(map[K]*V, len(src))
+	for key, entry := range src {
+		if entry != nil {
+			copied := *entry
+			entry = &copied
+		}
+		cloned[key] = entry
+	}
+
+	return cloned
+}
+
+// clonePointedEntries is cloneEntries for a map held behind a pointer; see clonePointedMap.
+func clonePointedEntries[K comparable, V any](src *map[K]*V) *map[K]*V {
+	if src == nil {
+		return nil
+	}
+	cloned := cloneEntries(*src)
 
 	return &cloned
 }
@@ -380,6 +422,8 @@ func (policy *UeSmPolicyData) PolicyDecisionPointer() *models.SmPolicyDecision {
 	return policy.PolicyDecision
 }
 
+// Remove Pcc rule which PccRuleId in the policy
+//
 // The caller holds PolicyMu and this does not take it: a handler's locked region reaches here, and
 // a sync.RWMutex is not reentrant. See the PolicyMu field's comment.
 func (policy *UeSmPolicyData) RemovePccRule(pccRuleId string, deletedSmPolicyDec *models.SmPolicyDecision) error {
