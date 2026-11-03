@@ -16,7 +16,9 @@ import (
 //
 // So a container the clone misses fails here, and so does one the model gains later — which is the
 // case that matters, because the sharing it reintroduces is silent until a map read and a map write
-// land together and take the process down.
+// land together and take the process down. The same goes for a map whose entries are pointers: the
+// entry has to come back as a different object too, or a write through the stored one is a write
+// into the snapshot.
 func TestCloneSmPolicyDecisionContainersCoversEveryContainer(t *testing.T) {
 	var src models.SmPolicyDecision
 	value := reflect.ValueOf(&src).Elem()
@@ -57,13 +59,34 @@ func TestCloneSmPolicyDecisionContainersCoversEveryContainer(t *testing.T) {
 		if before.Pointer() == after.Pointer() {
 			t.Errorf("%s is the same object in the clone, so a snapshot still shares it with the "+
 				"stored decision: add it to CloneSmPolicyDecisionContainers", name)
+
+			continue
+		}
+
+		if before.Kind() == reflect.Pointer {
+			before, after = before.Elem(), after.Elem()
+		}
+		if before.Kind() != reflect.Map || before.Type().Elem().Kind() != reflect.Pointer {
+			continue
+		}
+		key := before.MapKeys()[0]
+		if before.MapIndex(key).Pointer() == after.MapIndex(key).Pointer() {
+			t.Errorf("%s's entry is the same object in the clone, so a write through the stored entry "+
+				"is a write into the snapshot: copy its entries in CloneSmPolicyDecisionContainers", name)
 		}
 	}
 }
 
+// mapWithOneEntry makes a map of the given type holding one zero-keyed entry. Where the entries are
+// pointers the entry is a real one, not nil, so that a clone sharing it can be told from one that
+// copied it.
 func mapWithOneEntry(mapType reflect.Type) reflect.Value {
 	made := reflect.MakeMap(mapType)
-	made.SetMapIndex(reflect.New(mapType.Key()).Elem(), reflect.New(mapType.Elem()).Elem())
+	entry := reflect.New(mapType.Elem()).Elem()
+	if mapType.Elem().Kind() == reflect.Pointer {
+		entry = reflect.New(mapType.Elem().Elem())
+	}
+	made.SetMapIndex(reflect.New(mapType.Key()).Elem(), entry)
 
 	return made
 }
@@ -75,13 +98,40 @@ func TestCloneSmPolicyDecisionContainersDoesNotSeeLaterWrites(t *testing.T) {
 	src := models.SmPolicyDecision{ChgDecs: charging}
 
 	published := CloneSmPolicyDecisionContainers(src)
-	// What the sponsored-connectivity path does to the stored decision.
+	// What the sponsored-connectivity path does to the stored decision: it adds an entry, and it
+	// changes one it already holds through the stored pointer.
 	charging["chg-2"] = models.NewChargingData("chg-2")
+	charging["chg-1"].SetSponsorId("sponsor-1")
 
 	if _, found := published.ChgDecs["chg-2"]; found {
 		t.Error("the snapshot sees a write made after it was taken, so it shares the map")
 	}
-	if _, found := published.ChgDecs["chg-1"]; !found {
-		t.Error("the snapshot lost an entry that was there when it was taken")
+	entry, found := published.ChgDecs["chg-1"]
+	if !found {
+		t.Fatal("the snapshot lost an entry that was there when it was taken")
+	}
+	if entry.HasSponsorId() {
+		t.Error("the snapshot sees a write made through the stored entry, so it shares the entry")
+	}
+}
+
+// The one field below an entry that a handler writes through: DEF_QOS_CH fetches a session rule's
+// AuthDefQos and calls its setters. A snapshot that copied the rule but shared that struct would
+// carry the change into a notification being marshalled with no lock held.
+func TestCloneSmPolicyDecisionContainersDoesNotSeeDefaultQosWrites(t *testing.T) {
+	authDefQos := models.NewAuthorizedDefaultQos()
+	authDefQos.SetVar5qi(9)
+	rule := models.NewSessionRuleWithDefaults()
+	rule.SetSessRuleId("sess-1")
+	rule.AuthDefQos = authDefQos
+	src := models.SmPolicyDecision{}
+	src.SetSessRules(map[string]*models.SessionRule{"sess-1": rule})
+
+	published := CloneSmPolicyDecisionContainers(src)
+	// What the DEF_QOS_CH handler does to the stored decision.
+	authDefQos.SetVar5qi(5)
+
+	if got := (*published.SessRules)["sess-1"].AuthDefQos.GetVar5qi(); got != 9 {
+		t.Errorf("snapshot's default QoS 5QI = %d, want 9: it shares AuthDefQos with the stored rule", got)
 	}
 }
