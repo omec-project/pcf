@@ -128,16 +128,16 @@ func ConvertPacketInfoToFlowInformation(infos []models.PacketFilterInfo) (flowIn
 	return flowInfos
 }
 
-func GetPccRuleByAfAppId(pccRules map[string]models.PccRule, afAppId string) (string, models.PccRule, bool) {
+func GetPccRuleByAfAppId(pccRules map[string]*models.PccRule, afAppId string) (string, *models.PccRule, bool) {
 	for key, pccRule := range pccRules {
 		if pccRule.GetAppId() == afAppId {
 			return key, pccRule, true
 		}
 	}
-	return "", models.PccRule{}, false
+	return "", nil, false
 }
 
-func GetPccRuleByFlowInfos(pccRules map[string]models.PccRule, flowInfos []models.FlowInformation) (string, models.PccRule, bool) {
+func GetPccRuleByFlowInfos(pccRules map[string]*models.PccRule, flowInfos []models.FlowInformation) (string, *models.PccRule, bool) {
 	found := false
 	set := make(map[string]models.FlowInformation)
 
@@ -157,7 +157,7 @@ func GetPccRuleByFlowInfos(pccRules map[string]models.PccRule, flowInfos []model
 			return key, pccRule, true
 		}
 	}
-	return "", models.PccRule{}, false
+	return "", nil, false
 }
 
 func SetPccRuleRelatedData(decicion *models.SmPolicyDecision, pccRule *models.PccRule,
@@ -166,38 +166,38 @@ func SetPccRuleRelatedData(decicion *models.SmPolicyDecision, pccRule *models.Pc
 ) {
 	if tcData != nil {
 		if decicion.TraffContDecs == nil {
-			traffContDecs := make(map[string]models.TrafficControlData)
+			traffContDecs := make(map[string]*models.TrafficControlData)
 			decicion.TraffContDecs = &traffContDecs
 		}
-		(*decicion.TraffContDecs)[tcData.TcId] = *tcData
+		(*decicion.TraffContDecs)[tcData.TcId] = tcData
 		pccRule.RefTcData = []string{tcData.TcId}
 	}
 	if qosData != nil {
 		if decicion.QosDecs == nil {
-			qosDecs := make(map[string]models.QosData)
+			qosDecs := make(map[string]*models.QosData)
 			decicion.QosDecs = &qosDecs
 		}
-		(*decicion.QosDecs)[qosData.QosId] = *qosData
+		(*decicion.QosDecs)[qosData.QosId] = qosData
 		pccRule.RefQosData = []string{qosData.QosId}
 	}
 	if chgData != nil {
 		if decicion.ChgDecs == nil {
-			decicion.ChgDecs = make(map[string]models.ChargingData)
+			decicion.ChgDecs = make(map[string]*models.ChargingData)
 		}
-		decicion.ChgDecs[chgData.ChgId] = *chgData
+		decicion.ChgDecs[chgData.ChgId] = chgData
 		pccRule.RefChgData = []string{chgData.ChgId}
 	}
 	if umData != nil {
 		if decicion.UmDecs == nil {
-			decicion.UmDecs = make(map[string]models.UsageMonitoringData)
+			decicion.UmDecs = make(map[string]*models.UsageMonitoringData)
 		}
-		decicion.UmDecs[umData.UmId] = *umData
+		decicion.UmDecs[umData.UmId] = umData
 		pccRule.RefUmData = []string{umData.UmId}
 	}
 	if pccRule != nil {
 		if decicion.PccRules == nil {
-			decicion.PccRules = make(map[string]models.PccRule)
+			decicion.PccRules = make(map[string]*models.PccRule)
 		}
-		decicion.PccRules[pccRule.PccRuleId] = *pccRule
+		decicion.PccRules[pccRule.PccRuleId] = pccRule
 	}
 }

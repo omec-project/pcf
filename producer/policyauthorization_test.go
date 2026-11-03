@@ -16,7 +16,7 @@ import (
 
 func newCombinedMediaTestPolicy() *pcfContext.UeSmPolicyData {
 	policyDecision := models.NewSmPolicyDecision()
-	policyDecision.SetPccRules(make(map[string]models.PccRule))
+	policyDecision.SetPccRules(make(map[string]*models.PccRule))
 	return &pcfContext.UeSmPolicyData{
 		PolicyDecision:         policyDecision,
 		PackFiltMapToPccRuleId: make(map[string]string),
@@ -156,7 +156,7 @@ func TestHandleCombinedMediaSubComponentsReusesExistingRuleAndAddsNewFlow(t *tes
 		FlowDescription: new("permit out ip from any to 10.0.0.1"),
 		PackFiltId:      new("77"),
 	}}, "")
-	smPolicy.PolicyDecision.PccRules[existingRule.GetPccRuleId()] = *existingRule
+	smPolicy.PolicyDecision.PccRules[existingRule.GetPccRuleId()] = existingRule
 	smPolicy.PackFiltMapToPccRuleId["77"] = existingRule.GetPccRuleId()
 	smPolicy.PackFiltIdGenarator = 5
 
@@ -195,12 +195,12 @@ func TestHandleCombinedMediaSubComponentsReusesExistingRuleAndAddsNewFlow(t *tes
 func TestGetMaxPccRuleIdNum(t *testing.T) {
 	tests := []struct {
 		name     string
-		pccRules map[string]models.PccRule
+		pccRules map[string]*models.PccRule
 		want     int32
 	}{
 		{
 			name: "prefers highest full numeric id",
-			pccRules: map[string]models.PccRule{
+			pccRules: map[string]*models.PccRule{
 				"0":     {},
 				"12":    {},
 				"1-foo": {},
@@ -209,7 +209,7 @@ func TestGetMaxPccRuleIdNum(t *testing.T) {
 		},
 		{
 			name: "accepts legacy prefixed ids",
-			pccRules: map[string]models.PccRule{
+			pccRules: map[string]*models.PccRule{
 				"PccRuleId-0": {},
 				"PccRuleId-9": {},
 			},
@@ -217,7 +217,7 @@ func TestGetMaxPccRuleIdNum(t *testing.T) {
 		},
 		{
 			name: "falls back when no numeric ids found",
-			pccRules: map[string]models.PccRule{
+			pccRules: map[string]*models.PccRule{
 				"rule-a": {},
 				"rule-b": {},
 			},

@@ -26,11 +26,13 @@ const (
 )
 
 func decisionWithArp(levels ...int32) *models.SmPolicyDecision {
-	qosDecs := map[string]models.QosData{}
+	qosDecs := map[string]*models.QosData{}
 	for i, level := range levels {
 		arp := models.NewArpWithDefaults()
 		arp.SetPriorityLevel(level)
-		qosDecs[string(rune('a'+i))] = models.QosData{Arp: arp}
+		qosData := models.NewQosDataWithDefaults()
+		qosData.SetArp(*arp)
+		qosDecs[string(rune('a'+i))] = qosData
 	}
 	d := models.NewSmPolicyDecision()
 	d.SetQosDecs(qosDecs)
@@ -323,7 +325,9 @@ func TestAfManagedSessionIsLeftAlone(t *testing.T) {
 		}
 	}
 
-	afRule := map[string]models.PccRule{"af-installed": {PccRuleId: "af-installed", AppId: new("ims")}}
+	pccRule := models.NewPccRule("af-installed")
+	pccRule.SetAppId("ims")
+	afRule := map[string]*models.PccRule{"af-installed": pccRule}
 	given := models.NewSmPolicyDecision()
 	given.SetPccRules(afRule)
 	smPolicy := establishedSession(t, nil, given)

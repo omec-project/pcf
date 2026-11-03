@@ -397,7 +397,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 				maxPrecedence++
 				logger.PolicyAuthorizationLog.Debugf("new PCC Rule created: RuleID: %s, AppID: %s, QosID: %s", pccRule.GetPccRuleId(), appID, qosData.GetQosId())
 			} else {
-				pccRule = &existingPccRule
+				pccRule = existingPccRule
 				logger.PolicyAuthorizationLog.Debugf("found existing PCC Rule for AppID: %s, RuleID: %s", appID, pccRule.GetPccRuleId())
 				// update pccRule's qos
 				for _, qosID := range pccRule.GetRefQosData() {
@@ -416,10 +416,10 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 						continue
 					}
 
-					var ul, dl bool
-					qosData, ul, dl = updateQosInMedComp(qosData, &medComp)
+					updatedQos, ul, dl := updateQosInMedComp(*qosData, &medComp)
+					qosData = &updatedQos
 					logger.PolicyAuthorizationLog.Infof("QoS Update check passed: QosID: %s, UL changed: %v, DL changed: %v", qosData.GetQosId(), ul, dl)
-					if problemDetails := modifyRemainBitRate(smPolicy, &qosData, ul, dl); problemDetails != nil {
+					if problemDetails := modifyRemainBitRate(smPolicy, qosData, ul, dl); problemDetails != nil {
 						logger.PolicyAuthorizationLog.Errorf("failed to modify remaining bitrate during QoS update: %v", problemDetails)
 						return nil, "", problemDetails
 					}
@@ -720,7 +720,7 @@ func handleCombinedMediaSubComponents(
 		// ----------------------------------------------------------------
 		// Step 3 : Existing PCC Rule found, merge new flows and update if needed
 		// ----------------------------------------------------------------
-		pccRule = &existingPccRule
+		pccRule = existingPccRule
 		logger.PolicyAuthorizationLog.Infof("found existing PCC Rule ID [%s]", pccRule.GetPccRuleId())
 
 		if pccRule.HasRefQosData() && len(pccRule.GetRefQosData()) > 0 {
@@ -759,7 +759,7 @@ func handleCombinedMediaSubComponents(
 		}
 	}
 
-	smPolicy.PolicyDecision.GetPccRules()[pccRule.GetPccRuleId()] = *pccRule
+	smPolicy.PolicyDecision.GetPccRules()[pccRule.GetPccRuleId()] = pccRule
 	logger.PolicyAuthorizationLog.Debugf("pcc Rule ID [%s] stored successfully in PolicyDecision", pccRule.GetPccRuleId())
 	logger.PolicyAuthorizationLog.Debugf("final PCC Rule Snapshot for ID [%s]:", pccRule.GetPccRuleId())
 	logger.PolicyAuthorizationLog.Debugf("Precedence: %d", pccRule.GetPrecedence())
@@ -788,37 +788,42 @@ func buildRelatedSmPolicyDecision(
 	}
 
 	filteredDecision := *policyDecision
-	pccRules := make(map[string]models.PccRule)
-	qosDecs := make(map[string]models.QosData)
-	traffContDecs := make(map[string]models.TrafficControlData)
-	chgDecs := make(map[string]models.ChargingData)
-	umDecs := make(map[string]models.UsageMonitoringData)
+	pccRules := make(map[string]*models.PccRule)
+	qosDecs := make(map[string]*models.QosData)
+	traffContDecs := make(map[string]*models.TrafficControlData)
+	chgDecs := make(map[string]*models.ChargingData)
+	umDecs := make(map[string]*models.UsageMonitoringData)
 
 	for _, pccRuleID := range relatedPccRuleIds {
 		pccRule, ok := policyDecision.GetPccRules()[pccRuleID]
 		if !ok {
 			continue
 		}
-		pccRules[pccRuleID] = pccRule
+		pccRuleCopy := *pccRule
+		pccRules[pccRuleID] = &pccRuleCopy
 
 		for _, qosID := range pccRule.GetRefQosData() {
 			if qos, ok := policyDecision.GetQosDecs()[qosID]; ok {
-				qosDecs[qosID] = qos
+				qosCopy := *qos
+				qosDecs[qosID] = &qosCopy
 			}
 		}
 		for _, tcID := range pccRule.GetRefTcData() {
 			if tc, ok := policyDecision.GetTraffContDecs()[tcID]; ok {
-				traffContDecs[tcID] = tc
+				tcCopy := *tc
+				traffContDecs[tcID] = &tcCopy
 			}
 		}
 		for _, chgID := range pccRule.GetRefChgData() {
 			if chg, ok := policyDecision.GetChgDecs()[chgID]; ok {
-				chgDecs[chgID] = chg
+				chgCopy := *chg
+				chgDecs[chgID] = &chgCopy
 			}
 		}
 		for _, umID := range pccRule.GetRefUmData() {
 			if um, ok := policyDecision.GetUmDecs()[umID]; ok {
-				umDecs[umID] = um
+				umCopy := *um
+				umDecs[umID] = &umCopy
 			}
 		}
 	}
@@ -991,7 +996,7 @@ func ModAppSessionContextProcedure(appSessID string,
 				// media component is null => removal only, nothing to reinstall
 				continue
 			}
-			medComp := transferMedCompRmToMedComp(&medCompRm)
+			medComp := transferMedCompRmToMedComp(medCompRm)
 			// modify MediaComp(remove and reinstall again)
 			var pccRule *models.PccRule
 			var appID string
@@ -1057,18 +1062,17 @@ func ModAppSessionContextProcedure(appSessID string,
 				smPolicy.PccRuleIdGenarator++
 				maxPrecedence++
 			} else {
-				pccRule = &existingPccRule
+				pccRule = existingPccRule
 				// update qos
-				var qosData models.QosData
 				for _, qosID := range pccRule.GetRefQosData() {
-					qosData = (*smPolicy.PolicyDecision.QosDecs)[qosID]
+					qosData := *(*smPolicy.PolicyDecision.QosDecs)[qosID]
 					if qosData.GetVar5qi() == var5qi && qosData.GetVar5qi() <= 4 {
 						var ul, dl bool
-						qosData, ul, dl = updateQosInMedComp((*smPolicy.PolicyDecision.QosDecs)[qosID], medComp)
+						qosData, ul, dl = updateQosInMedComp(qosData, medComp)
 						if problemDetail := modifyRemainBitRate(smPolicy, &qosData, ul, dl); problemDetail != nil {
 							return problemDetail, nil
 						}
-						(*smPolicy.PolicyDecision.QosDecs)[qosData.QosId] = qosData
+						(*smPolicy.PolicyDecision.QosDecs)[qosData.QosId] = &qosData
 					}
 				}
 			}
@@ -1558,9 +1562,7 @@ func handleSponsoredConnectivityInformation(smPolicy *pcfContext.UeSmPolicyData,
 		chgID := util.GetChgId(smPolicy.ChargingIdGenarator)
 		for _, pccRuleID := range relatedPccRuleIds {
 			pccRule := smPolicy.PolicyDecision.PccRules[pccRuleID]
-			chgData := models.ChargingData{
-				ChgId: chgID,
-			}
+			chgData := models.NewChargingData(chgID)
 			if pccRule.HasRefChgData() {
 				chgID := pccRule.GetRefChgData()[0]
 				chgData = smPolicy.PolicyDecision.ChgDecs[chgID]
@@ -1579,7 +1581,7 @@ func handleSponsoredConnectivityInformation(smPolicy *pcfContext.UeSmPolicyData,
 			if umData != nil {
 				pccRule.SetRefUmData([]string{umData.UmId})
 			}
-			util.SetPccRuleRelatedData(smPolicy.PolicyDecision, &pccRule, nil, nil, &chgData, umData)
+			util.SetPccRuleRelatedData(smPolicy.PolicyDecision, pccRule, nil, nil, chgData, umData)
 			*updateSMpolicy = true
 		}
 		if chgIDUsed {
@@ -1590,7 +1592,7 @@ func handleSponsoredConnectivityInformation(smPolicy *pcfContext.UeSmPolicyData,
 	return nil
 }
 
-func getMaxPrecedence(pccRules map[string]models.PccRule) (maxVaule int32) {
+func getMaxPrecedence(pccRules map[string]*models.PccRule) (maxVaule int32) {
 	maxVaule = 0
 	for _, rule := range pccRules {
 		if rule.GetPrecedence() > maxVaule {
@@ -1600,7 +1602,7 @@ func getMaxPrecedence(pccRules map[string]models.PccRule) (maxVaule int32) {
 	return
 }
 
-func getMaxPccRuleIdNum(pccRules map[string]models.PccRule) int32 {
+func getMaxPccRuleIdNum(pccRules map[string]*models.PccRule) int32 {
 	var maxVal int32
 	foundNumericID := false
 	for id := range pccRules {
@@ -2131,7 +2133,7 @@ func provisioningOfTrafficRoutingInfo(smPolicy *pcfContext.UeSmPolicyData, appID
 	// TODO : handle temporal or spatial validity
 	_, existingPccRule, found := util.GetPccRuleByAfAppId(smPolicy.PolicyDecision.PccRules, appID)
 	if found {
-		pccRule = &existingPccRule
+		pccRule = existingPccRule
 		// Update TcData
 		var tcID string
 		if len(pccRule.GetRefTcData()) > 0 {
@@ -2144,7 +2146,7 @@ func provisioningOfTrafficRoutingInfo(smPolicy *pcfContext.UeSmPolicyData, appID
 				tcData = util.CreateTcData(0, tcID, fStatus)
 			} else {
 				if data, exists := (*smPolicy.PolicyDecision.TraffContDecs)[tcID]; exists {
-					tcData = &data
+					tcData = data
 				} else {
 					logger.PolicyAuthorizationLog.Errorf("TraffContDecs[%s] not found", tcID)
 					tcData = util.CreateTcData(0, tcID, fStatus)
