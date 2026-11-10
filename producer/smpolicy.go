@@ -695,8 +695,10 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 			//
 			// These two fields are what session binding matches an application function's request
 			// against, so they are written under the lock the four finders in context/ue.go read
-			// them under. Everything else this procedure touches is either written once when the
-			// session is created or read by nothing outside this request.
+			// them under. The lock covers these two fields only. The other fields this procedure
+			// writes, such as serving network, access and RAT type, are outside it. They are
+			// written without it, so the application-function handlers that read them and the copy
+			// in getSmPolicyContextProcedure still race those writes.
 			//
 			// The released address is compared by value. Both are *string off a decoded request
 			// body, so the pointers are never equal however the addresses compare, and the release
