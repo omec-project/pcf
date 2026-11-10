@@ -275,10 +275,12 @@ func (c *PCFContext) SessionBinding(req *models.AppSessionContextReqData) (*UeSm
 	if selectedUE != nil {
 		policy, err = ueSMPolicyFindByAppSessionContext(selectedUE, req)
 	} else {
+		// Stop at the first UE holding a matching session. Carrying on would let every UE visited
+		// after it overwrite the result, leaving whichever UE the pool visits last.
 		c.UePool.Range(func(key, value any) bool {
 			ue := value.(*UeContext)
 			policy, err = ueSMPolicyFindByAppSessionContext(ue, req)
-			return true
+			return policy == nil
 		})
 	}
 	if policy == nil && err == nil {

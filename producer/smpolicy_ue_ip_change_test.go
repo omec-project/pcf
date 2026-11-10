@@ -5,6 +5,7 @@
 package producer
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 
@@ -22,6 +23,12 @@ const (
 // leaves it, and returns the UE and the policy id the SMF would address an update to.
 func newSessionBoundTo(t *testing.T, supi string) (*pcfContext.UeContext, string) {
 	t.Helper()
+	return newSessionBoundToAddress(t, supi, testCreateIpv4)
+}
+
+// newSessionBoundToAddress is newSessionBoundTo with the session holding ipv4 instead.
+func newSessionBoundToAddress(t *testing.T, supi, ipv4 string) (*pcfContext.UeContext, string) {
+	t.Helper()
 	self := pcfContext.PCF_Self()
 	ue := &pcfContext.UeContext{
 		Supi:         supi,
@@ -36,7 +43,7 @@ func newSessionBoundTo(t *testing.T, supi string) (*pcfContext.UeContext, string
 		PduSessionId: 10,
 		Dnn:          testDnn,
 		SliceInfo:    testSnssai,
-		Ipv4Address:  new(testCreateIpv4),
+		Ipv4Address:  new(ipv4),
 	}
 	policy := ue.NewUeSmPolicyData(smPolicyID, ctx, &models.SmPolicyData{})
 	if policy == nil {
@@ -285,4 +292,36 @@ func TestSmPolicyGetDoesNotRaceAccessTypeChange(t *testing.T) {
 		}
 	}()
 	wg.Wait()
+}
+
+// An application function that names only the UE address makes SessionBinding search every UE.
+// The search kept going after a match: each UE it visited overwrote the result, so the answer was
+// whichever UE the pool happened to visit last, and with more than one UE attached such a request
+// bound to nothing most of the time. Every UE's address is asked for, so visiting the right UE
+// last by chance cannot make this pass.
+func TestSessionBindingByAddressFindsTheUeAmongSeveral(t *testing.T) {
+	const ues = 16
+	supiByAddress := make(map[string]string, ues)
+	for i := range ues {
+		supi := fmt.Sprintf("imsi-0010101234568%02d", i)
+		address := fmt.Sprintf("10.45.0.%d", i+1)
+		newSessionBoundToAddress(t, supi, address)
+		supiByAddress[address] = supi
+	}
+
+	for address, supi := range supiByAddress {
+		req := &models.AppSessionContextReqData{
+			UeIpv4:    new(address),
+			Dnn:       new(testDnn),
+			SliceInfo: &testSnssai,
+		}
+		policy, err := pcfContext.PCF_Self().SessionBinding(req)
+		if err != nil || policy == nil {
+			t.Errorf("%s: no session bound (err %v)", address, err)
+			continue
+		}
+		if got := policy.PolicyContext.GetSupi(); got != supi {
+			t.Errorf("%s: bound %s's session, want %s's", address, got, supi)
+		}
+	}
 }
