@@ -431,7 +431,20 @@ func getSmPolicyContextProcedure(smPolicyID string) (
 
 		return nil, problemDetail
 	}
-	response = models.NewSmPolicyControl(*smPolicyData.PolicyContext, *stored)
+	// Copied under PolicyMu, which the SM policy update holds across every write it makes to the
+	// stored context: the UE address a UE_IP_CH report changes, and the serving network, access and
+	// RAT type and the rest that the other triggers change. Copying the struct reads every field
+	// without naming one, so it races those writes unless it holds the same lock -- a reader that
+	// copies the whole context is easy to miss. Only the copy needs the lock: the writers replace
+	// the context's fields rather than writing through its pointers, so what this copy points at is
+	// never modified after it is taken.
+	//
+	// Taken on its own because SnapshotPolicyDecision above has already released it, and none of
+	// this function's callers holds it; a sync.RWMutex is not reentrant.
+	smPolicyData.PolicyMu.RLock()
+	policyContext := *smPolicyData.PolicyContext
+	smPolicyData.PolicyMu.RUnlock()
+	response = models.NewSmPolicyControl(policyContext, *stored)
 	logger.SMpolicyLog.Debugf("SMPolicy smPolicyID[%s] GET", smPolicyID)
 	return response, nil
 }
@@ -678,10 +691,22 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 			logger.SMpolicyLog.Debugf("SM Policy Update(%s) Successfully", trigger)
 		case models.POLICYCONTROLREQUESTTRIGGER_UE_IP_CH: // SMF notice PCF "ipv4Address" & ipv6AddressPrefix (always)
 			// TODO: Decide new Session Rule / Pcc rule
-			if request.RelIpv4Address == smPolicyContext.Ipv4Address {
+			//
+			// These two fields are what session binding matches an application function's request
+			// against, so they are written under SmPolicyDataMu, the lock the four finders in
+			// context/ue.go read them under. It is taken inside PolicyMu, which this procedure holds
+			// across every write it makes to the context; the copy in getSmPolicyContextProcedure
+			// reads the addresses under PolicyMu instead.
+			//
+			// The released address is compared by value. Both are *string off a decoded request
+			// body, so the pointers are never equal however the addresses compare, and the release
+			// was dead in every case -- a report that only released an address left the session
+			// bound to one the SMF had already given back.
+			ue.SmPolicyDataMu.Lock()
+			if relIpv4 := request.GetRelIpv4Address(); relIpv4 != "" && relIpv4 == smPolicyContext.GetIpv4Address() {
 				smPolicyContext.SetIpv4Address("")
 			}
-			if request.RelIpv6AddressPrefix == smPolicyContext.Ipv6AddressPrefix {
+			if relIpv6 := request.GetRelIpv6AddressPrefix(); relIpv6 != "" && relIpv6 == smPolicyContext.GetIpv6AddressPrefix() {
 				smPolicyContext.SetIpv6AddressPrefix("")
 			}
 			if request.GetIpv4Address() != "" {
@@ -690,6 +715,7 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 			if request.GetIpv6AddressPrefix() != "" {
 				smPolicyContext.Ipv6AddressPrefix = request.Ipv6AddressPrefix
 			}
+			ue.SmPolicyDataMu.Unlock()
 			logger.SMpolicyLog.Debugf("SM Policy Update(%s) Successfully", trigger)
 		case models.POLICYCONTROLREQUESTTRIGGER_UE_MAC_CH: // SMF notice PCF when SMF detect new UE MAC
 		case models.POLICYCONTROLREQUESTTRIGGER_AN_CH_COR:

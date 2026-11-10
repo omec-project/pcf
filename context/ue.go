@@ -26,10 +26,25 @@ type UeContext struct {
 	UdrUri   string
 	UdrUriMu sync.RWMutex
 
-	// SmPolicyDataMu guards the SmPolicyData map itself — its shape, not the contents of the
-	// entries. Iterating a Go map while another goroutine inserts into or deletes from it is a
-	// fatal runtime error, not merely a race, and the configuration poll loop iterates it
-	// periodically while session create and delete mutate it from request handlers.
+	// SmPolicyDataMu guards the SmPolicyData map's shape, and on each entry the UE address that
+	// session binding matches against — PolicyContext.Ipv4Address and Ipv6AddressPrefix. Nothing
+	// else in an entry's contents.
+	//
+	// Iterating a Go map while another goroutine inserts into or deletes from it is a fatal runtime
+	// error, not merely a race, and the configuration poll loop iterates it periodically while
+	// session create and delete mutate it from request handlers.
+	//
+	// The addresses belong here rather than with the rest of an entry's state because finding a
+	// session by address is one operation, not two: the four finders below walk the map and compare
+	// the addresses in the same critical section, and an SMF reporting UE_IP_CH writes an address
+	// into an entry the finders may be walking. Splitting the two across different locks would
+	// leave the walk and the comparison protected by different things, which is no protection.
+	//
+	// It is taken after an entry's PolicyMu and never the other way round: the UE_IP_CH arm of the
+	// SM policy update writes the addresses while holding PolicyMu, and every critical section on
+	// this lock is a leaf that takes no other lock. Because the addresses are written holding both
+	// locks, a reader may hold either: the finders hold this one, and the SM policy GET copies the
+	// whole context under PolicyMu.
 	SmPolicyDataMu sync.RWMutex
 	// SMPolicy
 	SmPolicyData map[string]*UeSmPolicyData // use smPolicyId(ue.Supi-pduSessionId) as key
@@ -127,6 +142,11 @@ type UeSmPolicyData struct {
 	//     clones with CloneSmPolicyDecisionContainers directly instead of asking for a snapshot.
 	//   - Where both are needed, PolicyMu is taken before AppSessionsMu and never the other way
 	//     round. The poll loop holds only one of the two at a time, so there is no cycle to close.
+	//
+	// The SM policy update also holds it across every write it makes to PolicyContext, so the SM
+	// policy GET copies the context under it and the application-function handlers read the
+	// serving network, access and RAT type inside their locked regions. The configuration poll
+	// loop still reads the context's subscribed QoS and AMBR without it.
 	//
 	// A lock held across the notification send would be worse than none of this: the dispatcher
 	// calls its handler synchronously, so the AF path's SM policy update is a blocking HTTP POST to
@@ -759,7 +779,11 @@ func (ue *UeContext) SMPolicyFindByIdentifiersIpv4(
 		if ipDomain != "" && policyContext.GetIpDomain() != "" && policyContext.GetIpDomain() != ipDomain {
 			continue
 		}
-		if sNssai != nil && !reflect.DeepEqual(sNssai, policyContext.SliceInfo) {
+		// Dereferenced before the comparison. SmPolicyContextData.SliceInfo is an Snssai and the
+		// caller's is an *Snssai, and reflect.DeepEqual is false for values of distinct types
+		// whatever they hold — so this guard used to discard every session, and an application
+		// function that named a slice could never bind to one.
+		if sNssai != nil && !reflect.DeepEqual(*sNssai, policyContext.SliceInfo) {
 			continue
 		}
 
@@ -784,7 +808,11 @@ func (ue *UeContext) SMPolicyFindByIdentifiersIpv6(v6 string, sNssai *models.Sns
 			if dnn != "" && policyContext.Dnn != dnn {
 				continue
 			}
-			if sNssai != nil && !reflect.DeepEqual(sNssai, policyContext.SliceInfo) {
+			// Dereferenced before the comparison. SmPolicyContextData.SliceInfo is an Snssai and the
+			// caller's is an *Snssai, and reflect.DeepEqual is false for values of distinct types
+			// whatever they hold — so this guard used to discard every session, and an application
+			// function that named a slice could never bind to one.
+			if sNssai != nil && !reflect.DeepEqual(*sNssai, policyContext.SliceInfo) {
 				continue
 			}
 			return smPolicy
