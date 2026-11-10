@@ -39,6 +39,10 @@ type UeContext struct {
 	// the addresses in the same critical section, and an SMF reporting UE_IP_CH writes an address
 	// into an entry the finders may be walking. Splitting the two across different locks would
 	// leave the walk and the comparison protected by different things, which is no protection.
+	//
+	// It is taken after an entry's PolicyMu and never the other way round: the UE_IP_CH arm of the
+	// SM policy update writes the addresses while holding PolicyMu, and every critical section on
+	// this lock is a leaf that takes no other lock.
 	SmPolicyDataMu sync.RWMutex
 	// SMPolicy
 	SmPolicyData map[string]*UeSmPolicyData // use smPolicyId(ue.Supi-pduSessionId) as key
