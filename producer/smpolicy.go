@@ -431,21 +431,19 @@ func getSmPolicyContextProcedure(smPolicyID string) (
 
 		return nil, problemDetail
 	}
-	// Copied under SmPolicyDataMu, which guards the UE address a UE_IP_CH report writes. Copying
-	// the struct reads every field, the addresses among them, so it races that write unless it holds
-	// the same lock -- a reader that copies the whole context names no field and is easy to miss.
-	// Only the copy needs the lock: the writer replaces the address pointers rather than writing
-	// through them, so the strings this copy points at are never modified after it is taken.
+	// Copied under PolicyMu, which the SM policy update holds across every write it makes to the
+	// stored context: the UE address a UE_IP_CH report changes, and the serving network, access and
+	// RAT type and the rest that the other triggers change. Copying the struct reads every field
+	// without naming one, so it races those writes unless it holds the same lock -- a reader that
+	// copies the whole context is easy to miss. Only the copy needs the lock: the writers replace
+	// the context's fields rather than writing through its pointers, so what this copy points at is
+	// never modified after it is taken.
 	//
-	// That is all the lock protects. The other fields the update triggers write -- serving network,
-	// access and RAT type, 3GPP PS data off status, subscribed QoS and AMBR, user location, serving
-	// NF id, reflective QoS indication, time zone -- are written without it, as they always have
-	// been, so this copy still races those writes. Taking the read lock here for them would not
-	// change that: their writers in the update procedure take no lock at all, and the
-	// application-function handlers read serving network, access and RAT type without one.
-	ue.SmPolicyDataMu.RLock()
+	// Taken on its own because SnapshotPolicyDecision above has already released it, and none of
+	// this function's callers holds it; a sync.RWMutex is not reentrant.
+	smPolicyData.PolicyMu.RLock()
 	policyContext := *smPolicyData.PolicyContext
-	ue.SmPolicyDataMu.RUnlock()
+	smPolicyData.PolicyMu.RUnlock()
 	response = models.NewSmPolicyControl(policyContext, *stored)
 	logger.SMpolicyLog.Debugf("SMPolicy smPolicyID[%s] GET", smPolicyID)
 	return response, nil
@@ -695,11 +693,10 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 			// TODO: Decide new Session Rule / Pcc rule
 			//
 			// These two fields are what session binding matches an application function's request
-			// against, so they are written under the lock the four finders in context/ue.go read
-			// them under. The lock covers these two fields only. The other fields this procedure
-			// writes, such as serving network, access and RAT type, are outside it. They are
-			// written without it, so the application-function handlers that read them and the copy
-			// in getSmPolicyContextProcedure still race those writes.
+			// against, so they are written under SmPolicyDataMu, the lock the four finders in
+			// context/ue.go read them under. It is taken inside PolicyMu, which this procedure holds
+			// across every write it makes to the context; the copy in getSmPolicyContextProcedure
+			// reads the addresses under PolicyMu instead.
 			//
 			// The released address is compared by value. Both are *string off a decoded request
 			// body, so the pointers are never equal however the addresses compare, and the release

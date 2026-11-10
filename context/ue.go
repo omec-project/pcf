@@ -42,7 +42,9 @@ type UeContext struct {
 	//
 	// It is taken after an entry's PolicyMu and never the other way round: the UE_IP_CH arm of the
 	// SM policy update writes the addresses while holding PolicyMu, and every critical section on
-	// this lock is a leaf that takes no other lock.
+	// this lock is a leaf that takes no other lock. Because the addresses are written holding both
+	// locks, a reader may hold either: the finders hold this one, and the SM policy GET copies the
+	// whole context under PolicyMu.
 	SmPolicyDataMu sync.RWMutex
 	// SMPolicy
 	SmPolicyData map[string]*UeSmPolicyData // use smPolicyId(ue.Supi-pduSessionId) as key
@@ -140,6 +142,11 @@ type UeSmPolicyData struct {
 	//     clones with CloneSmPolicyDecisionContainers directly instead of asking for a snapshot.
 	//   - Where both are needed, PolicyMu is taken before AppSessionsMu and never the other way
 	//     round. The poll loop holds only one of the two at a time, so there is no cycle to close.
+	//
+	// The SM policy update also holds it across every write it makes to PolicyContext, so the SM
+	// policy GET copies the context under it and the application-function handlers read the
+	// serving network, access and RAT type inside their locked regions. The configuration poll
+	// loop still reads the context's subscribed QoS and AMBR without it.
 	//
 	// A lock held across the notification send would be worse than none of this: the dispatcher
 	// calls its handler synchronously, so the AF path's SM policy update is a blocking HTTP POST to

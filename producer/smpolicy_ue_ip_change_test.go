@@ -111,7 +111,7 @@ func TestUeIpChangeReleaseOfAnotherAddressLeavesTheSessionBound(t *testing.T) {
 // The race the SMF's report makes reachable. An application function binding a session and the SMF
 // reporting a new address are two HTTP handlers on two goroutines, and before this change they
 // touched PolicyContext.Ipv4Address with no lock in common -- the finders hold SmPolicyDataMu, the
-// update handler held nothing.
+// update handler held no lock the finders take.
 //
 // The loop matters as much as the goroutines: the finder walks the map and compares, so the read
 // has to be reached, not merely scheduled. Run this with -race.
@@ -170,9 +170,9 @@ func TestSessionBindingMatchesOnTheSliceTheSessionWasCreatedWith(t *testing.T) {
 }
 
 // The SMF's own SM policy GET copies the whole stored context, which reads the UE address without
-// naming it — so it races a UE_IP_CH report that writes it unless both hold SmPolicyDataMu. A
-// reader that copies the struct is the kind a grep for the field names does not find, which is how
-// this one was missed when the other readers were locked. Run with -race.
+// naming it — so it races a UE_IP_CH report that writes it unless both hold PolicyMu. A reader
+// that copies the struct is the kind a grep for the field names does not find, which is how this
+// one was missed when the other readers were locked. Run with -race.
 func TestSmPolicyGetDoesNotRaceUeIpChange(t *testing.T) {
 	const iterations = 200
 	_, smPolicyID := newSessionBoundTo(t, "imsi-001010123456705")
@@ -244,4 +244,45 @@ func TestUeIpChangeRebindsAndReleasesTheIpv6Prefix(t *testing.T) {
 	if got := ue.SMPolicyFindByIdentifiersIpv6(testIpv6Prefix, &testSnssai, testDnn); got != nil {
 		t.Errorf("the released IPv6 prefix %s still binds to the session", testIpv6Prefix)
 	}
+}
+
+// The same GET copy against a trigger that writes a field other than the address. The copy reads
+// every field, so locking it for the address alone would leave it racing the access and RAT type an
+// AC_TY_CH report writes. Run with -race.
+func TestSmPolicyGetDoesNotRaceAccessTypeChange(t *testing.T) {
+	const iterations = 200
+	_, smPolicyID := newSessionBoundTo(t, "imsi-001010123456708")
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < iterations; i++ {
+			ratType := models.RATTYPE_NR
+			if i%2 == 0 {
+				ratType = models.RATTYPE_EUTRA
+			}
+			req := models.SmPolicyUpdateContextData{
+				RepPolicyCtrlReqTriggers: []models.PolicyControlRequestTrigger{
+					models.POLICYCONTROLREQUESTTRIGGER_AC_TY_CH,
+				},
+				AccessType: new(models.ACCESSTYPE__3_GPP_ACCESS),
+				RatType:    new(ratType),
+			}
+			if _, problem := updateSmPolicyContextProcedure(req, smPolicyID); problem != nil {
+				t.Errorf("update refused: %+v", problem)
+				return
+			}
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for i := 0; i < iterations; i++ {
+			if _, problem := getSmPolicyContextProcedure(smPolicyID); problem != nil {
+				t.Errorf("get refused: %+v", problem)
+				return
+			}
+		}
+	}()
+	wg.Wait()
 }
