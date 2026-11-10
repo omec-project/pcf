@@ -2188,8 +2188,8 @@ func extractUmData(umID string, eventSubs map[models.AfEventPcf]models.AfNotifMe
 func modifyRemainBitRate(smPolicy *pcfContext.UeSmPolicyData, qosData *models.QosData,
 	ulExist, dlExist bool,
 ) *models.ProblemDetails {
-	// The budget arithmetic and the ledger write are one transaction in the context package, where
-	// the lock that serialises them lives; see DebitForAuthorizedQos.
+	// The budget arithmetic and the ledger write are one transaction in the context package; see
+	// DebitForAuthorizedQos. Every caller here holds the session's PolicyMu across it.
 	if err := smPolicy.DebitForAuthorizedQos(qosData, ulExist, dlExist); err != nil {
 		return util.GetProblemDetail(err.Error(), util.REQUESTED_SERVICE_NOT_AUTHORIZED)
 	}

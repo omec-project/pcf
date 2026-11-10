@@ -154,9 +154,16 @@ func TestDecreaseThenRemoveLeavesAggregateUnchanged(t *testing.T) {
 // recordFixtureDebit notes a debit of 1 Mbps up and 2 Mbps down for the fixture's QoS data id
 // without taking it from the budget, as the state a rule debited earlier leaves behind.
 func recordFixtureDebit(policy *UeSmPolicyData) {
-	policy.gbrMu.Lock()
-	defer policy.gbrMu.Unlock()
-	policy.recordGbrDebitLocked(testQosID, "1 Mbps", "2 Mbps")
+	asHandler(policy, func() { policy.recordGbrDebit(testQosID, "1 Mbps", "2 Mbps") })
+}
+
+// asHandler runs f holding the session's PolicyMu, as every handler that reaches the budget does.
+// The budget's operations do not take the lock themselves, so the concurrent tests below hold it
+// the way their real callers do; one that took it itself would deadlock here instead of passing.
+func asHandler(policy *UeSmPolicyData, f func()) {
+	policy.PolicyMu.Lock()
+	defer policy.PolicyMu.Unlock()
+	f()
 }
 
 // A policy holding one PCC rule whose QoS data carries the given 5QI and guaranteed rates,
@@ -251,7 +258,7 @@ func TestGbrLedgerSurvivesConcurrentRecordAndRelease(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < iterations; i++ {
-			policy.IncreaseRemainGBR(testQosID)
+			asHandler(policy, func() { policy.IncreaseRemainGBR(testQosID) })
 		}
 	}()
 	wg.Wait()
@@ -335,11 +342,13 @@ func TestReplaceGbrDebitIsOneTransactionAgainstAConcurrentRelease(t *testing.T) 
 		go func() {
 			defer wg.Done()
 			// Either outcome is legitimate here; the invariant below is what is being tested.
-			if _, _, err := policy.ReplaceGbrDebit(testQosID, req); err != nil {
-				_ = err
-			}
+			asHandler(policy, func() {
+				if _, _, err := policy.ReplaceGbrDebit(testQosID, req); err != nil {
+					_ = err
+				}
+			})
 		}()
-		go func() { defer wg.Done(); policy.IncreaseRemainGBR(testQosID) }()
+		go func() { defer wg.Done(); asHandler(policy, func() { policy.IncreaseRemainGBR(testQosID) }) }()
 		wg.Wait()
 
 		// Whatever order they ran in, the ledger and the budget have to agree: an entry still
@@ -386,11 +395,13 @@ func TestDebitForAuthorizedQosIsOneTransactionAgainstAConcurrentRelease(t *testi
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			if err := policy.DebitForAuthorizedQos(&qosData, true, true); err != nil {
-				t.Errorf("iteration %d: debit refused: %v", i, err)
-			}
+			asHandler(policy, func() {
+				if err := policy.DebitForAuthorizedQos(&qosData, true, true); err != nil {
+					t.Errorf("iteration %d: debit refused: %v", i, err)
+				}
+			})
 		}()
-		go func() { defer wg.Done(); policy.IncreaseRemainGBR(testQosID) }()
+		go func() { defer wg.Done(); asHandler(policy, func() { policy.IncreaseRemainGBR(testQosID) }) }()
 		wg.Wait()
 
 		debit, held := policy.takeGbrDebit(testQosID)
@@ -440,8 +451,8 @@ func TestDebitForAuthorizedQosRestoresTheBudgetExactlyWhenTheDownlinkIsRefused(t
 }
 
 // The budget is seeded after the session is published, so an application function handler can
-// reach it while it is being seeded. Seeding takes the same lock as every debit; run under -race,
-// which reports an unlocked write against the locked reads.
+// reach it while it is being seeded. Seeding takes PolicyMu, which every debit's caller holds; run
+// under -race, which reports an unlocked write against the locked reads.
 func TestSeedRemainGbrIsLockedAgainstAConcurrentDebit(t *testing.T) {
 	const iterations = 100
 	for i := 0; i < iterations; i++ {
@@ -460,9 +471,11 @@ func TestSeedRemainGbrIsLockedAgainstAConcurrentDebit(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			// Either order fits: before the seeding the budget is unlimited, after it ample.
-			if err := policy.DebitForAuthorizedQos(&qosData, true, true); err != nil {
-				t.Errorf("iteration %d: debit refused: %v", i, err)
-			}
+			asHandler(policy, func() {
+				if err := policy.DebitForAuthorizedQos(&qosData, true, true); err != nil {
+					t.Errorf("iteration %d: debit refused: %v", i, err)
+				}
+			})
 		}()
 		wg.Wait()
 	}
