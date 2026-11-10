@@ -180,7 +180,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 				logger.SMpolicyLog.Debugf("SM Policy Dnn[%s] Data Aggregate UL GBR[%.2f Kbps]", request.Dnn, gbrUL)
 			}
 		}
-		// The session was published by NewUeSmPolicyData above, so the budget is set under its lock.
+		// The session was published by NewUeSmPolicyData above, so the budget is set under PolicyMu.
 		smPolicyData.SeedRemainGbr(remainGbrUL, remainGbrDL)
 	} else {
 		logger.SMpolicyLog.Warnf(

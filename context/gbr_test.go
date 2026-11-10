@@ -10,11 +10,10 @@ import (
 	"github.com/omec-project/openapi/v2/models"
 )
 
-// The test this replaces was 5QI <= 4, which is not the 3GPP definition.
-
 // testQosID is the QoS data id the fixtures here hold their one rule under.
 const testQosID = "qos-1"
 
+// The test this replaces was 5QI <= 4, which is not the 3GPP definition.
 func TestIsStandardisedGbr5QI(t *testing.T) {
 	gbr := []int32{1, 2, 3, 4, 65, 66, 67, 71, 72, 73, 74, 75, 76}
 	delayCritical := []int32{82, 83, 84, 85, 86, 87, 88, 89, 90}
@@ -166,8 +165,8 @@ func asHandler(policy *UeSmPolicyData, f func()) {
 	f()
 }
 
-// A policy holding one PCC rule whose QoS data carries the given 5QI and guaranteed rates,
-// which is the state RemovePccRule reads to decide what to credit back.
+// A policy holding one PCC rule whose QoS data carries the given 5QI and guaranteed rates. What
+// RemovePccRule credits back is decided by the ledger, not by these rates.
 func newPolicyHoldingGbrRule(var5qi int32, gbrUl, gbrDl string, remainUl, remainDl *float64) *UeSmPolicyData {
 	qos := models.NewQosData(testQosID)
 	qos.SetVar5qi(var5qi)
@@ -321,11 +320,12 @@ func TestReplaceGbrDebitKeepsTheSessionsBudgetPointers(t *testing.T) {
 	}
 }
 
-// The exchange has to be one transaction, not three locked steps. With the lock taken per map
-// access, a release running between the credit and the record claims the id while no entry exists,
-// and the debit written afterwards belongs to a rule that is already gone — so the aggregate stays
-// short with nothing left to credit it back. Run under -race; the assertion is the invariant, not
-// the race detector.
+// The exchange has to be one transaction, not three steps. A release running between the credit and
+// the record would claim the id while no entry exists, and the debit written afterwards would belong
+// to a rule that is already gone — so the aggregate stays short with nothing left to credit it back.
+// The transaction is the caller's PolicyMu region, which asHandler supplies, so this pins
+// ReplaceGbrDebit doing the whole exchange within one call. Run under -race; the assertion is the
+// invariant, not the race detector.
 func TestReplaceGbrDebitIsOneTransactionAgainstAConcurrentRelease(t *testing.T) {
 	const iterations = 300
 	for i := 0; i < iterations; i++ {
@@ -377,8 +377,8 @@ func TestReplaceGbrDebitIsOneTransactionAgainstAConcurrentRelease(t *testing.T) 
 }
 
 // The application-function debit and its ledger write are one transaction. They used to be two: the
-// budget changed through the package-level helpers first, and the ledger was merged under the lock
-// afterwards, so a release running in between claimed and credited the rule's entry and the merge
+// budget changed through the package-level helpers first, and the ledger was merged in a separate
+// step afterwards, so a release running in between claimed and credited the rule's entry and the merge
 // then recorded a debit for a rule already removed. Asserted as the invariant -- the budget plus
 // what the ledger still holds equals the aggregate -- after racing the two, under -race.
 func TestDebitForAuthorizedQosIsOneTransactionAgainstAConcurrentRelease(t *testing.T) {
@@ -422,8 +422,6 @@ func TestDebitForAuthorizedQosIsOneTransactionAgainstAConcurrentRelease(t *testi
 	}
 }
 
-// A session with no aggregate GBR has nil budgets, which the debit treats as unlimited. Reading them
-// for a log line must not dereference nil -- that panicked on exactly the requests just accepted.
 // A refused downlink must leave the uplink exactly as it was, not as close as its rate written out
 // again comes to it. With no guaranteed rate requested and the maximum not fitting, the rest of the
 // uplink budget is taken and recorded with six decimals, so crediting that back fell short of what
@@ -492,6 +490,8 @@ func TestSeedRemainGbrSetsBothDirections(t *testing.T) {
 	}
 }
 
+// A session with no aggregate GBR has nil budgets, which the debit treats as unlimited. Reading them
+// for a log line must not dereference nil -- that panicked on exactly the requests just accepted.
 func TestRemainingGbrKbpsRendersAnAbsentBudget(t *testing.T) {
 	policy := &UeSmPolicyData{}
 	ul, dl := policy.RemainingGbrKbps()

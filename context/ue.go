@@ -155,9 +155,10 @@ type UeSmPolicyData struct {
 	//     RemainingGbrKbps -- do NOT take PolicyMu; their callers hold it. All of them are reached
 	//     from inside a handler's locked region, and a sync.RWMutex is not reentrant, so acquiring
 	//     it there would wedge the session for good.
-	//   - SnapshotPolicyDecision, PolicyDecisionPointer and StorePolicyDecisionIfUntouched do take
-	//     it, so they are for callers that hold nothing. Code already inside a locked region
-	//     clones with CloneSmPolicyDecisionContainers directly instead of asking for a snapshot.
+	//   - SnapshotPolicyDecision, PolicyDecisionPointer, StorePolicyDecisionIfUntouched and
+	//     SeedRemainGbr do take it, so they are for callers that hold nothing. Code already inside
+	//     a locked region clones with CloneSmPolicyDecisionContainers directly instead of asking
+	//     for a snapshot.
 	//   - Where both are needed, PolicyMu is taken before AppSessionsMu and never the other way
 	//     round. The poll loop holds only one of the two at a time, so there is no cycle to close.
 	//
@@ -211,7 +212,6 @@ func (ue *UeContext) NewUeAMPolicyData(assolId string, req models.PolicyAssociat
 	return ue.AMPolicyData[assolId]
 }
 
-// returns UeSmPolicyData and insert related info to Ue with smPolId
 // gbrDebit is one QoS data entry's contribution to the aggregate budget, in the units the
 // bit-rate strings carry, recorded when it is taken.
 type gbrDebit struct {
@@ -219,6 +219,7 @@ type gbrDebit struct {
 	dl string
 }
 
+// returns UeSmPolicyData and insert related info to Ue with smPolId
 func (ue *UeContext) NewUeSmPolicyData(
 	key string, request models.SmPolicyContextData, smData *models.SmPolicyData,
 ) *UeSmPolicyData {
@@ -641,10 +642,11 @@ func (policy *UeSmPolicyData) IncreaseRemainGBR(qosId string) (origUl, origDl *f
 	// rates never went through DecreaseRemainGBR has no entry here and is given back nothing, which
 	// is the whole point: it took nothing.
 	//
-	// Deliberately no longer gated on the policy decision or its QosDecs map. Those guards belonged
-	// to the version that read the rates out of the decision; now that the ledger is the record,
-	// they only mean a debit that was genuinely taken goes uncredited whenever the decision entry
-	// has already gone -- silently, and for the life of the session.
+	// It reads only the ledger, not the policy decision or its QosDecs map: gated on the decision,
+	// a debit that was genuinely taken would go uncredited whenever the decision entry had already
+	// gone. Its caller, RemovePccRule, still skips it once QosDecs is nil, which it sets after
+	// deleting the last entry, so a ledger entry whose QoS data has already left the decision is
+	// not credited.
 	if debit, exist := policy.takeGbrDebit(qosId); exist {
 		origUl = IncreaseRamainBitRate(policy.RemainGbrUL, debit.ul)
 		origDl = IncreaseRamainBitRate(policy.RemainGbrDL, debit.dl)
@@ -887,8 +889,8 @@ func (policy *UeSmPolicyData) debitRequestedGbr(req *models.RequestedQos) (gbrDl
 	if req == nil {
 		return "", "", nil
 	}
-	// A guaranteed rate is budgeted for a GBR flow. The 5QI here is derived from the AF's media
-	// type, so the standardised set settles it.
+	// A guaranteed rate is budgeted for a GBR flow, which the standardised set settles. The 5QI is
+	// the one the SMF supplied in the UE's resource request.
 	if IsStandardisedGbr5QI(req.GetVar5qi()) {
 		err = DecreaseRamainBitRate(policy.RemainGbrDL, req.GetGbrDl())
 		if err != nil {
@@ -899,9 +901,9 @@ func (policy *UeSmPolicyData) debitRequestedGbr(req *models.RequestedQos) (gbrDl
 		if err != nil {
 			// Both directions or neither. The downlink has already been taken at this point, and a
 			// caller that gives up here without putting it back leaves the budget permanently short
-			// by that much -- the create arm in producer/smpolicy.go is exactly such a caller, and
-			// the modify arm only escapes it by restoring from its own snapshot. Undoing it here
-			// makes the operation atomic for every caller rather than for the one that remembered.
+			// by that much -- the create arm in producer/smpolicy.go is exactly such a caller.
+			// Undoing it here makes the operation atomic for every caller rather than for each one
+			// that remembers.
 			IncreaseRamainBitRate(policy.RemainGbrDL, gbrDl)
 			gbrDl = ""
 			return
