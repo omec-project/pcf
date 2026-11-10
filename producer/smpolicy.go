@@ -440,8 +440,9 @@ func getSmPolicyContextProcedure(smPolicyID string) (
 	// That is all the lock protects. The other fields the update triggers write -- serving network,
 	// access and RAT type, 3GPP PS data off status, subscribed QoS and AMBR, user location, serving
 	// NF id, reflective QoS indication, time zone -- are written without it, as they always have
-	// been, so this copy still races those writes. Taking the lock for them here alone would not
-	// change that: they have readers elsewhere that do not take it either.
+	// been, so this copy still races those writes. Taking the read lock here for them would not
+	// change that: their writers in the update procedure take no lock at all, and the
+	// application-function handlers read serving network, access and RAT type without one.
 	ue.SmPolicyDataMu.RLock()
 	policyContext := *smPolicyData.PolicyContext
 	ue.SmPolicyDataMu.RUnlock()
