@@ -112,15 +112,32 @@ type UeSmPolicyData struct {
 	// Related to GBR
 	RemainGbrUL *float64
 	RemainGbrDL *float64
+	// gbrDebits is what was actually taken from the aggregate budget, keyed by QoS data id, so the
+	// credit can be the exact mirror of the debit rather than a reading of whatever rates the
+	// stored QoS data happens to carry.
+	//
+	// The two are not the same thing. The budget is debited only for rates an application function
+	// asks for, but the QoS data of a rule the slice policy supplied carries guaranteed rates too,
+	// and that rule reaches RemovePccRule by the ordinary routes -- a delete operation, or a failed
+	// installation reported by the SMF. Crediting from the stored rates would then give back rates
+	// no one ever took, lifting the budget above the aggregate it started from.
+	//
+	// It is guarded by PolicyMu, with RemainGbrUL and RemainGbrDL. A budget transaction -- credit,
+	// debit and the ledger write that records it -- has to be one critical section, not one per map
+	// access: locked access by access, the sequence in ReplaceGbrDebit is interleavable, and another
+	// handler could claim the same QoS id while no entry existed, so a debit would be recorded for a
+	// rule already released. Every transaction runs inside its caller's PolicyMu region, which gives
+	// it exactly that.
+	gbrDebits map[string]gbrDebit
 	// related to UDR Subscription Data
 	SmPolicyData *models.SmPolicyData // Svbscription Data
 	// related to Policy
 	//
 	// PolicyMu guards PolicyDecision — the pointer and everything reachable through it — together
-	// with PackFiltMapToPccRuleId, the remaining GBR budget and the three identifier generators.
-	// All of it is session policy state written by the application-function handlers on their own
-	// HTTP goroutines and, since the configuration poll loop began bringing established sessions
-	// onto a changed policy, read and replaced by that loop as well.
+	// with PackFiltMapToPccRuleId, the remaining GBR budget and its debit ledger, and the three
+	// identifier generators. All of it is session policy state written by the application-function
+	// handlers on their own HTTP goroutines and, since the configuration poll loop began bringing
+	// established sessions onto a changed policy, read and replaced by that loop as well.
 	//
 	// The contents matter as much as the pointer. The poll loop compares a session's stored
 	// decision against a recomputed one with reflect.DeepEqual, which walks into SessRules,
@@ -133,13 +150,15 @@ type UeSmPolicyData struct {
 	// Two rules keep it deadlock-free, both of which cost nothing to follow and are expensive to
 	// rediscover:
 	//
-	//   - RemovePccRule, ArrangeExistEventSubscription, IncreaseRemainGBR and DecreaseRemainGBR do
-	//     NOT take PolicyMu; their callers hold it. All four are reached from inside a handler's
-	//     locked region, and a sync.RWMutex is not reentrant, so acquiring it there would wedge
-	//     the session for good.
-	//   - SnapshotPolicyDecision, PolicyDecisionPointer and StorePolicyDecisionIfUntouched do take
-	//     it, so they are for callers that hold nothing. Code already inside a locked region
-	//     clones with CloneSmPolicyDecisionContainers directly instead of asking for a snapshot.
+	//   - RemovePccRule, ArrangeExistEventSubscription and the GBR budget's operations --
+	//     IncreaseRemainGBR, DecreaseRemainGBR, ReplaceGbrDebit, DebitForAuthorizedQos and
+	//     RemainingGbrKbps -- do NOT take PolicyMu; their callers hold it. All of them are reached
+	//     from inside a handler's locked region, and a sync.RWMutex is not reentrant, so acquiring
+	//     it there would wedge the session for good.
+	//   - SnapshotPolicyDecision, PolicyDecisionPointer, StorePolicyDecisionIfUntouched and
+	//     SeedRemainGbr do take it, so they are for callers that hold nothing. Code already inside
+	//     a locked region clones with CloneSmPolicyDecisionContainers directly instead of asking
+	//     for a snapshot.
 	//   - Where both are needed, PolicyMu is taken before AppSessionsMu and never the other way
 	//     round. The poll loop holds only one of the two at a time, so there is no cycle to close.
 	//
@@ -193,6 +212,13 @@ func (ue *UeContext) NewUeAMPolicyData(assolId string, req models.PolicyAssociat
 	return ue.AMPolicyData[assolId]
 }
 
+// gbrDebit is one QoS data entry's contribution to the aggregate budget, in the units the
+// bit-rate strings carry, recorded when it is taken.
+type gbrDebit struct {
+	ul string
+	dl string
+}
+
 // returns UeSmPolicyData and insert related info to Ue with smPolId
 func (ue *UeContext) NewUeSmPolicyData(
 	key string, request models.SmPolicyContextData, smData *models.SmPolicyData,
@@ -223,6 +249,7 @@ func (ue *UeContext) NewUeSmPolicyData(
 	data.SmPolicyData = smData
 	data.PackFiltIdGenarator = 1
 	data.PackFiltMapToPccRuleId = make(map[string]string)
+	data.gbrDebits = make(map[string]gbrDebit)
 	data.AppSessions = make(map[string]bool)
 	// data.RefToAmPolicy = amData
 	data.PccRuleIdGenarator = 1
@@ -341,26 +368,6 @@ func (policy *UeSmPolicyData) PccRule(pccRuleID string) (models.PccRule, bool) {
 	}
 
 	return *rule, true
-}
-
-// StoreRemainGbrDL and StoreRemainGbrUL seed the session's aggregate GBR budget at policy create.
-//
-// The budget is guarded state: the application-function path decrements it through these pointers
-// while authorising a flow. Nothing else should have reached it before the session exists, but
-// "nothing should" is not what the field's contract says, and a setter costs less than the
-// argument.
-func (policy *UeSmPolicyData) StoreRemainGbrDL(budget *float64) {
-	policy.PolicyMu.Lock()
-	defer policy.PolicyMu.Unlock()
-
-	policy.RemainGbrDL = budget
-}
-
-func (policy *UeSmPolicyData) StoreRemainGbrUL(budget *float64) {
-	policy.PolicyMu.Lock()
-	defer policy.PolicyMu.Unlock()
-
-	policy.RemainGbrUL = budget
 }
 
 // StorePolicyDecision installs a session's first decision, at policy create.
@@ -631,21 +638,210 @@ func (policy *UeSmPolicyData) ArrangeExistEventSubscription() (changed bool) {
 // The caller holds PolicyMu and this does not take it: a handler's locked region reaches here, and
 // a sync.RWMutex is not reentrant. See the PolicyMu field's comment.
 func (policy *UeSmPolicyData) IncreaseRemainGBR(qosId string) (origUl, origDl *float64) {
-	decision := policy.PolicyDecision
-	if decision == nil {
-		return
-	}
-	if decision.QosDecs == nil {
-		return
-	}
-	if qos, exist := (*decision.QosDecs)[qosId]; exist {
-		if qos.GetVar5qi() <= 4 {
-			// Add GBR
-			origUl = IncreaseRamainBitRate(policy.RemainGbrUL, qos.GetGbrUl())
-			origDl = IncreaseRamainBitRate(policy.RemainGbrDL, qos.GetGbrDl())
-		}
+	// Credited from what was debited, not from the stored QoS data -- see gbrDebits. A rule whose
+	// rates never went through DecreaseRemainGBR has no entry here and is given back nothing, which
+	// is the whole point: it took nothing.
+	//
+	// It reads only the ledger, not the policy decision or its QosDecs map: gated on the decision,
+	// a debit that was genuinely taken would go uncredited whenever the decision entry had already
+	// gone. Its caller, RemovePccRule, still skips it once QosDecs is nil, which it sets after
+	// deleting the last entry, so a ledger entry whose QoS data has already left the decision is
+	// not credited.
+	if debit, exist := policy.takeGbrDebit(qosId); exist {
+		origUl = IncreaseRamainBitRate(policy.RemainGbrUL, debit.ul)
+		origDl = IncreaseRamainBitRate(policy.RemainGbrDL, debit.dl)
 	}
 	return
+}
+
+// takeGbrDebit claims a QoS data id's recorded debit and removes it. The caller holds PolicyMu, so
+// two releases of the same rule cannot both read the entry before either removes it and credit the
+// budget twice for a debit taken once.
+func (policy *UeSmPolicyData) takeGbrDebit(qosId string) (gbrDebit, bool) {
+	debit, exist := policy.gbrDebits[qosId]
+	delete(policy.gbrDebits, qosId)
+	return debit, exist
+}
+
+// ReplaceGbrDebit swaps what one QoS data id holds of the aggregate budget for what a new request
+// asks, and puts back exactly what it took if the new request does not fit.
+//
+// The call site used to do this in the open: credit the old debit, take the new one, and on failure
+// restore the budget from the snapshot the credit returned. That left two things wrong, both of
+// which are invisible until the failure happens. The ledger entry was already deleted by the credit
+// and was never re-recorded, so a later release found nothing to give back and the aggregate shrank
+// for good. And the restore assigned the snapshot *pointers* onto the session, which replaces the
+// budget rather than rewriting it -- and installs nil, read downstream as no limit at all, whenever
+// there was nothing to credit.
+//
+// Doing the whole exchange here removes the caller's opportunity to get either wrong.
+//
+// The caller holds PolicyMu across the whole exchange. A lock taken per map access would let another
+// handler claim this QoS id in the window between the credit and the record, and the debit written
+// afterwards would belong to a rule that had already been released.
+func (policy *UeSmPolicyData) ReplaceGbrDebit(qosId string, req *models.RequestedQos) (gbrDl, gbrUl string, err error) {
+	prior, hadPrior := policy.takeGbrDebit(qosId)
+	origUl := IncreaseRamainBitRate(policy.RemainGbrUL, prior.ul)
+	origDl := IncreaseRamainBitRate(policy.RemainGbrDL, prior.dl)
+
+	gbrDl, gbrUl, err = policy.debitRequestedGbr(req)
+	if err != nil {
+		// Written through the pointers the session already holds, so nothing that captured them
+		// earlier is left looking at a different budget.
+		if origUl != nil && policy.RemainGbrUL != nil {
+			*policy.RemainGbrUL = *origUl
+		}
+		if origDl != nil && policy.RemainGbrDL != nil {
+			*policy.RemainGbrDL = *origDl
+		}
+		if hadPrior {
+			policy.recordGbrDebit(qosId, prior.ul, prior.dl)
+		}
+		return "", "", err
+	}
+
+	policy.recordGbrDebit(qosId, gbrUl, gbrDl)
+	return gbrDl, gbrUl, nil
+}
+
+// mergeGbrDebit updates only the directions it is given, leaving the other as already
+// recorded. A nil argument means "this direction was not part of this operation". The caller holds
+// PolicyMu.
+//
+// Replacing both directions from the QoS data is wrong for a caller that debited only one of them.
+// The rates sitting on a stored QosData are not a record of what was taken: two of the paths that
+// reach here read an existing entry out of the policy decision, where the rates may have come from
+// the slice policy and been debited by nobody, or from an earlier operation that debited only the
+// other direction. Recording them wholesale would credit an aggregate that was never charged --
+// which is the defect the ledger exists to prevent, arriving through the write instead of the read.
+func (policy *UeSmPolicyData) mergeGbrDebit(qosId string, gbrUl, gbrDl *string) {
+	if gbrUl == nil && gbrDl == nil {
+		return
+	}
+	debit := policy.gbrDebits[qosId]
+	if gbrUl != nil {
+		debit.ul = *gbrUl
+	}
+	if gbrDl != nil {
+		debit.dl = *gbrDl
+	}
+	if debit.ul == "" && debit.dl == "" {
+		delete(policy.gbrDebits, qosId)
+		return
+	}
+	if policy.gbrDebits == nil {
+		policy.gbrDebits = make(map[string]gbrDebit)
+	}
+	policy.gbrDebits[qosId] = debit
+}
+
+// DebitForAuthorizedQos takes what an application function's authorized QoS needs from the
+// aggregate budget and records what it took, as one transaction. The caller holds PolicyMu across it.
+//
+// This was producer's modifyRemainBitRate, which changed RemainGbrUL and RemainGbrDL through the
+// package-level helpers and only then merged the ledger in a separate step. Between the two, a
+// concurrent release could claim and credit the rule's entry, and the merge would then record a
+// debit for a rule already removed -- the aggregate short for good.
+//
+// The semantics are modifyRemainBitRate's, unchanged: with no guaranteed rate requested the maximum
+// rate is budgeted instead, falling back to whatever remains when even that does not fit; a
+// guaranteed rate that does not fit is refused, and a refusal in either direction leaves the budget
+// as it was before the call. It returns an error rather than a ProblemDetails because util, which
+// builds those, imports this package.
+func (policy *UeSmPolicyData) DebitForAuthorizedQos(qosData *models.QosData, ulExist, dlExist bool) error {
+	restore := policy.snapshotRemainGbr()
+	if ulExist {
+		if qosData.GetGbrUl() == "" {
+			if err := DecreaseRamainBitRate(policy.RemainGbrUL, qosData.GetMaxbrUl()); err != nil {
+				qosData.SetGbrUl(DecreaseRamainBitRateToZero(policy.RemainGbrUL))
+			} else {
+				qosData.SetGbrUl(qosData.GetMaxbrUl())
+			}
+		} else if err := DecreaseRamainBitRate(policy.RemainGbrUL, qosData.GetGbrUl()); err != nil {
+			restore()
+			return err
+		}
+	}
+	if dlExist {
+		if qosData.GetGbrDl() == "" {
+			if err := DecreaseRamainBitRate(policy.RemainGbrDL, qosData.GetMaxbrDl()); err != nil {
+				qosData.SetGbrDl(DecreaseRamainBitRateToZero(policy.RemainGbrDL))
+			} else {
+				qosData.SetGbrDl(qosData.GetMaxbrDl())
+			}
+		} else if err := DecreaseRamainBitRate(policy.RemainGbrDL, qosData.GetGbrDl()); err != nil {
+			restore()
+			return err
+		}
+	}
+
+	// Only the directions this call debited, and for those the rate on qosData is exactly what was
+	// taken. The other direction is left as recorded -- the rates on a stored QosData are not a
+	// record of what was charged.
+	var ulDebit, dlDebit *string
+	if ulExist {
+		taken := qosData.GetGbrUl()
+		ulDebit = &taken
+	}
+	if dlExist {
+		taken := qosData.GetGbrDl()
+		dlDebit = &taken
+	}
+	policy.mergeGbrDebit(qosData.GetQosId(), ulDebit, dlDebit)
+	return nil
+}
+
+// snapshotRemainGbr returns a function that puts both directions of the aggregate budget back
+// to what they are now, for a debit that fails part-way. Restoring the values is exact, where
+// crediting back the rate taken would go through its string form again: the rest of a budget taken
+// to zero is recorded with ConvertBitRateToString's six decimals, not as the value subtracted. The
+// caller holds PolicyMu across the snapshot and the restore.
+func (policy *UeSmPolicyData) snapshotRemainGbr() (restore func()) {
+	var ul, dl *float64
+	if policy.RemainGbrUL != nil {
+		v := *policy.RemainGbrUL
+		ul = &v
+	}
+	if policy.RemainGbrDL != nil {
+		v := *policy.RemainGbrDL
+		dl = &v
+	}
+	return func() {
+		if ul != nil {
+			*policy.RemainGbrUL = *ul
+		}
+		if dl != nil {
+			*policy.RemainGbrDL = *dl
+		}
+	}
+}
+
+// RemainingGbrKbps renders what is left of each direction of the aggregate budget, for logging.
+//
+// The caller holds PolicyMu, which every writer of the budget holds. And nil is rendered rather than
+// dereferenced: a session with no aggregate GBR has a nil budget, which
+// DecreaseRamainBitRate treats as unlimited -- it accepts the request and returns the rate -- so the
+// log line that followed it used to panic on exactly the requests it had just allowed.
+func (policy *UeSmPolicyData) RemainingGbrKbps() (ul, dl string) {
+	render := func(remain *float64) string {
+		if remain == nil {
+			return "unlimited"
+		}
+		return fmt.Sprintf("%.2f Kbps", *remain)
+	}
+	return render(policy.RemainGbrUL), render(policy.RemainGbrDL)
+}
+
+// recordGbrDebit records what was taken for qosId, so IncreaseRemainGBR can give back exactly
+// that. The caller holds PolicyMu.
+func (policy *UeSmPolicyData) recordGbrDebit(qosId, gbrUl, gbrDl string) {
+	if gbrUl == "" && gbrDl == "" {
+		return
+	}
+	if policy.gbrDebits == nil {
+		policy.gbrDebits = make(map[string]gbrDebit)
+	}
+	policy.gbrDebits[qosId] = gbrDebit{ul: gbrUl, dl: gbrDl}
 }
 
 // Increase remain Bit Rate and returns original Bit Rate
@@ -661,15 +857,41 @@ func IncreaseRamainBitRate(remainBitRate *float64, reqBitRate string) (orig *flo
 	return
 }
 
-// Decrease remain GBR of this policy and returns UL DL GBR
+// DecreaseRemainGBR takes the guaranteed rates req asks for from the aggregate budget, records what
+// it took against qosId so IncreaseRemainGBR can give back exactly that, and returns the rates. The
+// debit and the record are one transaction inside the caller's PolicyMu region: recorded separately,
+// a release of the same id between the two would find nothing to credit, and the record written
+// afterwards would hold a debit for a rule already gone.
 //
 // The caller holds PolicyMu and this does not take it: a handler's locked region reaches here, and
 // a sync.RWMutex is not reentrant. See the PolicyMu field's comment.
-func (policy *UeSmPolicyData) DecreaseRemainGBR(req *models.RequestedQos) (gbrDl, gbrUl string, err error) {
+func (policy *UeSmPolicyData) DecreaseRemainGBR(qosId string, req *models.RequestedQos) (gbrDl, gbrUl string, err error) {
+	gbrDl, gbrUl, err = policy.debitRequestedGbr(req)
+	if err == nil {
+		policy.recordGbrDebit(qosId, gbrUl, gbrDl)
+	}
+	return gbrDl, gbrUl, err
+}
+
+// SeedRemainGbr sets the aggregate budget a session starts with, nil for a direction that has none.
+// Both directions are set under PolicyMu in one step: the session is already published when it is
+// seeded, so a handler can reach it in between, and an unlocked write would race the locked reads
+// and could show it one direction seeded and the other not.
+func (policy *UeSmPolicyData) SeedRemainGbr(ul, dl *float64) {
+	policy.PolicyMu.Lock()
+	defer policy.PolicyMu.Unlock()
+	policy.RemainGbrUL = ul
+	policy.RemainGbrDL = dl
+}
+
+// debitRequestedGbr is DecreaseRemainGBR without the ledger write; the caller records what it took.
+func (policy *UeSmPolicyData) debitRequestedGbr(req *models.RequestedQos) (gbrDl, gbrUl string, err error) {
 	if req == nil {
 		return "", "", nil
 	}
-	if req.Var5qi <= 4 {
+	// A guaranteed rate is budgeted for a GBR flow, which the standardised set settles. The 5QI is
+	// the one the SMF supplied in the UE's resource request.
+	if IsStandardisedGbr5QI(req.GetVar5qi()) {
 		err = DecreaseRamainBitRate(policy.RemainGbrDL, req.GetGbrDl())
 		if err != nil {
 			return
@@ -677,6 +899,13 @@ func (policy *UeSmPolicyData) DecreaseRemainGBR(req *models.RequestedQos) (gbrDl
 		gbrDl = req.GetGbrDl()
 		err = DecreaseRamainBitRate(policy.RemainGbrUL, req.GetGbrUl())
 		if err != nil {
+			// Both directions or neither. The downlink has already been taken at this point, and a
+			// caller that gives up here without putting it back leaves the budget permanently short
+			// by that much -- the create arm in producer/smpolicy.go is exactly such a caller.
+			// Undoing it here makes the operation atomic for every caller rather than for each one
+			// that remembers.
+			IncreaseRamainBitRate(policy.RemainGbrDL, gbrDl)
+			gbrDl = ""
 			return
 		}
 		gbrUl = req.GetGbrUl()

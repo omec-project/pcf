@@ -146,6 +146,12 @@ func makeQosDesc(id int64, pccQos nfConfigApi.PccQos) models.QosData {
 	if MaxbrDl, ok := pccQos.GetMaxBrDlOk(); ok {
 		qos.SetMaxbrDl(*MaxbrDl)
 	}
+	if GbrUl, ok := pccQos.GetGbrUlOk(); ok {
+		qos.SetGbrUl(*GbrUl)
+	}
+	if GbrDl, ok := pccQos.GetGbrDlOk(); ok {
+		qos.SetGbrDl(*GbrDl)
+	}
 	switch pccQos.Arp.GetPreemptCap() {
 	case nfConfigApi.PREEMPTCAP_NOT_PREEMPT:
 		qos.Arp.SetPreemptCap(models.PREEMPTIONCAPABILITY_NOT_PREEMPT)
