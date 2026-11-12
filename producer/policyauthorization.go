@@ -493,8 +493,13 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 					for _, qosID := range pccRule.GetRefQosData() {
 						if smPolicy.PolicyDecision.GetQosDecs() != nil {
 							if qosData, ok := smPolicy.PolicyDecision.GetQosDecs()[qosID]; ok {
-								qosData.SetQnc(true)
-								smPolicy.PolicyDecision.GetQosDecs()[qosID] = qosData
+								// The SMF only learns of notification control from the decision it is sent,
+								// and the trigger below may already be installed.
+								if !qosData.GetQnc() {
+									qosData.SetQnc(true)
+									smPolicy.PolicyDecision.GetQosDecs()[qosID] = qosData
+									updateSMpolicy = true
+								}
 							} else {
 								logger.PolicyAuthorizationLog.Warnf("  QoS Data reference [%s] not found in PolicyDecision", qosID)
 							}
@@ -1193,8 +1198,13 @@ func ModAppSessionContextProcedure(appSessID string,
 						if !ok {
 							continue
 						}
-						qosData.SetQnc(true)
-						qosDecs[qosID] = qosData
+						// The SMF only learns of notification control from the decision it is sent,
+						// and the trigger below may already be installed.
+						if !qosData.GetQnc() {
+							qosData.SetQnc(true)
+							qosDecs[qosID] = qosData
+							updateSMpolicy = true
+						}
 					}
 				}
 				trig = models.POLICYCONTROLREQUESTTRIGGER_QOS_NOTIF
@@ -1327,25 +1337,32 @@ func DeleteEventsSubscContextProcedure(appSessID string) *models.ProblemDetails 
 		problemDetail := util.GetProblemDetail("can't find app session", util.APPLICATION_SESSION_CONTEXT_NOT_FOUND)
 		return problemDetail
 	}
-	appSession.Events = nil
-	appSession.EventUri = ""
-	appSession.AppSessionContext.EvsNotif = nil
-	appSession.AppSessionContext.AscReqData.Get().EvSubsc = nil
-
-	// changed := appSession.SmPolicyData.ArrangeExistEventSubscription()
-
-	logger.PolicyAuthorizationLog.Debugf("app session Id[%s] Del Events Subsc success", appSessID)
-
+	// A background data transfer session has no SM policy and so nothing to subscribe to.
 	smPolicy := appSession.SmPolicyData
+	if smPolicy == nil {
+		return util.GetProblemDetail("cannot find related PDU Session", util.REQUESTED_SERVICE_NOT_AUTHORIZED)
+	}
 
 	// See the PolicyMu contract: held from the first change to this session's policy until just
 	// before the notification, which is a blocking POST to the SMF. The deferred OnceFunc covers
-	// the early returns; the explicit call before the send is not undone by it.
+	// the early returns; the explicit call before the send is not undone by it. Taken before the
+	// subscription is cleared, because the PUT and PATCH handlers read and write the same fields
+	// under it.
 	smPolicy.PolicyMu.Lock()
 	unlockPolicy := sync.OnceFunc(smPolicy.PolicyMu.Unlock)
 	defer unlockPolicy()
+
+	appSession.Events = nil
+	appSession.EventUri = ""
+	appSession.AppSessionContext.EvsNotif = nil
+	if ascReqData := appSession.AppSessionContext.AscReqData.Get(); ascReqData != nil {
+		ascReqData.EvSubsc = nil
+	}
+
+	logger.PolicyAuthorizationLog.Debugf("app session Id[%s] Del Events Subsc success", appSessID)
+
 	// Send Notification to SMF
-	if changed := appSession.SmPolicyData.ArrangeExistEventSubscription(); changed {
+	if changed := smPolicy.ArrangeExistEventSubscription(); changed {
 		smPolicyID := fmt.Sprintf("%s-%d", smPolicy.PcfUe.Supi, smPolicy.PolicyContext.PduSessionId)
 		// A snapshot, not the stored decision: what goes out is marshalled after the lock is
 		// released. Cloned directly because the lock is held here.
@@ -1396,12 +1413,24 @@ func SendAppSessionEventNotification(appSession *pcfContext.AppSessionData, requ
 		logger.PolicyAuthorizationLog.Warnln("send App Session Event Notification Error[appSession is nil]")
 		return
 	}
-	uri := appSession.EventUri
+	sendAppSessionEventNotificationTo(appSession.AppSessionId, appSession.EventUri, request)
+}
+
+// sendAppSessionEventNotificationTo sends the notification to a callback URI the caller has
+// already read, for callers that took it under PolicyMu and must not hold the lock for the send.
+func sendAppSessionEventNotificationTo(appSessID, uri string, request models.EventsNotification) {
 	if uri != "" {
-		request.EvSubsUri = fmt.Sprintf("%s/events-subscription",
-			util.GetResourceUri(models.SERVICENAME_NPCF_POLICYAUTHORIZATION, appSession.AppSessionId))
+		request.EvSubsUri = eventsSubscriptionUri(appSessID)
 		postAppSessionCallbackJSON(uri, request, "App Session Event Notification")
 	}
+}
+
+// eventsSubscriptionUri is the URI of an application session's Events Subscription resource: the
+// identifier the AF knows the subscription by, which is what the "evSubsUri" attribute of every
+// notification carries (TS 29.514 clause 5.6.2.9, table 5.6.2.9-1). It is not the AF's own callback URI.
+func eventsSubscriptionUri(appSessID string) string {
+	return fmt.Sprintf("%s/events-subscription",
+		util.GetResourceUri(models.SERVICENAME_NPCF_POLICYAUTHORIZATION, appSessID))
 }
 
 func UpdateEventsSubscContextProcedure(appSessID string, eventsSubscReqData models.EventsSubscReqData) (
@@ -1417,7 +1446,12 @@ func UpdateEventsSubscContextProcedure(appSessID string, eventsSubscReqData mode
 		problemDetail := util.GetProblemDetail("can't find app session", util.APPLICATION_SESSION_CONTEXT_NOT_FOUND)
 		return nil, "", int(problemDetail.GetStatus()), problemDetail
 	}
+	// A background data transfer session has no SM policy and so nothing to subscribe to.
 	smPolicy := appSession.SmPolicyData
+	if smPolicy == nil {
+		problemDetail := util.GetProblemDetail("cannot find related PDU Session", util.REQUESTED_SERVICE_NOT_AUTHORIZED)
+		return nil, "", int(problemDetail.GetStatus()), problemDetail
+	}
 
 	// See the PolicyMu contract: held from the first change to this session's policy until just
 	// before the notification, which is a blocking POST to the SMF. The deferred OnceFunc covers
@@ -1453,11 +1487,16 @@ func UpdateEventsSubscContextProcedure(appSessID string, eventsSubscReqData mode
 				qosDecs := smPolicy.PolicyDecision.GetQosDecs()
 				for _, qosID := range pccRule.GetRefQosData() {
 					qosData, ok := qosDecs[qosID]
-					if !ok {
+					if !ok || qosData == nil {
 						continue
 					}
-					qosData.SetQnc(true)
-					qosDecs[qosID] = qosData
+					// The SMF only learns of notification control from the decision it is sent,
+					// and the trigger below may already be installed.
+					if !qosData.GetQnc() {
+						qosData.SetQnc(true)
+						qosDecs[qosID] = qosData
+						updataSmPolicy = true
+					}
 				}
 			}
 			trig = models.POLICYCONTROLREQUESTTRIGGER_QOS_NOTIF
@@ -1500,7 +1539,7 @@ func UpdateEventsSubscContextProcedure(appSessID string, eventsSubscReqData mode
 		EventsSubscReqData: &eventsSubscReqData,
 	}
 	appSessCtx.EvsNotif = models.NewEventsNotificationWithDefaults()
-	appSessCtx.EvsNotif.SetEvSubsUri(eventsSubscReqData.GetNotifUri())
+	appSessCtx.EvsNotif.SetEvSubsUri(eventsSubscriptionUri(appSessID))
 	// Set Event Subsciption related Data
 	if len(eventSubs) > 0 {
 		if _, exist := eventSubs[models.AFEVENTPCF_PLMN_CHG]; exist {
@@ -1546,8 +1585,7 @@ func UpdateEventsSubscContextProcedure(appSessID string, eventsSubscReqData mode
 		logger.PolicyAuthorizationLog.Debugf("send SM Policy[%s] Update Notification", smPolicyID)
 	}
 	if created {
-		locationHeader := fmt.Sprintf("%s/events-subscription",
-			util.GetResourceUri(models.SERVICENAME_NPCF_POLICYAUTHORIZATION, appSessID))
+		locationHeader := eventsSubscriptionUri(appSessID)
 		logger.PolicyAuthorizationLog.Debugf("app session Id[%s] Create Subscription", appSessID)
 		return &resp, locationHeader, http.StatusCreated, nil
 	}

@@ -86,6 +86,9 @@ func HTTPUpdateEventsSubsc(c *gin.Context) {
 
 	rsp := producer.HandleUpdateEventsSubscContext(req)
 
+	for key, val := range rsp.Header {
+		c.Header(key, val[0])
+	}
 	responseBody, err := openapi.SetBody(rsp.Body, "application/json")
 	if err != nil {
 		logger.PolicyAuthorizationLog.Errorln(err)

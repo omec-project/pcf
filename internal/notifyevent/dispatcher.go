@@ -75,6 +75,13 @@ func RegisterNotifyDispatcher() error {
 	return nil
 }
 
+// UnregisterNotifyDispatcher undoes RegisterNotifyDispatcher, so that a test which registered the
+// process-wide dispatcher to observe a notification does not leave it in place for tests that
+// expect notifications to be dropped. Nothing in the service calls it.
+func UnregisterNotifyDispatcher() {
+	notifyDispatcher = nil
+}
+
 func DispatchSendSMPolicyUpdateNotifyEvent(uri string, request *models.SmPolicyNotification) {
 	if uri == "" {
 		logger.NotifyEventLog.Errorf("DispatchSendSMPolicyUpdateNotifyEvent: empty uri")
