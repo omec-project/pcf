@@ -183,3 +183,26 @@ func TestEventsSubscImmediateNotificationNamesTheSubscriptionResource(t *testing
 		t.Errorf("evSubsUri = %q, want %q", got, want)
 	}
 }
+
+// The same holds for an event-only PATCH: the baseline QOS_NOTIF trigger is already installed, so
+// the changed Qnc is the only thing that tells the SMF.
+func TestModAppSessionQosNotifSendsTheNewQncToTheSmf(t *testing.T) {
+	const id = "app-qnc-patch-1"
+	smPolicy := establishedSession(t, nil, models.NewSmPolicyDecision())
+	received := smfCounter(t, smPolicy)
+	appSessionOn(t, smPolicy, id)
+
+	update := models.NewAppSessionContextUpdateData()
+	update.EvSubsc = *models.NewNullableEventsSubscReqDataRm(
+		models.NewEventsSubscReqDataRm([]models.AfEventSubscription{*models.NewAfEventSubscription(models.AFEVENTPCF_QOS_NOTIF)}))
+	if problem, _ := ModAppSessionContextProcedure(id, *update); problem != nil {
+		t.Fatalf("unexpected problem details: %+v", problem)
+	}
+
+	if !(*smPolicy.PolicyDecision.QosDecs)[testQosID].GetQnc() {
+		t.Error("Qnc was not enabled on the related QoS data")
+	}
+	if got := received.Load(); got != 1 {
+		t.Errorf("SMF received %d notifications, want 1", got)
+	}
+}

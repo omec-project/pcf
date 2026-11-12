@@ -493,8 +493,13 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 					for _, qosID := range pccRule.GetRefQosData() {
 						if smPolicy.PolicyDecision.GetQosDecs() != nil {
 							if qosData, ok := smPolicy.PolicyDecision.GetQosDecs()[qosID]; ok {
-								qosData.SetQnc(true)
-								smPolicy.PolicyDecision.GetQosDecs()[qosID] = qosData
+								// The SMF only learns of notification control from the decision it is sent,
+								// and the trigger below may already be installed.
+								if !qosData.GetQnc() {
+									qosData.SetQnc(true)
+									smPolicy.PolicyDecision.GetQosDecs()[qosID] = qosData
+									updateSMpolicy = true
+								}
 							} else {
 								logger.PolicyAuthorizationLog.Warnf("  QoS Data reference [%s] not found in PolicyDecision", qosID)
 							}
@@ -1193,8 +1198,13 @@ func ModAppSessionContextProcedure(appSessID string,
 						if !ok {
 							continue
 						}
-						qosData.SetQnc(true)
-						qosDecs[qosID] = qosData
+						// The SMF only learns of notification control from the decision it is sent,
+						// and the trigger below may already be installed.
+						if !qosData.GetQnc() {
+							qosData.SetQnc(true)
+							qosDecs[qosID] = qosData
+							updateSMpolicy = true
+						}
 					}
 				}
 				trig = models.POLICYCONTROLREQUESTTRIGGER_QOS_NOTIF
