@@ -97,12 +97,12 @@ func GetProblemDetail(errString, cause string) *models.ProblemDetails {
 
 // GetSMPolicyDnnData returns SMPolicyDnnData derived from SmPolicy data which snssai and dnn match
 func GetSMPolicyDnnData(data models.SmPolicyData, snssai models.Snssai, dnn string) (result *models.SmPolicyDnnData) {
-	if snssai.GetSst() < 0 || snssai.GetSst() > 255 || dnn == "" || data.SmPolicySnssaiData == nil {
+	if snssai.GetSst() < 0 || snssai.GetSst() > 255 || dnn == "" || len(data.GetSmPolicySnssaiData()) == 0 {
 		return
 	}
-	snssaiString := SnssaiModelsToHex(snssai)
-	if snssaiData, exist := data.SmPolicySnssaiData[snssaiString]; exist {
-		if snssaiData.SmPolicyDnnData == nil {
+	snssaiString := fmt.Sprintf("%02x", snssai.GetSst()) + snssai.GetSd()
+	if snssaiData, exist := data.GetSmPolicySnssaiData()[snssaiString]; exist {
+		if !snssaiData.HasSmPolicyDnnData() {
 			return
 		}
 		if dnnInfo, exist := snssaiData.GetSmPolicyDnnData()[dnn]; exist {
