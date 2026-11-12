@@ -1304,7 +1304,7 @@ func ModAppSessionContextProcedure(appSessID string,
 
 // HandleDeleteEventsSubsc - deletes the Events Subscription subresource
 func HandleDeleteEventsSubscContext(request *httpwrapper.Request) *httpwrapper.Response {
-	appSessID := request.Params["appSessID"]
+	appSessID := request.Params["appSessionId"]
 	logger.PolicyAuthorizationLog.Debugf("handle Del AppSessions Events Subsc, AppSessionId[%s]", appSessID)
 
 	problemDetails := DeleteEventsSubscContextProcedure(appSessID)
@@ -1365,7 +1365,7 @@ func DeleteEventsSubscContextProcedure(appSessID string) *models.ProblemDetails 
 // HandleUpdateEventsSubsc - creates or modifies an Events Subscription subresource
 func HandleUpdateEventsSubscContext(request *httpwrapper.Request) *httpwrapper.Response {
 	EventsSubscReqData := request.Body.(models.EventsSubscReqData)
-	appSessID := request.Params["appSessID"]
+	appSessID := request.Params["appSessionId"]
 	logger.PolicyAuthorizationLog.Debugf("handle Put AppSessions Events Subsc, AppSessionId[%s]", appSessID)
 
 	response, locationHeader, status, problemDetails := UpdateEventsSubscContextProcedure(appSessID, EventsSubscReqData)

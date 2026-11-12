@@ -398,7 +398,7 @@ func deleteSmPolicyContextProcedure(smPolicyID string) *models.ProblemDetails {
 // SmPoliciessmPolicyIDGet -
 func HandleGetSmPolicyContextRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.SMpolicyLog.Infoln("handle GetSmPolicyContext")
-	smPolicyID := request.Params["smPolicyID"]
+	smPolicyID := request.Params["smPolicyId"]
 	response, problemDetails := getSmPolicyContextProcedure(smPolicyID)
 	if response != nil {
 		stats.IncrementPcfSmPolicyStats("get", response.Context.Dnn, "SUCCESS")

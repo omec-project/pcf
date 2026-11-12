@@ -248,7 +248,7 @@ func TestDeleteAppSessionContextReleasesThePolicyLock(t *testing.T) {
 	})
 	// The shared fixture leaves PcfUe unset, and this procedure builds its notification's resource
 	// URI from it.
-	smPolicy.PcfUe = &pcfContext.UeContext{Supi: "imsi-208930100007487"}
+	smPolicy.PcfUe = &pcfContext.UeContext{Supi: testEstablishedSupi}
 
 	for round, appSessID := range []string{"app-lock-1", "app-lock-2"} {
 		pcfContext.PCF_Self().AppSessionPool.Store(appSessID, &pcfContext.AppSessionData{
