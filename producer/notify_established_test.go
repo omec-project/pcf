@@ -23,9 +23,10 @@ import (
 // Literals repeated across the tables below; goconst asks for names, and the package already
 // names the rule and QoS identifiers in smpolicy_test.go.
 const (
-	testSessionAmbr   = "50 Mbps"
-	testAppSessionID  = "app-session-1"
-	testNotifySession = "session"
+	testSessionAmbr     = "50 Mbps"
+	testAppSessionID    = "app-session-1"
+	testNotifySession   = "session"
+	testEstablishedSupi = "imsi-208930100007487"
 )
 
 func decisionWithArp(levels ...int32) *models.SmPolicyDecision {
@@ -116,7 +117,7 @@ func establishedSession(t *testing.T, sessionAmbr *models.Ambr, given *models.Sm
 	}
 	t.Cleanup(func() { polling.GetImsiSessionRules = originalRules })
 
-	supi := "imsi-208930100007487"
+	supi := testEstablishedSupi
 	smPolicyID := supi + "-10"
 
 	ue := &pcfContext.UeContext{Supi: supi, SmPolicyData: map[string]*pcfContext.UeSmPolicyData{}}
@@ -424,7 +425,7 @@ func TestRecomputeToleratesSessionsBeingCreatedAndReleased(t *testing.T) {
 	}
 
 	establishedSession(t, nil, models.NewSmPolicyDecision())
-	ue, _ := pcfContext.PCF_Self().UePool.Load("imsi-208930100007487")
+	ue, _ := pcfContext.PCF_Self().UePool.Load(testEstablishedSupi)
 	ueCtx := ue.(*pcfContext.UeContext)
 
 	stop := make(chan struct{})
