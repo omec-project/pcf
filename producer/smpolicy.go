@@ -10,8 +10,10 @@ package producer
 import (
 	"context"
 	"fmt"
+	"maps"
 	"math"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -201,7 +203,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	decision.SetSuppFeat(result.String())
 	decision.QosFlowUsage = request.QosFlowUsage
 	// TODO: Trigger about UMC, ADC, NetLoc,...
-	decision.PolicyCtrlReqTriggers = util.PolicyControlReqTrigToArray(0x40780f)
+	decision.PolicyCtrlReqTriggers = slices.Clone(pcfContext.BaselinePolicyCtrlReqTriggers)
 
 	smPolicyData.StorePolicyDecision(decision)
 	// TODO: PCC rule, PraInfo ...
@@ -895,12 +897,21 @@ func sendSmPolicyRelatedAppSessionNotification(smPolicy *pcfContext.UeSmPolicyDa
 	for _, appSessionId := range smPolicy.AppSessionIds() {
 		if val, exist := pcfContext.PCF_Self().AppSessionPool.Load(appSessionId); exist {
 			appSession := val.(*pcfContext.AppSessionData)
-			if len(appSession.Events) == 0 {
+			// Copied under the lock the subscription PUT, PATCH and DELETE write these fields
+			// under, and released before anything is sent: a notification built from half of one
+			// subscription and half of the next would go to the wrong callback or carry the wrong
+			// events. Taken here, not by the caller, because that caller has released PolicyMu
+			// before this runs and must have: the sends below are blocking POSTs.
+			smPolicy.PolicyMu.RLock()
+			events := maps.Clone(appSession.Events)
+			eventURI := appSession.EventUri
+			smPolicy.PolicyMu.RUnlock()
+			if len(events) == 0 {
 				continue
 			}
 			sessionNotif := models.EventsNotification{}
 			for _, notif := range notification.EvNotifs {
-				if _, found := appSession.Events[notif.Event]; found {
+				if _, found := events[notif.Event]; found {
 					switch notif.Event {
 					case models.AFEVENTPCF_ACCESS_TYPE_CHANGE:
 						sessionNotif.AccessType = notification.AccessType
@@ -1060,7 +1071,7 @@ func sendSmPolicyRelatedAppSessionNotification(smPolicy *pcfContext.UeSmPolicyDa
 				}
 			}
 			if sessionNotif.EvNotifs != nil {
-				SendAppSessionEventNotification(appSession, sessionNotif)
+				sendAppSessionEventNotificationTo(appSession.AppSessionId, eventURI, sessionNotif)
 			}
 		}
 	}

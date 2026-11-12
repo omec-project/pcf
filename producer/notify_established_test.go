@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -17,7 +18,6 @@ import (
 	"github.com/omec-project/pcf/factory"
 	"github.com/omec-project/pcf/internal/notifyevent"
 	"github.com/omec-project/pcf/polling"
-	"github.com/omec-project/pcf/util"
 )
 
 // Literals repeated across the tables below; goconst asks for names, and the package already
@@ -141,7 +141,7 @@ func establishedSession(t *testing.T, sessionAmbr *models.Ambr, given *models.Sm
 	// Online came from the subscriber's UDR record. A fixture holding an empty decision cannot see
 	// them being dropped, which is exactly how it was missed.
 	given.SetSuppFeat("0f")
-	given.SetPolicyCtrlReqTriggers(util.PolicyControlReqTrigToArray(0x40780f))
+	given.SetPolicyCtrlReqTriggers(slices.Clone(pcfContext.BaselinePolicyCtrlReqTriggers))
 	given.SetOnline(true)
 
 	// AppSessions is made by NewUeSmPolicyData in production; a fixture that leaves it nil cannot

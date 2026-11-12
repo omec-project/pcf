@@ -167,6 +167,11 @@ type UeSmPolicyData struct {
 	// serving network, access and RAT type inside their locked regions. The configuration poll
 	// loop still reads the context's subscribed QoS and AMBR without it.
 	//
+	// An application session's event subscription -- its Events and EventUri -- is read and
+	// written under this lock too, by the subscription PUT and DELETE, the PATCH and the SM policy
+	// update that fans an SMF report out to the subscribers. The fan-out copies what it reads and
+	// releases the lock before it sends.
+	//
 	// A lock held across the notification send would be worse than none of this: the dispatcher
 	// calls its handler synchronously, so the AF path's SM policy update is a blocking HTTP POST to
 	// the SMF. Every locked region below ends before its dispatch.
@@ -601,7 +606,26 @@ func (policy *UeSmPolicyData) CheckRelatedAfEvent(event models.AfEventPcf) (foun
 	return false
 }
 
+// BaselinePolicyCtrlReqTriggers are the policy control request triggers every SM policy is
+// created with (TS 29.512 clause 5.6.3.6), whether or not any application function subscribes to
+// an event. Some of them -- PLMN_CH, AC_TY_CH and QOS_NOTIF -- share a trigger with an AF event,
+// but the SMF reports them because the PCF asked for them at establishment, not because an AF
+// did, so withdrawing an AF subscription must not withdraw them.
+var BaselinePolicyCtrlReqTriggers = []models.PolicyControlRequestTrigger{
+	models.POLICYCONTROLREQUESTTRIGGER_PLMN_CH,
+	models.POLICYCONTROLREQUESTTRIGGER_RES_MO_RE,
+	models.POLICYCONTROLREQUESTTRIGGER_AC_TY_CH,
+	models.POLICYCONTROLREQUESTTRIGGER_UE_IP_CH,
+	models.POLICYCONTROLREQUESTTRIGGER_PS_DA_OFF,
+	models.POLICYCONTROLREQUESTTRIGGER_DEF_QOS_CH,
+	models.POLICYCONTROLREQUESTTRIGGER_SE_AMBR_CH,
+	models.POLICYCONTROLREQUESTTRIGGER_QOS_NOTIF,
+	models.POLICYCONTROLREQUESTTRIGGER_RAT_TY_CH,
+}
+
 // Arrange Exist Event policy Sm policy about afevents and return if it changes or not and
+// drops the triggers that only an AF subscription asked for and no AF subscription needs any more.
+// The baseline triggers are never dropped.
 //
 // The caller holds PolicyMu and this does not take it: a handler's locked region reaches here, and
 // a sync.RWMutex is not reentrant. See the PolicyMu field's comment.
@@ -623,7 +647,8 @@ func (policy *UeSmPolicyData) ArrangeExistEventSubscription() (changed bool) {
 		case models.POLICYCONTROLREQUESTTRIGGER_US_RE: // UMC
 			afEvent = models.AFEVENTPCF_USAGE_REPORT
 		}
-		if afEvent != "" && !policy.CheckRelatedAfEvent(afEvent) {
+		if afEvent != "" && !slices.Contains(BaselinePolicyCtrlReqTriggers, trigger) &&
+			!policy.CheckRelatedAfEvent(afEvent) {
 			changed = true
 		} else {
 			triggers = append(triggers, trigger)
