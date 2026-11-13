@@ -3,7 +3,7 @@ module github.com/omec-project/pcf
 go 1.27.0
 
 require (
-	github.com/gin-contrib/cors v1.7.10
+	github.com/gin-contrib/cors v1.7.11
 	github.com/gin-gonic/gin v1.12.0
 	github.com/google/uuid v1.6.0
 	github.com/omec-project/openapi/v2 v2.4.1
