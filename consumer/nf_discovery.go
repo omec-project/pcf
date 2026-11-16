@@ -1,8 +1,8 @@
+// Copyright (C) 2026 Intel Corporation
+// SPDX-FileCopyrightText: 2024 Canonical Ltd.
 // SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
 // Copyright 2019 free5GC.org
-// SPDX-FileCopyrightText: 2024 Canonical Ltd.
 // SPDX-License-Identifier: Apache-2.0
-//
 
 package consumer
 
@@ -14,6 +14,7 @@ import (
 	"github.com/omec-project/openapi/v2/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/v2/models"
 	nrfCache "github.com/omec-project/openapi/v2/nrfcache"
+	"github.com/omec-project/openapi/v2/nrfclient"
 	pcfContext "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/pcf/util"
@@ -59,13 +60,7 @@ var SendSearchNFInstances = func(nrfUri string, targetNfType, requestNfType mode
 
 var SendNfDiscoveryToNrf = func(ctx context.Context, nrfUri string, targetNfType, requestNfType models.NFType, param Nnrf_NFDiscovery.ApiSearchNFInstancesRequest,
 ) (*models.SearchResult, error) {
-	configuration := Nnrf_NFDiscovery.NewConfiguration()
-	serverConfig := &configuration.Servers[0]
-	if apiRootVar, exists := serverConfig.Variables["apiRoot"]; exists {
-		apiRootVar.DefaultValue = nrfUri
-		serverConfig.Variables["apiRoot"] = apiRootVar
-	}
-	client := Nnrf_NFDiscovery.NewAPIClient(configuration)
+	client := nrfclient.NewNFDiscoveryClient(nrfUri)
 
 	if param.ApiService == nil {
 		param = client.NFInstancesStoreAPI.SearchNFInstances(ctx)

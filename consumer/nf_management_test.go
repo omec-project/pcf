@@ -4,6 +4,7 @@
 package consumer
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -41,7 +42,7 @@ func TestSendDeregisterNFInstance_AcceptsNoContentOnly(t *testing.T) {
 			pcfContext.PCF_Self().NrfUri = server.URL
 			pcfContext.PCF_Self().NfId = "test-nf-id"
 
-			err := SendDeregisterNFInstance()
+			err := SendDeregisterNFInstance(context.Background())
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("SendDeregisterNFInstance() error = %v, wantErr %v", err, tt.wantErr)
 			}

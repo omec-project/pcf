@@ -1,22 +1,15 @@
+// Copyright (C) 2026 Intel Corporation
 // SPDX-FileCopyrightText: 2025 Canonical Ltd.
-//
 // SPDX-License-Identifier: Apache-2.0
-//
-/*
- * NF Polling Unit Tests
- *
- */
 
 package polling
 
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -41,147 +34,127 @@ func newArp() *models.Arp {
 	return arp
 }
 
-func marshalJSONForCompare(t *testing.T, value any) string {
+// The polling loop, fetching, backoff and dedupe are tested in openapi/nfconfigpoll. The tests below
+// check the PCF wiring (endpoint, config type, delivery) and the PCF specific handling of a polled
+// policy control config.
+
+func startPoller(t *testing.T, handler http.HandlerFunc) <-chan consumer.NfProfileDynamicConfig {
 	t.Helper()
-	data, err := json.Marshal(value)
+	srv := httptest.NewServer(handler)
+	t.Cleanup(srv.Close)
+	ch := make(chan consumer.NfProfileDynamicConfig, 4)
+	poller, err := newPoller(srv.URL, ch, 5*time.Millisecond)
 	if err != nil {
-		t.Fatalf("marshal comparison value: %v", err)
+		t.Fatal(err)
 	}
-	return string(data)
-}
-
-func startTestPollingService(ctx context.Context, webuiURI string, nfProfileConfigChan chan<- consumer.NfProfileDynamicConfig) (context.CancelFunc, <-chan struct{}) {
-	testCtx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		StartPollingService(testCtx, webuiURI, nfProfileConfigChan)
-	}()
-	return cancel, done
+	go func() { defer close(done); poller.Run(ctx) }()
+	t.Cleanup(func() {
+		cancel()
+		<-done
+	})
+	return ch
 }
 
-func waitForPollingServiceStop(t *testing.T, cancel context.CancelFunc, done <-chan struct{}) {
-	t.Helper()
-	cancel()
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for polling service to stop")
-	}
-}
-
-func waitForPollingCondition(t *testing.T, timeout time.Duration, condition func() bool, failureMessage string) {
-	t.Helper()
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if condition() {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	if !condition() {
-		t.Fatal(failureMessage)
-	}
-}
-
-func TestStartPollingService_Success(t *testing.T) {
-	originalFetchPolicyControlConfig := fetchPolicyControlConfig
-	originalPollingIntervalAfter := pollingIntervalAfter
+func TestPolling_DeliversNfProfileConfig(t *testing.T) {
 	originalPccPolicies := pccPolicies
-	pollingChan := make(chan consumer.NfProfileDynamicConfig, 1)
-	var cancel context.CancelFunc
-	var done <-chan struct{}
-	defer func() {
-		waitForPollingServiceStop(t, cancel, done)
-		fetchPolicyControlConfig = originalFetchPolicyControlConfig
-		pollingIntervalAfter = originalPollingIntervalAfter
-		pccPolicies = originalPccPolicies
-	}()
-
-	tick := make(chan time.Time, 1)
-	pollingIntervalAfter = func(time.Duration) <-chan time.Time {
-		return tick
-	}
 	pccPolicies = make(map[SnssaiKey]*PccPolicy)
-	fetchedConfig := []nfConfigApi.PolicyControl{
+	t.Cleanup(func() { pccPolicies = originalPccPolicies })
+	body, err := json.Marshal([]nfConfigApi.PolicyControl{
 		{
 			PlmnId:   nfConfigApi.PlmnId{Mcc: "001", Mnc: "01"},
 			Snssai:   nfConfigApi.Snssai{Sst: 1},
-			PccRules: []nfConfigApi.PccRule{{RuleId: "something"}},
+			Dnns:     []string{testDnn1},
+			PccRules: []nfConfigApi.PccRule{},
 		},
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
-	fetchPolicyControlConfig = func(p *nfConfigPoller, endpoint string) ([]nfConfigApi.PolicyControl, error) {
-		return fetchedConfig, nil
-	}
+
+	ch := startPoller(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != pollingPath {
+			t.Errorf("polled %s, want %s", r.URL.Path, pollingPath)
+		}
+		w.Header().Set("Content-Type", applicationJson)
+		if _, err := w.Write(body); err != nil {
+			t.Errorf("write response: %v", err)
+		}
+	})
 
 	expectedNfProfile := consumer.NfProfileDynamicConfig{
 		Plmns: map[models.PlmnId]struct{}{{Mcc: "001", Mnc: "01"}: {}},
-		Dnns:  map[string]struct{}{},
+		Dnns:  map[string]struct{}{testDnn1: {}},
 	}
-	cancel, done = startTestPollingService(t.Context(), "http://dummy", pollingChan)
-	tick <- time.Now()
-
 	select {
-	case result := <-pollingChan:
+	case result := <-ch:
 		if !reflect.DeepEqual(result, expectedNfProfile) {
 			t.Errorf("Expected %+v, got %+v", expectedNfProfile, result)
 		}
-	case <-time.After(100 * time.Millisecond):
-		t.Errorf("Timeout waiting for PLMN config")
+	case <-time.After(2 * time.Second):
+		t.Fatal("no NF profile config delivered")
 	}
-
-	waitForPollingServiceStop(t, cancel, done)
-	cancel = func() {}
-
-	configLock.RLock()
-	hasPolicies := len(pccPolicies) != 0
-	configLock.RUnlock()
-	if !hasPolicies {
-		t.Errorf("expected pccPolicies to be updated")
+	select {
+	case got := <-ch:
+		t.Errorf("unchanged config delivered again: %+v", got)
+	case <-time.After(50 * time.Millisecond):
 	}
 }
 
-func TestStartPollingService_RetryAfterFailure(t *testing.T) {
-	originalFetchPolicyControlConfig := fetchPolicyControlConfig
-	originalPollingIntervalAfter := pollingIntervalAfter
+func TestPolling_EmptyInitialConfigIsNotDelivered(t *testing.T) {
+	var polls atomic.Int32
+	ch := startPoller(t, func(w http.ResponseWriter, r *http.Request) {
+		polls.Add(1)
+		w.Header().Set("Content-Type", applicationJson)
+		if _, err := w.Write([]byte(`[]`)); err != nil {
+			t.Errorf("write response: %v", err)
+		}
+	})
+
+	deadline := time.Now().Add(2 * time.Second)
+	for polls.Load() < 3 && time.Now().Before(deadline) {
+		time.Sleep(2 * time.Millisecond)
+	}
+	if polls.Load() < 3 {
+		t.Fatal("poller did not poll")
+	}
+	select {
+	case got := <-ch:
+		t.Errorf("empty config delivered before any policy control was configured: %+v", got)
+	default:
+	}
+}
+
+func TestHandlePolledPolicyControl_DeliveryFailureIsRetriedAndNothingIsRecorded(t *testing.T) {
 	originalPccPolicies := pccPolicies
-	pollingChan := make(chan consumer.NfProfileDynamicConfig, 1)
-	var cancel context.CancelFunc
-	var done <-chan struct{}
+	pccPolicies = make(map[SnssaiKey]*PccPolicy)
+	t.Cleanup(func() { pccPolicies = originalPccPolicies })
 
-	defer func() {
-		waitForPollingServiceStop(t, cancel, done)
-		fetchPolicyControlConfig = originalFetchPolicyControlConfig
-		pollingIntervalAfter = originalPollingIntervalAfter
-		pccPolicies = originalPccPolicies
-	}()
-	tick := make(chan time.Time, 2)
-	pollingIntervalAfter = func(time.Duration) <-chan time.Time {
-		return tick
+	input := []nfConfigApi.PolicyControl{
+		{
+			PlmnId:   nfConfigApi.PlmnId{Mcc: "001", Mnc: "01"},
+			Snssai:   nfConfigApi.Snssai{Sst: 1},
+			PccRules: []nfConfigApi.PccRule{{RuleId: testRuleId1}},
+		},
 	}
-
-	var callCount atomic.Int32
-	fetchPolicyControlConfig = func(p *nfConfigPoller, endpoint string) ([]nfConfigApi.PolicyControl, error) {
-		callCount.Add(1)
-		return nil, errors.New("mock failure")
+	// unbuffered channel without a reader and an already cancelled context: delivery fails
+	poller := nfConfigPoller{
+		currentPolicyControl: []nfConfigApi.PolicyControl{},
+		nfProfileConfigChan:  make(chan consumer.NfProfileDynamicConfig),
 	}
-	cancel, done = startTestPollingService(context.Background(), "http://dummy", pollingChan)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
 
-	tick <- time.Now()
-	waitForPollingCondition(t, time.Second, func() bool {
-		return callCount.Load() >= 1
-	}, "polling service did not process first retry tick")
-	tick <- time.Now()
-	waitForPollingCondition(t, time.Second, func() bool {
-		return callCount.Load() >= 2
-	}, "polling service did not process second retry tick")
-	waitForPollingServiceStop(t, cancel, done)
-	cancel = func() {}
-
-	if callCount.Load() < 2 {
-		t.Error("Expected to retry after failure")
+	if err := poller.handlePolledPolicyControl(ctx, input); err == nil {
+		t.Fatal("expected an error when the NF profile config cannot be delivered")
 	}
-	t.Logf("Tried %v times", callCount.Load())
+	if len(poller.currentNfProfileConfig.Plmns) != 0 || len(poller.currentPolicyControl) != 0 {
+		t.Errorf("state recorded despite failed delivery: %+v, %+v", poller.currentNfProfileConfig, poller.currentPolicyControl)
+	}
+	if len(pccPolicies) != 0 {
+		t.Errorf("pcc policies updated despite failed delivery: %+v", pccPolicies)
+	}
 }
 
 func TestHandlePolledPolicyControl_ExpectChannelNotToBeUpdated(t *testing.T) {
@@ -217,12 +190,6 @@ func TestHandlePolledPolicyControl_ExpectChannelNotToBeUpdated(t *testing.T) {
 			input:                  pc1,
 		},
 		{
-			name:                   "Initial config is empty, new config empty",
-			initialPolicyControl:   []nfConfigApi.PolicyControl{},
-			initialNfProfileConfig: consumer.NfProfileDynamicConfig{},
-			input:                  []nfConfigApi.PolicyControl{},
-		},
-		{
 			name:                   "New config has different snssai",
 			initialPolicyControl:   pc1,
 			initialNfProfileConfig: nfProf,
@@ -232,11 +199,9 @@ func TestHandlePolledPolicyControl_ExpectChannelNotToBeUpdated(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			originalFetchPolicyControlConfig := fetchPolicyControlConfig
 			originalPccPolicies := pccPolicies
 			pccPolicies = make(map[SnssaiKey]*PccPolicy)
 			defer func() {
-				fetchPolicyControlConfig = originalFetchPolicyControlConfig
 				pccPolicies = originalPccPolicies
 			}()
 
@@ -247,7 +212,9 @@ func TestHandlePolledPolicyControl_ExpectChannelNotToBeUpdated(t *testing.T) {
 				nfProfileConfigChan:    pollingChan,
 			}
 
-			poller.handlePolledPolicyControl(tc.input)
+			if err := poller.handlePolledPolicyControl(context.Background(), tc.input); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 
 			select {
 			case updated := <-pollingChan:
@@ -344,11 +311,9 @@ func TestHandlePolledPolicyControl_ExpectNFRegistrationChannelUpdate(t *testing.
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			originalFetchPolicyControlConfig := fetchPolicyControlConfig
 			originalPccPolicies := pccPolicies
 			pccPolicies = make(map[SnssaiKey]*PccPolicy)
 			defer func() {
-				fetchPolicyControlConfig = originalFetchPolicyControlConfig
 				pccPolicies = originalPccPolicies
 			}()
 
@@ -359,7 +324,9 @@ func TestHandlePolledPolicyControl_ExpectNFRegistrationChannelUpdate(t *testing.
 				nfProfileConfigChan:    pollingChan,
 			}
 
-			poller.handlePolledPolicyControl(tc.input)
+			if err := poller.handlePolledPolicyControl(context.Background(), tc.input); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 
 			select {
 			case updated := <-pollingChan:
@@ -439,10 +406,8 @@ func TestHandlePolledPolicyControl_ExpectPccConfigNotToBeUpdated(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			originalFetchPolicyControlConfig := fetchPolicyControlConfig
 			originalPccPolicies := pccPolicies
 			defer func() {
-				fetchPolicyControlConfig = originalFetchPolicyControlConfig
 				pccPolicies = originalPccPolicies
 			}()
 
@@ -463,7 +428,9 @@ func TestHandlePolledPolicyControl_ExpectPccConfigNotToBeUpdated(t *testing.T) {
 				nfProfileConfigChan:  pollingChan,
 			}
 
-			poller.handlePolledPolicyControl(tc.input)
+			if err := poller.handlePolledPolicyControl(context.Background(), tc.input); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 
 			if !reflect.DeepEqual(poller.currentPolicyControl, tc.input) {
 				t.Errorf("expected current policy control config: %+v, got: %+v",
@@ -478,10 +445,8 @@ func TestHandlePolledPolicyControl_ExpectPccConfigNotToBeUpdated(t *testing.T) {
 }
 
 func TestHandlePolledPolicyControl_ExpectPccConfigToBeUpdated(t *testing.T) {
-	originalFetchPolicyControlConfig := fetchPolicyControlConfig
 	originalPccPolicies := pccPolicies
 	defer func() {
-		fetchPolicyControlConfig = originalFetchPolicyControlConfig
 		pccPolicies = originalPccPolicies
 	}()
 	pc1 := []nfConfigApi.PolicyControl{
@@ -586,7 +551,9 @@ func TestHandlePolledPolicyControl_ExpectPccConfigToBeUpdated(t *testing.T) {
 				nfProfileConfigChan:  pollingChan,
 			}
 
-			poller.handlePolledPolicyControl(tc.input)
+			if err := poller.handlePolledPolicyControl(context.Background(), tc.input); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 
 			if !reflect.DeepEqual(poller.currentPolicyControl, tc.input) {
 				t.Errorf("expected current policy control config: %+v, got: %+v",
@@ -605,124 +572,6 @@ func TestHandlePolledPolicyControl_ExpectPccConfigToBeUpdated(t *testing.T) {
 					t.Logf("Failed to marshal actual PccPolicy: %v", err)
 				} else {
 					t.Logf("Actual PccPolicy: %s", actualJSON)
-				}
-			}
-		})
-	}
-}
-
-func TestFetchPlmnConfig(t *testing.T) {
-	validPolicyControl := []nfConfigApi.PolicyControl{
-		{
-			PlmnId:   nfConfigApi.PlmnId{Mcc: "001", Mnc: "01"},
-			Snssai:   nfConfigApi.Snssai{Sst: 1},
-			PccRules: []nfConfigApi.PccRule{},
-		},
-	}
-	validJson, err := json.Marshal(validPolicyControl)
-	if err != nil {
-		t.Fail()
-	}
-
-	tests := []struct {
-		name           string
-		statusCode     int
-		contentType    string
-		responseBody   string
-		expectedError  string
-		expectedResult []nfConfigApi.PolicyControl
-	}{
-		{
-			name:           "200 OK with valid JSON",
-			statusCode:     http.StatusOK,
-			contentType:    applicationJson,
-			responseBody:   string(validJson),
-			expectedError:  "",
-			expectedResult: validPolicyControl,
-		},
-		{
-			name:          "200 OK with invalid Content-Type",
-			statusCode:    http.StatusOK,
-			contentType:   "text/plain",
-			responseBody:  string(validJson),
-			expectedError: "unexpected Content-Type: got text/plain, want application/json",
-		},
-		{
-			name:          "400 Bad Request",
-			statusCode:    http.StatusBadRequest,
-			contentType:   applicationJson,
-			responseBody:  "",
-			expectedError: "server returned 400 error code",
-		},
-		{
-			name:          "500 Internal Server Error",
-			statusCode:    http.StatusInternalServerError,
-			contentType:   applicationJson,
-			responseBody:  "",
-			expectedError: "server returned 500 error code",
-		},
-		{
-			name:          "Unexpected Status Code 418",
-			statusCode:    http.StatusTeapot,
-			contentType:   applicationJson,
-			responseBody:  "",
-			expectedError: "unexpected status code: 418",
-		},
-		{
-			name:          "200 OK with invalid JSON",
-			statusCode:    http.StatusOK,
-			contentType:   applicationJson,
-			responseBody:  "{invalid-json}",
-			expectedError: "failed to parse JSON response:",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			originalPccPolicies := pccPolicies
-			defer func() {
-				pccPolicies = originalPccPolicies
-			}()
-			pccPolicies = make(map[SnssaiKey]*PccPolicy)
-			handler := func(w http.ResponseWriter, r *http.Request) {
-				accept := r.Header.Get("Accept")
-				if accept != applicationJson {
-					t.Fail()
-				}
-				w.Header().Set("Content-Type", tc.contentType)
-				w.WriteHeader(tc.statusCode)
-				_, err = w.Write([]byte(tc.responseBody))
-				if err != nil {
-					t.Fail()
-				}
-			}
-			server := httptest.NewServer(http.HandlerFunc(handler))
-			pollingChan := make(chan consumer.NfProfileDynamicConfig, 1)
-			poller := nfConfigPoller{
-				currentPolicyControl:   []nfConfigApi.PolicyControl{},
-				currentNfProfileConfig: consumer.NfProfileDynamicConfig{},
-				nfProfileConfigChan:    pollingChan,
-				client:                 &http.Client{},
-			}
-			defer server.Close()
-
-			fetchedConfig, err := fetchPolicyControlConfig(&poller, server.URL)
-
-			if tc.expectedError == "" {
-				if err != nil {
-					t.Errorf("expected no error, got `%v`", err)
-				}
-				expectedJSON := marshalJSONForCompare(t, tc.expectedResult)
-				gotJSON := marshalJSONForCompare(t, fetchedConfig)
-				if expectedJSON != gotJSON {
-					t.Errorf("error in fetched config: expected %s, got %s", expectedJSON, gotJSON)
-				}
-			} else {
-				if err == nil {
-					t.Errorf("expected error `%v`, got nil", tc.expectedError)
-				}
-				if !strings.Contains(err.Error(), tc.expectedError) {
-					t.Errorf("expected error `%v`, got `%v`", tc.expectedError, err)
 				}
 			}
 		})

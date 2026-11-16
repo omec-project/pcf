@@ -1,16 +1,18 @@
+// Copyright (C) 2026 Intel Corporation
 // SPDX-FileCopyrightText: 2026 Forsway Scandinavia AB
 // SPDX-License-Identifier: Apache-2.0
 
 package consumer
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/omec-project/openapi/v2/models"
-	pcf_context "github.com/omec-project/pcf/context"
+	pcfContext "github.com/omec-project/pcf/context"
 )
 
 const (
@@ -55,10 +57,15 @@ func peerReturning(t *testing.T, status int, withBody bool) *httptest.Server {
 	// context rather than taking it as an argument, so it is set here - and restored, because
 	// otherwise a later test in this package inherits a URL whose server has already been closed.
 	// Same save-and-restore as TestSendDeregisterNFInstance_AcceptsNoContentOnly.
-	originalNrfURI := pcf_context.PCF_Self().NrfUri
-	pcf_context.PCF_Self().NrfUri = svr.URL
+	originalNrfURI := pcfContext.PCF_Self().NrfUri
+	pcfContext.PCF_Self().NrfUri = svr.URL
+	// Requests about the NF are addressed with its instance ID, which the PCF makes at startup
+	// (util.InitPCFContext) and which these tests do not run.
+	originalNfId := pcfContext.PCF_Self().NfId
+	pcfContext.PCF_Self().NfId = "4947a69a-f61b-4bc1-b9da-47c9c5d14b64"
 	t.Cleanup(func() {
-		pcf_context.PCF_Self().NrfUri = originalNrfURI
+		pcfContext.PCF_Self().NrfUri = originalNrfURI
+		pcfContext.PCF_Self().NfId = originalNfId
 		svr.Close()
 	})
 
@@ -103,7 +110,7 @@ func TestSendUpdateNFInstanceReturnsTheProblemDetails(t *testing.T) {
 
 	// A non-empty patch: the generated client validates the slice before sending, so an empty
 	// one never reaches the peer and the test would assert against a client-side error instead.
-	_, problem, err := SendUpdateNFInstance([]models.PatchItem{{
+	_, problem, err := SendUpdateNFInstance(context.Background(), []models.PatchItem{{
 		Op:    models.PATCHOPERATION_REPLACE,
 		Path:  "/nfStatus",
 		Value: models.NFSTATUS_REGISTERED,
