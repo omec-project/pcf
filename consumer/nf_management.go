@@ -1,20 +1,17 @@
+// Copyright (C) 2026 Intel Corporation
 // SPDX-FileCopyrightText: 2025 Canonical Ltd.
 // SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
 // Copyright 2019 free5GC.org
 // SPDX-License-Identifier: Apache-2.0
-//
 
 package consumer
 
 import (
 	"context"
 	"fmt"
-	"net/http"
-	"strings"
 
-	"github.com/omec-project/openapi/v2"
-	"github.com/omec-project/openapi/v2/Nnrf_NFManagement"
 	"github.com/omec-project/openapi/v2/models"
+	"github.com/omec-project/openapi/v2/nrfclient"
 	pcfContext "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/logger"
 )
@@ -66,230 +63,58 @@ func getNfProfile(pcfContext *pcfContext.PCFContext, nfProfileDynamicConfig NfPr
 	return profile, err
 }
 
-var SendRegisterNFInstance = func(nfProfileDynamicConfig NfProfileDynamicConfig) (prof *models.NFProfile, resourceNrfUri string, err error) {
+func newNrfClient(nrfUri string) *nrfclient.Client {
+	return nrfclient.New(nrfUri, nrfclient.WithLogger(logger.ConsumerLog))
+}
+
+// SendRegisterNFInstance and SendDeregisterNFInstance take the context of the registration service, which holds
+// its registration mutex while they run and cancels the context to end them when a new configuration arrives or
+// the NF terminates.
+var SendRegisterNFInstance = func(ctx context.Context, nfProfileDynamicConfig NfProfileDynamicConfig) (prof *models.NFProfile, resourceNrfUri string, err error) {
 	self := pcfContext.PCF_Self()
 	nfProfile, err := getNfProfile(self, nfProfileDynamicConfig)
 	if err != nil {
 		return models.NewNFProfileWithDefaults(), "", err
 	}
 
-	configuration := Nnrf_NFManagement.NewConfiguration()
-	serverConfig := &configuration.Servers[0]
-	if apiRootVar, exists := serverConfig.Variables["apiRoot"]; exists {
-		apiRootVar.DefaultValue = self.NrfUri
-		serverConfig.Variables["apiRoot"] = apiRootVar
-	}
-	client := Nnrf_NFManagement.NewAPIClient(configuration)
-	apiRegisterNFInstanceRequest := client.NFInstanceIDDocumentAPI.RegisterNFInstance(context.TODO(), nfProfile.GetNfInstanceId())
-	apiRegisterNFInstanceRequest = apiRegisterNFInstanceRequest.NFProfile(nfProfile)
-	receivedNfProfile, res, err := client.NFInstanceIDDocumentAPI.RegisterNFInstanceExecute(apiRegisterNFInstanceRequest)
+	result, err := newNrfClient(self.NrfUri).Register(ctx, nfProfile)
 	if err != nil {
 		return models.NewNFProfileWithDefaults(), "", err
 	}
-	if res == nil {
-		return models.NewNFProfileWithDefaults(), "", fmt.Errorf("no response from server")
-	}
-	defer func() {
-		if res.Body != nil {
-			if closeErr := res.Body.Close(); closeErr != nil {
-				logger.ConsumerLog.Errorf("RegisterNFInstance response body cannot close: %+v", closeErr)
-			}
-		}
-	}()
-
-	switch res.StatusCode {
-	case http.StatusOK: // NFUpdate
-		logger.ConsumerLog.Debugln("PCF NF profile updated with complete replacement")
-		return receivedNfProfile, "", nil
-	case http.StatusCreated: // NFRegister
-		resourceUri := res.Header.Get("Location")
-		resourceNrfUri = resourceUri[:strings.Index(resourceUri, "/nnrf-nfm/")]
-		retrieveNfInstanceId := resourceUri[strings.LastIndex(resourceUri, "/")+1:]
-		self.NfId = retrieveNfInstanceId
+	if result.Created {
 		logger.ConsumerLog.Debugln("PCF NF profile registered to the NRF")
-		return receivedNfProfile, resourceNrfUri, nil
-	default:
-		return receivedNfProfile, "", fmt.Errorf("unexpected status code returned by the NRF %d", res.StatusCode)
+		if result.NfInstanceID != "" {
+			self.NfId = result.NfInstanceID
+		}
+	} else {
+		logger.ConsumerLog.Debugln("PCF NF profile updated with complete replacement")
 	}
+	return result.Profile, result.NrfURI, nil
 }
 
-var SendDeregisterNFInstance = func() error {
+var SendDeregisterNFInstance = func(ctx context.Context) error {
 	logger.ConsumerLog.Infoln("send Deregister NFInstance")
 
 	pcfSelf := pcfContext.PCF_Self()
-	// Set client and set url
-	configuration := Nnrf_NFManagement.NewConfiguration()
-	serverConfig := &configuration.Servers[0]
-	if apiRootVar, exists := serverConfig.Variables["apiRoot"]; exists {
-		apiRootVar.DefaultValue = pcfSelf.NrfUri
-		serverConfig.Variables["apiRoot"] = apiRootVar
-	}
-	client := Nnrf_NFManagement.NewAPIClient(configuration)
-
-	apiDeregisterNFInstanceRequest := client.NFInstanceIDDocumentAPI.DeregisterNFInstance(context.Background(), pcfSelf.NfId)
-	res, err := client.NFInstanceIDDocumentAPI.DeregisterNFInstanceExecute(apiDeregisterNFInstanceRequest)
-	if err != nil {
-		return err
-	}
-	if res == nil {
-		return openapi.ReportError("server no response")
-	}
-	defer func() {
-		if res.Body != nil {
-			if closeErr := res.Body.Close(); closeErr != nil {
-				logger.ConsumerLog.Errorf("DeregisterNFInstance response body cannot close: %+v", closeErr)
-			}
-		}
-	}()
-	if res.StatusCode == http.StatusNoContent {
-		return nil
-	}
-	return openapi.ReportError("unexpected response code %d", res.StatusCode)
+	return newNrfClient(pcfSelf.NrfUri).Deregister(ctx, pcfSelf.NfId)
 }
 
-var SendUpdateNFInstance = func(patchItem []models.PatchItem) (nfProfile *models.NFProfile, problemDetails *models.ProblemDetails, err error) {
+var SendUpdateNFInstance = func(ctx context.Context, patchItem []models.PatchItem) (nfProfile *models.NFProfile, problemDetails *models.ProblemDetails, err error) {
 	logger.ConsumerLog.Debugln("send Update NFInstance")
 
 	pcfSelf := pcfContext.PCF_Self()
-	configuration := Nnrf_NFManagement.NewConfiguration()
-	serverConfig := &configuration.Servers[0]
-	if apiRootVar, exists := serverConfig.Variables["apiRoot"]; exists {
-		apiRootVar.DefaultValue = pcfSelf.NrfUri
-		serverConfig.Variables["apiRoot"] = apiRootVar
-	}
-	client := Nnrf_NFManagement.NewAPIClient(configuration)
-
-	var res *http.Response
-	apiUpdateNFInstanceRequest := client.NFInstanceIDDocumentAPI.UpdateNFInstance(context.Background(), pcfSelf.NfId)
-	apiUpdateNFInstanceRequest = apiUpdateNFInstanceRequest.PatchItem(patchItem)
-	nfProfile, res, err = client.NFInstanceIDDocumentAPI.UpdateNFInstanceExecute(apiUpdateNFInstanceRequest)
-	if res != nil {
-		defer func() {
-			if res.Body != nil {
-				if resCloseErr := res.Body.Close(); resCloseErr != nil {
-					logger.ConsumerLog.Errorf("UpdateNFInstance response cannot close: %+v", resCloseErr)
-				}
-			}
-		}()
-	}
-
-	if err == nil {
-		return nfProfile, nil, nil
-	}
-
-	if res != nil {
-		// Logged for every error response now, not only for the ones the removed guard let
-		// through. Warn rather than Error: the caller owns the report, and it already logs the
-		// problem details it is handed - the subscription path at error level in nf_discovery, the heartbeat at
-		// warn level in nfregistration - so Error here duplicated the caller's line and, for the
-		// heartbeat, was louder than the caller that decides what to do about it.
-		logger.ConsumerLog.Warnf("UpdateNFInstance received error response: %v", res.Status)
-		// ErrorModel accepts the model whether the client stored it by value or by pointer. The
-		// hand-rolled assertion this replaces asked for the value type, and the client returns
-		// *GenericOpenAPIError, so it could never succeed.
-		if problem, ok := openapi.ErrorModel[models.ProblemDetails](err); ok {
-			return nil, &problem, err
-		}
-		return nil, nil, err
-	}
-
-	// Server no response case
-	err = openapi.ReportError("server no response")
-	return nil, nil, err
+	return newNrfClient(pcfSelf.NrfUri).Update(ctx, pcfSelf.NfId, patchItem)
 }
 
 func SendCreateSubscription(nrfUri string, nrfSubscriptionData models.SubscriptionData) (nrfSubData *models.SubscriptionData, problemDetails *models.ProblemDetails, err error) {
 	logger.ConsumerLog.Debugln("send Create Subscription")
 
-	// Set client and set url
-	configuration := Nnrf_NFManagement.NewConfiguration()
-	serverConfig := &configuration.Servers[0]
-	if apiRootVar, exists := serverConfig.Variables["apiRoot"]; exists {
-		apiRootVar.DefaultValue = nrfUri
-		serverConfig.Variables["apiRoot"] = apiRootVar
-	}
-	client := Nnrf_NFManagement.NewAPIClient(configuration)
-
-	var res *http.Response
-	apiCreateSubscriptionRequest := client.SubscriptionsCollectionAPI.CreateSubscription(context.TODO())
-	apiCreateSubscriptionRequest = apiCreateSubscriptionRequest.SubscriptionData(nrfSubscriptionData)
-	nrfSubData, res, err = client.SubscriptionsCollectionAPI.CreateSubscriptionExecute(apiCreateSubscriptionRequest)
-	if res != nil {
-		defer func() {
-			if res.Body != nil {
-				if resCloseErr := res.Body.Close(); resCloseErr != nil {
-					logger.ConsumerLog.Errorf("SendCreateSubscription response cannot close: %+v", resCloseErr)
-				}
-			}
-		}()
-	}
-
-	if err == nil {
-		return nrfSubData, nil, nil
-	}
-
-	if res != nil {
-		// Logged for every error response now, not only for the ones the removed guard let
-		// through. Warn rather than Error: the caller owns the report, and it already logs the
-		// problem details it is handed - SendCreateSubscription at error level in nf_discovery, the heartbeat at
-		// warn level in nfregistration - so Error here duplicated the caller's line and, for the
-		// heartbeat, was louder than the caller that decides what to do about it.
-		logger.ConsumerLog.Warnf("SendCreateSubscription received error response: %v", res.Status)
-		// ErrorModel accepts the model whether the client stored it by value or by pointer. The
-		// hand-rolled assertion this replaces asked for the value type, and the client returns
-		// *GenericOpenAPIError, so it could never succeed.
-		if problem, ok := openapi.ErrorModel[models.ProblemDetails](err); ok {
-			return nil, &problem, err
-		}
-		return nil, nil, err
-	}
-
-	// Server no response case
-	err = openapi.ReportError("server no response")
-	return nil, nil, err
+	return newNrfClient(nrfUri).CreateSubscription(context.TODO(), nrfSubscriptionData)
 }
 
 func SendRemoveSubscription(subscriptionId string) (problemDetails *models.ProblemDetails, err error) {
 	logger.ConsumerLog.Infoln("send Remove Subscription")
 
 	pcfSelf := pcfContext.PCF_Self()
-	// Set client and set url
-	configuration := Nnrf_NFManagement.NewConfiguration()
-	serverConfig := &configuration.Servers[0]
-	if apiRootVar, exists := serverConfig.Variables["apiRoot"]; exists {
-		apiRootVar.DefaultValue = pcfSelf.NrfUri
-		serverConfig.Variables["apiRoot"] = apiRootVar
-	}
-	client := Nnrf_NFManagement.NewAPIClient(configuration)
-	var res *http.Response
-
-	apiRemoveSubscriptionRequest := client.SubscriptionIDDocumentAPI.RemoveSubscription(context.Background(), subscriptionId)
-	res, err = client.SubscriptionIDDocumentAPI.RemoveSubscriptionExecute(apiRemoveSubscriptionRequest)
-	if res != nil {
-		defer func() {
-			if res.Body != nil {
-				if bodyCloseErr := res.Body.Close(); bodyCloseErr != nil {
-					logger.ConsumerLog.Errorf("RemoveSubscription response body cannot close: %+v", bodyCloseErr)
-				}
-			}
-		}()
-	}
-
-	if err == nil {
-		return nil, nil
-	}
-
-	if res != nil {
-		// ErrorModel accepts the model whether the client stored it by value or by pointer. The
-		// hand-rolled assertion this replaces asked for the value type, and the client returns
-		// *GenericOpenAPIError, so it could never succeed.
-		if problem, ok := openapi.ErrorModel[models.ProblemDetails](err); ok {
-			return &problem, err
-		}
-		return nil, err
-	}
-
-	// Server no response case
-	err = openapi.ReportError("server no response")
-	return nil, err
+	return newNrfClient(pcfSelf.NrfUri).RemoveSubscription(context.Background(), subscriptionId)
 }

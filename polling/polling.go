@@ -1,127 +1,72 @@
+// Copyright (C) 2026 Intel Corporation
 // SPDX-FileCopyrightText: 2025 Canonical Ltd
-
 // SPDX-License-Identifier: Apache-2.0
-//
 
 package polling
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
 	"reflect"
-	"strings"
 	"time"
 
 	"github.com/omec-project/openapi/v2/models"
 	"github.com/omec-project/openapi/v2/nfConfigApi"
+	"github.com/omec-project/openapi/v2/nfconfigpoll"
 	"github.com/omec-project/pcf/consumer"
 	"github.com/omec-project/pcf/logger"
 )
 
 const (
 	initialPollingInterval = 5 * time.Second
-	pollingMaxBackoff      = 40 * time.Second
-	pollingBackoffFactor   = 2
 	pollingPath            = "/nfconfig/policy-control"
 )
 
+// nfConfigPoller holds the PCF specific state of the policy control handling. The polling loop,
+// fetching and the dedupe of the whole policy list are done by nfconfigpoll.
 type nfConfigPoller struct {
 	nfProfileConfigChan    chan<- consumer.NfProfileDynamicConfig
 	currentPolicyControl   []nfConfigApi.PolicyControl
 	currentNfProfileConfig consumer.NfProfileDynamicConfig
-	client                 *http.Client
 }
 
 // StartPollingService initializes the polling service and starts it. The polling service
 // continuously makes a HTTP GET request to the webconsole and updates the network configuration
 func StartPollingService(ctx context.Context, webuiUri string, nfProfileConfigChan chan<- consumer.NfProfileDynamicConfig) {
-	poller := nfConfigPoller{
+	poller, err := newPoller(webuiUri, nfProfileConfigChan, initialPollingInterval)
+	if err != nil {
+		logger.PollConfigLog.Errorf("failed to start polling service: %v", err)
+		return
+	}
+	poller.Run(ctx)
+}
+
+func newPoller(webuiUri string, nfProfileConfigChan chan<- consumer.NfProfileDynamicConfig, interval time.Duration) (*nfconfigpoll.Poller[[]nfConfigApi.PolicyControl], error) {
+	handler := &nfConfigPoller{
 		nfProfileConfigChan:    nfProfileConfigChan,
 		currentPolicyControl:   []nfConfigApi.PolicyControl{},
 		currentNfProfileConfig: consumer.NfProfileDynamicConfig{},
-		client:                 &http.Client{Timeout: initialPollingInterval},
 	}
-	interval := initialPollingInterval
-	pollingEndpoint := webuiUri + pollingPath
-	logger.PollConfigLog.Infof("started polling service on %s every %v", pollingEndpoint, initialPollingInterval)
-	for {
-		select {
-		case <-ctx.Done():
-			logger.PollConfigLog.Infoln("polling service shutting down")
-			return
-		case <-pollingIntervalAfter(interval):
-			newConfig, err := fetchPolicyControlConfig(&poller, pollingEndpoint)
-			if err != nil {
-				interval = min(interval*time.Duration(pollingBackoffFactor), pollingMaxBackoff)
-				logger.PollConfigLog.Errorf("polling error. Retrying in %v: %+v", interval, err)
-				continue
-			}
-			interval = initialPollingInterval
-			poller.handlePolledPolicyControl(newConfig)
-		}
-	}
+	return nfconfigpoll.New(nfconfigpoll.Config[[]nfConfigApi.PolicyControl]{
+		Name:     "policy control",
+		Endpoint: webuiUri + pollingPath,
+		Log:      logger.PollConfigLog,
+		Interval: interval,
+		Initial:  []nfConfigApi.PolicyControl{},
+		OnChange: handler.handlePolledPolicyControl,
+	})
 }
 
-var fetchPolicyControlConfig = func(p *nfConfigPoller, endpoint string) ([]nfConfigApi.PolicyControl, error) {
-	return p.fetchPolicyControlConfig(endpoint)
-}
-
-var pollingIntervalAfter = time.After
-
-func (p *nfConfigPoller) fetchPolicyControlConfig(pollingEndpoint string) ([]nfConfigApi.PolicyControl, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), initialPollingInterval)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pollingEndpoint, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
-	}
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := p.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("HTTP GET %v failed: %w", pollingEndpoint, err)
-	}
-	defer resp.Body.Close()
-
-	contentType := resp.Header.Get("Content-Type")
-	if !strings.Contains(contentType, "application/json") {
-		return nil, fmt.Errorf("unexpected Content-Type: got %s, want application/json", contentType)
-	}
-
-	switch resp.StatusCode {
-	case http.StatusOK:
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read response body: %w", err)
-		}
-
-		var config []nfConfigApi.PolicyControl
-		if err := json.Unmarshal(body, &config); err != nil {
-			return nil, fmt.Errorf("failed to parse JSON response: %w", err)
-		}
-		return config, nil
-
-	case http.StatusBadRequest, http.StatusInternalServerError:
-		return nil, fmt.Errorf("server returned %d error code", resp.StatusCode)
-	default:
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-	}
-}
-
-func (p *nfConfigPoller) handlePolledPolicyControl(newPolicyControlConfig []nfConfigApi.PolicyControl) {
-	if reflect.DeepEqual(p.currentPolicyControl, newPolicyControlConfig) {
-		logger.PollConfigLog.Debugf("policy control config did not change %+v", p.currentPolicyControl)
-		return
-	}
+// handlePolledPolicyControl applies a policy control config that differs from the previous one. It
+// returns an error, so that the config is delivered again on the next poll, only if the NF profile
+// config could not be delivered; nothing is recorded as applied in that case.
+func (p *nfConfigPoller) handlePolledPolicyControl(ctx context.Context, newPolicyControlConfig []nfConfigApi.PolicyControl) error {
 	newNfProfileDynamicConfig := extractNfProfileDynamicConfig(newPolicyControlConfig)
 	if !reflect.DeepEqual(p.currentNfProfileConfig, newNfProfileDynamicConfig) {
 		logger.PollConfigLog.Debugf("NF profile config changed %+v. Updating NF registration", newNfProfileDynamicConfig)
+		if err := nfconfigpoll.Send(ctx, p.nfProfileConfigChan, newNfProfileDynamicConfig); err != nil {
+			return err
+		}
 		p.currentNfProfileConfig = newNfProfileDynamicConfig
-		p.nfProfileConfigChan <- p.currentNfProfileConfig
 	}
 	if havePccRulesChanged(p.currentPolicyControl, newPolicyControlConfig) {
 		updatePccPolicy(newPolicyControlConfig)
@@ -131,7 +76,7 @@ func (p *nfConfigPoller) handlePolledPolicyControl(newPolicyControlConfig []nfCo
 		notifyPolicyControlChanged()
 	}
 	p.currentPolicyControl = newPolicyControlConfig
-	logger.PollConfigLog.Infof("policy control config changed. New Policy control config: %+v", p.currentPolicyControl)
+	return nil
 }
 
 func extractNfProfileDynamicConfig(policyConfig []nfConfigApi.PolicyControl) consumer.NfProfileDynamicConfig {
